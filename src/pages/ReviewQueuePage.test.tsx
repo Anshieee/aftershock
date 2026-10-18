@@ -40,8 +40,11 @@ const DECISION_OK = {
   explanation: 'The Mehra support is retracted; reword before relying on it.',
   reviewer: 'A. Reviewer',
   decidedAt: '2026-10-19T10:00:00.000Z',
-  beforeState: 'unreviewed',
-  afterState: 'review_recorded',
+  // Real server returns JSON.stringify({reviewState, flags}) — a JSON string,
+  // not a bare state name. The dialog renders {decided.beforeState} directly,
+  // so the fixture must carry a JSON string to test that rendering honestly.
+  beforeState: JSON.stringify({ reviewState: 'unreviewed', flags: [] }),
+  afterState: JSON.stringify({ reviewState: 'review_recorded', flags: ['revision_pending'] }),
 };
 
 const PROPOSAL_OK = {
@@ -164,6 +167,14 @@ describe('ReviewQueuePage — derives real flagged items from the graph', () => 
     expect(item.className).toContain('bg-reviewed-surface');
     expect(screen.getByTestId('review-item-claim-A-decision').textContent).toContain(
       'revision_needed',
+    );
+    // The done panel renders the JSON-string beforeState/afterState honestly
+    // (real server shape), not bare state names.
+    expect(screen.getByTestId('review-decision-done').textContent).toContain(
+      'review_recorded',
+    );
+    expect(screen.getByTestId('review-decision-done').textContent).toContain(
+      'revision_pending',
     );
   });
 

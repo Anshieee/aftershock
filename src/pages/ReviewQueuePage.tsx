@@ -416,8 +416,10 @@ export default function ReviewQueuePage() {
 
           <p className="text-sm text-ink-muted">
             Counts describe exactly the returned window (limit 200), not the whole graph.
-            This queue lists flagged passages derived from the graph — human review cases
-            (ReviewDecision records) do not exist in this build, and none are invented here.{' '}
+            Human decisions can now be recorded for each flagged case through the review
+            API this session (ReviewDecision records). Decisions are session-scoped: the
+            disposable free-tier graph does not durably guarantee them, and none are
+            invented here.{' '}
             <Link to="/results" className="text-brand-deep underline">
               See the full guided results
             </Link>
