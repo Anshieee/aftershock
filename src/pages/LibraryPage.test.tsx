@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import LibraryPage from './LibraryPage';
 import { stubFetchByRoute } from '../test/mockFetch';
 
@@ -24,7 +25,11 @@ function stubDocuments(body: unknown, status = 200) {
 describe('LibraryPage — real document list', () => {
   it('lists real documents with the demo-manuscript Analyze action enabled', async () => {
     stubDocuments({ documents: [demoDocument] });
-    render(<LibraryPage />);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
 
     const list = await waitFor(() => screen.getByTestId('library-list'));
     expect(list.textContent).toContain('Data-Integrity Consequences in Respiratory Infection Care');
@@ -47,7 +52,11 @@ describe('LibraryPage — real document list', () => {
         },
       ],
     });
-    render(<LibraryPage />);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
 
     const row = await waitFor(() => screen.getByTestId('library-doc-doc-user-upload'));
     expect(row.textContent).toContain('The text content of this document is not stored in this demo build.');
@@ -57,7 +66,11 @@ describe('LibraryPage — real document list', () => {
 
   it('keeps the honest empty state for an empty list', async () => {
     stubDocuments({ documents: [] });
-    render(<LibraryPage />);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
 
     await waitFor(() => expect(screen.getByTestId('library-empty')).toBeTruthy());
     expect(screen.getByText(/No documents exist yet/)).toBeTruthy();
@@ -66,7 +79,11 @@ describe('LibraryPage — real document list', () => {
 
   it('never shows the empty state when the endpoint is unavailable — unavailable is not empty', async () => {
     stubDocuments({ error: 'not found' }, 404);
-    render(<LibraryPage />);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
 
     await waitFor(() => expect(screen.getByTestId('library-unavailable')).toBeTruthy());
     expect(screen.getByTestId('library-unavailable').textContent).toContain('Nothing is simulated');
@@ -76,7 +93,11 @@ describe('LibraryPage — real document list', () => {
 
   it('shows an honest failure state when the list read fails — no placeholder rows', async () => {
     stubDocuments({ error: 'graph down' }, 500);
-    render(<LibraryPage />);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
 
     await waitFor(() =>
       expect(screen.getByTestId('library-failed').textContent).toMatch(/HTTP 500/),
@@ -93,7 +114,11 @@ describe('LibraryPage — analyze the demo manuscript', () => {
       if (url === '/.netlify/functions/analyze') return { status: 200, body: { runId: 'run-42' } };
       return undefined;
     });
-    render(<LibraryPage />);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
 
     fireEvent.click(
       await waitFor(() => {
@@ -129,7 +154,11 @@ describe('LibraryPage — analyze the demo manuscript', () => {
       }
       return undefined;
     });
-    render(<LibraryPage />);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
 
     fireEvent.click(await waitFor(() => screen.getByTestId('analyze-doc-demo-manuscript')));
     await waitFor(() =>
@@ -145,7 +174,11 @@ describe('LibraryPage — analyze the demo manuscript', () => {
       if (url === '/.netlify/functions/analyze') return { status: 503 };
       return undefined;
     });
-    render(<LibraryPage />);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
 
     fireEvent.click(await waitFor(() => screen.getByTestId('analyze-doc-demo-manuscript')));
     await waitFor(() =>
