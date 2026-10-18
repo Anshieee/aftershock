@@ -73,9 +73,19 @@ Every material edge carries: `id`, `provenanceKind` (observed|source_verified|hu
 
 Base: `/.netlify/functions/*` (or Functions v2 routes). All JSON. Server-side only for graph access.
 
+**Canonical path convention (production-verified 2026-10-18):** routes are the **dash-named function
+filenames** (`graph-probe`, `demo-seed`, `graph-edges`, `documents`, …). Netlify resolves
+`/.netlify/functions/<first-path-segment>/…` by function name and user rewrites CANNOT intercept
+inside that reserved namespace — subpath spellings like `/graph/probe` fall through to the SPA
+fallback and serve HTML. Client (`src/lib/api.ts`) and handlers must agree on dash paths; a unit
+drift-guard test cross-checks client routes against function filenames. Endpoints not yet
+implemented are served by `unimplemented` (HTTP 501 `{reason:'not-implemented'}`) addressed via
+query params (e.g. `/unimplemented?for=document&id=…`), never by fabricated data.
+
 - `GET /health` — liveness + graph connectivity probe (no secrets).
 - `POST /seed` — idempotent synthetic fixture seeding. Guarded by server secret + rate limit + method guard.
-- `GET /graph/probe` — verify graph exists/records (read-only).
+- `POST /demo-seed` — public, bodyless, rate-limited guided-example seeding of the demo graph (idempotent; same seed engine; returns `{seeded, alreadySeeded, seedVersion}`).
+- `GET /graph-probe` — verify graph exists/records (read-only).
 - `POST /import` — accept document upload (bounded size/format). Returns `{ documentId, versionId }`.
 - `POST /analyze` — start analysis job. Body `{ documentVersionId }`. Returns `{ runId }`.
 - `GET /analyze/:runId/status` — poll status/stage.

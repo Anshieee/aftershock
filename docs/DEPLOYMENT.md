@@ -22,6 +22,11 @@ function runtime. Operational notes from that debugging session:
   non-secret copies.
 - `/.netlify/functions/envcheck` is a temporary, public, names-only diagnostic; gate or remove it at M2+
   (tracked in BUILD_STATUS).
+- **Functions routing (verified 2026-10-18):** canonical client routes are the dash-named function
+  paths (`/graph-probe`, `/demo-seed`, `/graph-edges`, `/documents`, …). Netlify cannot intercept
+  inside the reserved `/.netlify/functions/*` namespace — rewrites from subpath spellings do not
+  apply (they shade to the SPA fallback's HTML). netlify.toml therefore carries no in-namespace
+  rewrites; a unit drift-guard test keeps client routes and function filenames in lockstep.
 The `FALKORDB_*` names match the local convention in `scripts/check.mjs` / `.env.example`; `FALKORDB_GRAPH_NAME` (`aftershock:demo`, ADR 0001) and `SEED_SECRET` are consumed by the M2 graph/seed path. The browser bundle must never contain DB credentials.
 
 ## CI
