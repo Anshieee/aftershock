@@ -74,7 +74,7 @@ export default function KnowledgeGraphPage() {
   const nodes: GraphNode[] = overview?.nodes ?? [];
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-7xl overflow-x-hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="font-display text-3xl text-ink">Knowledge Graph</h1>
         {overview && (

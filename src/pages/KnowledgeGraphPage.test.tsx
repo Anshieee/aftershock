@@ -82,6 +82,34 @@ describe('KnowledgeGraphPage — renders exactly the records the API returned', 
     expect(inspector.textContent).toContain('CONCLUSION_DEPENDS_ON_CLAIM');
   });
 
+  it('Escape clears the selection and removes the inspector', async () => {
+    stubFetchByRoute((url) =>
+      url.includes('graph-edges') ? { status: 200, body: buildDemoOverviewRecord() } : undefined,
+    );
+    renderGraph();
+    await screen.findByTestId('graph-node-claim-A');
+
+    fireEvent.click(screen.getByTestId('graph-node-claim-A'));
+    await screen.findByTestId('context-inspector');
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByTestId('context-inspector')).toBeNull());
+  });
+
+  it('the inspector Close button clears the selection', async () => {
+    stubFetchByRoute((url) =>
+      url.includes('graph-edges') ? { status: 200, body: buildDemoOverviewRecord() } : undefined,
+    );
+    renderGraph();
+    await screen.findByTestId('graph-node-claim-A');
+
+    fireEvent.click(screen.getByTestId('graph-node-claim-A'));
+    await screen.findByTestId('context-inspector');
+
+    fireEvent.click(screen.getByTestId('inspector-close'));
+    await waitFor(() => expect(screen.queryByTestId('context-inspector')).toBeNull());
+  });
+
   it('a 404 graph API shows an honest missing state — zero decorative fake nodes', async () => {
     stubFetchByRoute(() => ({ status: 404 }));
     renderGraph();

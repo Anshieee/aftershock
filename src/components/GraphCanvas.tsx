@@ -85,7 +85,13 @@ function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
-function nodeLabel(node: GraphNode): string {
+function truncateMiddle(value: string, max: number): string {
+  if (value.length <= max) return value;
+  const side = Math.max(1, Math.floor((max - 1) / 2));
+  return `${value.slice(0, side)}…${value.slice(value.length - side)}`;
+}
+
+export function nodePrimaryLabel(node: GraphNode): string {
   const candidates = ['title', 'text', 'rawText', 'label', 'id'];
   for (const key of candidates) {
     const value = node.properties[key];
@@ -93,6 +99,9 @@ function nodeLabel(node: GraphNode): string {
   }
   return node.id;
 }
+
+/** Backwards-compatible alias used elsewhere. */
+export const nodeLabel = nodePrimaryLabel;
 
 function nodeStrokeClass(node: GraphNode, selected: boolean): string {
   if (selected) return 'stroke-brand-deep';
@@ -164,15 +173,16 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
   const styleClasses = new Set(edges.map((edge) => edgeStyleFor(edge)));
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-ink-border bg-paper p-3">
+    <div className="max-w-full overflow-x-auto rounded-lg border border-ink-border bg-paper p-3 min-h-[280px] md:min-h-[420px]">
       <svg
         role="group"
         aria-label="Layered graph layout. Interactive records; a complete text list follows below."
         data-testid="graph-canvas"
-        width={layout.width}
-        height={layout.height}
         viewBox={`0 0 ${layout.width} ${layout.height}`}
-        className="min-w-full"
+        preserveAspectRatio="xMidYMin meet"
+        width="100%"
+        height="auto"
+        className="max-w-full h-auto"
       >
         <defs>
           {STYLE_ORDER.filter((style) => styleClasses.has(style)).map((style) => (
@@ -227,9 +237,19 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
               if (!pos) return null;
               const selected = selectedId === node.id;
               const isSynthetic = node.isSynthetic === true;
+              const hasTitleField = ['title', 'text', 'rawText', 'label'].some(
+                (k) => typeof node.properties[k] === 'string' && (node.properties[k] as string).length > 0,
+              );
+              const rawLabel = nodePrimaryLabel(node);
+              const displayLabel = hasTitleField
+                ? truncate(rawLabel, 20)
+                : truncateMiddle(rawLabel, 18);
+              const firstNodeId = layout.layers[0]?.[0]?.id;
+              const tabIndex =
+                selected || (selectedId === null && node.id === firstNodeId) ? 0 : -1;
               const interactive = {
                 role: 'button' as const,
-                tabIndex: 0,
+                tabIndex,
                 'aria-pressed': selected,
                 'aria-label': `${node.kind}: ${node.id}`,
                 onClick: () => onSelect(node),
@@ -246,23 +266,37 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
                   transform={`translate(${pos.x}, ${pos.y})`}
                   className="cursor-pointer focus-visible:outline-2 focus-visible:outline-brand"
                   data-testid={`graph-node-${node.id}`}
+                  data-selected={selected}
                   {...interactive}
                 >
-                  <title>{`${node.kind}: ${nodeLabel(node)}`}</title>
+                  <title>{`${node.kind}: ${rawLabel}`}</title>
                   <rect
                     width={NODE_W}
                     height={NODE_H}
                     rx="8"
                     ry="8"
-                    strokeWidth={selected ? 2.5 : 1.5}
+                    strokeWidth={selected ? 3 : 1.5}
                     strokeDasharray={isSynthetic ? '4 3' : undefined}
-                    className={`${nodeStrokeClass(node, selected)} fill-paper-raised`}
+                    className={`${nodeStrokeClass(node, selected)} ${selected ? 'fill-brand-surface' : 'fill-paper-raised'}`}
                   />
+                  {selected && (
+                    <rect
+                      x="-3"
+                      y="-3"
+                      width={NODE_W + 6}
+                      height={NODE_H + 6}
+                      rx="10"
+                      ry="10"
+                      className="fill-none stroke-brand"
+                      strokeWidth="1.5"
+                      pointerEvents="none"
+                    />
+                  )}
                   <text x={NODE_W / 2} y={15} textAnchor="middle" className="fill-ink-muted" fontSize="9">
                     {truncate(node.kind, 24)}
                   </text>
-                  <text x={NODE_W / 2} y={30} textAnchor="middle" className="fill-ink" fontSize="11">
-                    {truncate(nodeLabel(node), 20)}
+                  <text x={NODE_W / 2} y={30} textAnchor="middle" className="fill-ink" fontSize="11" fontWeight={selected ? 600 : 400}>
+                    {displayLabel}
                   </text>
                 </g>
               );
@@ -287,7 +321,7 @@ export function GraphLegend(): ReactNode {
       className="rounded-lg border border-ink-border bg-paper-raised px-3 py-2 text-xs leading-5 text-ink-muted"
     >
       <p className="mb-1 font-semibold uppercase tracking-wide text-[10px] text-ink">Legend</p>
-      <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+      <ul className="grid gap-x-3 gap-y-1 sm:grid-cols-2">
         {STYLE_ORDER.map((style) => (
           <li key={style} className="flex items-center gap-2">
             <svg aria-hidden="true" width="28" height="10" viewBox="0 0 28 10">
@@ -316,7 +350,7 @@ export function GraphLegend(): ReactNode {
       <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-ink">
         Node outlines
       </p>
-      <ul className="mt-1 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+      <ul className="mt-1 grid gap-x-3 gap-y-1 sm:grid-cols-2">
         <li className="flex items-center gap-2">
           <svg aria-hidden="true" width="28" height="12" viewBox="0 0 28 12">
             <rect
@@ -363,7 +397,7 @@ export interface RecordsListProps {
 }
 
 function nodeSublabel(node: GraphNode): string {
-  return nodeLabel(node);
+  return nodePrimaryLabel(node);
 }
 
 /**
