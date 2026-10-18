@@ -24,6 +24,7 @@ import {
   NODE_LABELS,
   PROVENANCE_KINDS,
   REAL_RECORD,
+  SEED_ANALYSIS_VERSION,
 } from './contract.mjs';
 import { getSeedStatus } from './impact.mjs';
 
@@ -64,9 +65,7 @@ export function defaultFixture() {
  */
 export function buildSeedPlan(fixture, { now = new Date() } = {}) {
   assertObject(fixture, 'fixture');
-  const fixtureVersion = typeof fixture.fixtureVersion === 'string' && fixture.fixtureVersion !== ''
-    ? fixture.fixtureVersion
-    : 'seed-1';
+  const fixtureVersion = resolveFixtureVersion(fixture);
   const fixtureLabelCsv = /** @type {string} */ (fixture.syntheticLabel);
   const nowIso = isoNow(now);
 
@@ -284,6 +283,14 @@ export async function seedGraph(session, fixture = defaultFixture(), options = {
     );
   }
 
+  // Stale SeedMeta rows are removed separately in the finalize step (NOT in the
+  // scrub pass above): the scrub pass must stay limited to `seeded = true` so the
+  // fixture `expected.nodes` accounting remains valid, and the previous meta node
+  // (written without the seeded flag) is exactly what a drift-reseed would
+  // otherwise duplicate (PR #2 review: SeedMeta count grew 1→2 per reseed, and
+  // readSeedMeta then picked an ambiguous data[0]).
+  await session.writeQuery('MATCH (m:SeedMeta) DETACH DELETE m', {}, { timeoutMs: 60_000 });
+
   // Seed metadata written last: a failed reseed never advertises the fixture version.
   await session.writeQuery('CREATE (m:SeedMeta) SET m = $meta', { meta: { ...plan.metaNode, seededAt } }, { timeoutMs: 60_000 });
 
@@ -329,6 +336,19 @@ async function seededCountsMatch(session, expected) {
   const nodes = Number(nodeRes.data?.[0]?.c ?? 0);
   const edges = Number(edgeRes.data?.[0]?.c ?? 0);
   return nodes === expected.nodes && edges === expected.edges;
+}
+
+/**
+ * The effective fixture version (`fixtureVersion`, or the `'seed-1'` contract
+ * default when absent/empty) — one shared default so the seed plan, seed
+ * status and idempotency checks never compare against different bases.
+ * @param {Record<string, unknown>} fixture
+ * @returns {string}
+ */
+export function resolveFixtureVersion(fixture) {
+  return typeof fixture?.fixtureVersion === 'string' && fixture.fixtureVersion !== ''
+    ? fixture.fixtureVersion
+    : SEED_ANALYSIS_VERSION;
 }
 
 /**

@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { FIXTURE_IDS } from '../../contract.mjs';
-import { defaultFixture, buildSeedPlan, expectedCountsFor } from '../../seed.mjs';
+import { FIXTURE_IDS, SEED_ANALYSIS_VERSION } from '../../contract.mjs';
+import { defaultFixture, buildSeedPlan, expectedCountsFor, resolveFixtureVersion } from '../../seed.mjs';
 
 const fixture = defaultFixture();
 const plan = buildSeedPlan(fixture, { now: new Date('2026-10-18T00:00:00.000Z') });
@@ -91,5 +91,22 @@ describe('buildSeedPlan — determinism', () => {
     const dated = buildSeedPlan(fixture, { now: new Date('2026-01-02T03:04:05.000Z') });
     expect(dated.metaNode.createdAt).toBe('2026-01-02T03:04:05.000Z');
     expect(dated.metaNode.updatedAt).toBe('2026-01-02T03:04:05.000Z');
+  });
+});
+
+describe('resolveFixtureVersion — single shared default ("seed-1")', () => {
+  it('passes through a declared fixtureVersion', () => {
+    expect(resolveFixtureVersion({ fixtureVersion: 'seed-999' })).toBe('seed-999');
+  });
+
+  it('defaults absent or empty fixtureVersion to the contract analysis version', () => {
+    expect(resolveFixtureVersion({})).toBe(SEED_ANALYSIS_VERSION);
+    expect(resolveFixtureVersion({ fixtureVersion: '' })).toBe(SEED_ANALYSIS_VERSION);
+    expect(resolveFixtureVersion(null)).toBe(SEED_ANALYSIS_VERSION);
+  });
+
+  it('matches the shipped fixture so impact status compares against the same base it seeds with', () => {
+    expect(resolveFixtureVersion(fixture)).toBe(plan.metaNode.seedVersion);
+    expect(resolveFixtureVersion(fixture)).toBe('seed-1');
   });
 });
