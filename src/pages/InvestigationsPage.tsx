@@ -281,7 +281,7 @@ export default function InvestigationsPage() {
                 className="rounded-lg border border-ink-border bg-paper-raised p-6"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold text-ink">
+                  <h2 className="font-display text-xl font-semibold text-ink">
                     {card.title ?? 'Untitled document (title not recorded in the returned graph)'}
                   </h2>
                   {card.isSynthetic && (
@@ -328,11 +328,11 @@ export default function InvestigationsPage() {
                     to="/results"
                     className="rounded bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
                   >
-                    Open guided results
+                    Open investigation
                   </Link>
                   <Link
                     to="/review-queue"
-                    className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
+                    className="px-2 py-2 text-sm text-ink-muted no-underline hover:text-ink"
                   >
                     Review Queue
                   </Link>

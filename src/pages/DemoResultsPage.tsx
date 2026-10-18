@@ -180,10 +180,42 @@ export default function DemoResultsPage() {
 
       {graph.phase === 'ready' && impact && (
         <div className="mt-6 space-y-6">
-          <section aria-labelledby="results-notices" className="rounded-lg border border-ink-border bg-paper-raised p-6">
-            <h2 id="results-notices" className="text-lg font-semibold text-ink">
-              Verified source notices ({impact.verifiedNotices.length})
+          {/* Investigation summary header */}
+          <section
+            aria-labelledby="results-summary-heading"
+            data-testid="investigation-summary"
+            className="rounded-lg border border-ink-border bg-paper-raised p-6"
+          >
+            <h2 id="results-summary-heading" className="text-lg font-semibold text-ink">
+              Investigation summary
             </h2>
+            <p className="mt-2 text-base text-ink" data-testid="manuscript-title">
+              <span className="font-medium">Manuscript:</span>{' '}
+              {impact.manuscriptTitle ?? 'Title not recorded in the returned graph'}
+            </p>
+            <p className="mt-1 text-sm text-ink-muted" data-testid="what-was-checked">
+              What was checked: whether a verified retraction of the cited publication
+              (Mehra et al., 2020) affects the supporting citation uses in this
+              manuscript; historical mentions and unresolved references are reported
+              separately and do not propagate into claim impact.
+            </p>
+          </section>
+
+          {/* (a) Verified retraction notice */}
+          <section
+            aria-labelledby="results-notices"
+            data-testid="results-notices"
+            className="rounded-lg border border-ink-border bg-paper-raised p-6"
+          >
+            <div data-testid="results-verified-notice">
+              <h2 id="results-notices" className="text-lg font-semibold text-ink">
+                Verified retraction notice ({impact.verifiedNotices.length})
+              </h2>
+              <p className="mt-1 text-xs text-ink-muted">
+                Real public record. A notice is a formal status change, not a judgement
+                on any citing document.
+              </p>
+            </div>
             {impact.verifiedNotices.length === 0 ? (
               <p className="mt-2 text-base text-ink-muted">
                 None recorded in the returned graph. “No notice found” never implies
@@ -192,92 +224,195 @@ export default function DemoResultsPage() {
             ) : (
               <ul className="mt-3 space-y-3">
                 {impact.verifiedNotices.map((notice) => (
-                  <li key={notice.noticeId} className="rounded border border-notice-border bg-notice-surface p-3 text-base">
+                  <li
+                    key={notice.noticeId}
+                    className="rounded border border-notice-border bg-notice-surface p-3 text-base"
+                    data-testid={`notice-${notice.noticeId}`}
+                  >
                     <p className="font-medium text-notice-text" data-testid="notice-type">
                       {notice.title ?? `${notice.publicationId ?? 'publication'} — notice ${notice.noticeType}`}
                     </p>
-                    <p className="mt-1 text-ink" data-testid="notice-verification">
-                      verified notice · type: {notice.noticeType}
-                      {notice.publishedDate && ` · published ${notice.publishedDate}`}
-                    </p>
-                    {notice.noticeAnnouncementDate && notice.noticeRecordedDate && (
-                      <p className="mt-1 text-xs text-ink-muted" data-testid="notice-dates">
-                        Distinct timestamps kept separate: notice announcement{' '}
-                        {notice.noticeAnnouncementDate}
-                        {notice.noticeRecordedDate && ` vs. database record date ${notice.noticeRecordedDate}.`}
-                      </p>
-                    )}
-                    {notice.sourceUrl && (
-                      <a
-                        href={notice.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-block text-xs text-brand-deep underline"
-                      >
-                        Official source record (opens external site)
-                      </a>
-                    )}
+                    <dl className="mt-2 space-y-1 text-sm">
+                      <div className="flex flex-wrap gap-x-2">
+                        <dt className="font-medium text-ink-muted">Type</dt>
+                        <dd className="text-ink" data-testid="notice-verification">
+                          verified notice · {notice.noticeType}
+                        </dd>
+                      </div>
+                      {notice.publicationId && (
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Publication</dt>
+                          <dd className="break-all font-mono text-xs text-ink">
+                            {notice.publicationId}
+                          </dd>
+                        </div>
+                      )}
+                      {notice.publishedDate && (
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Published</dt>
+                          <dd className="text-ink">{notice.publishedDate}</dd>
+                        </div>
+                      )}
+                      {notice.noticeAnnouncementDate && notice.noticeRecordedDate && (
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Announced / recorded</dt>
+                          <dd className="text-ink" data-testid="notice-dates">
+                            {notice.noticeAnnouncementDate} / {notice.noticeRecordedDate}
+                            <span className="ml-2 text-xs text-ink-muted">
+                              (distinct timestamps kept separate)
+                            </span>
+                          </dd>
+                        </div>
+                      )}
+                      {notice.sourceUrl && (
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Source</dt>
+                          <dd>
+                            <a
+                              href={notice.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-brand-deep underline break-all"
+                            >
+                              {notice.sourceUrl}
+                            </a>
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
                   </li>
                 ))}
               </ul>
             )}
           </section>
 
+          {/* (b) Direct evidence concern */}
           <section
-            aria-labelledby="results-affected"
-            data-testid="results-affected"
+            aria-labelledby="results-direct-heading"
+            data-testid="results-direct-evidence"
             className="rounded-lg border border-ink-border bg-paper-raised p-6"
           >
-            <h2 id="results-affected" className="text-lg font-semibold text-ink">
-              Needs human review ({impact.affected.length})
-            </h2>
-            {impact.affected.length === 0 ? (
+            <div data-testid="results-affected">
+              <h2 id="results-direct-heading" className="text-lg font-semibold text-ink">
+                Direct evidence concern — Claim A (supporting citation use)
+              </h2>
+              <p className="mt-1 text-xs text-ink-muted">
+                The claim below cites the retracted publication in a supporting role.
+                Review is required; this is not a finding of falsity.
+              </p>
+            </div>
+            {impact.affected.filter((i) => i.reviewKind === 'direct_evidence_review').length === 0 ? (
               <p className="mt-2 text-base text-ink-muted">
-                Nothing in the returned graph links a verified notice to a supporting
-                citation chain — as far as this build can see, no passage needs review.
+                No claim in the returned graph is directly supported by a citation use
+                referencing a verified-notice publication.
               </p>
             ) : (
               <ul className="mt-3 space-y-3">
-                {impact.affected.map((item) => (
-                  <li
-                    key={item.id}
-                    className="rounded border border-review-border bg-review-surface p-3 text-base"
-                    data-testid={`affected-${item.id}`}
-                  >
-                    <p className="font-medium text-review-text">
-                      {item.kind === 'claim' ? 'Claim' : 'Conclusion'} “{item.id}” —{' '}
-                      {item.reviewKind === 'direct_evidence_review'
-                        ? 'direct evidence review (supporting role)'
-                        : 'indirect evidence review (depends on a flagged claim)'}
-                    </p>
-                    {item.text && <p className="mt-1 text-ink">“{item.text}”</p>}
-                    <p className="mt-1 text-xs text-ink-muted">
-                      Path: verified notice → <span className="break-all font-mono">{item.viaPublicationId}</span>
-                      {item.viaCitationUseId && (
-                        <>
-                          {' → supporting citation use '}
-                          <span className="break-all font-mono">{item.viaCitationUseId}</span>
-                        </>
-                      )}
-                      {item.viaClaimId && (
-                        <>
-                          {' → flagged claim '}
-                          <span className="break-all font-mono">{item.viaClaimId}</span>
-                        </>
-                      )}
-                      {' → '}
-                      <span className="break-all font-mono">{item.id}</span>
-                    </p>
-                  </li>
-                ))}
+                {impact.affected
+                  .filter((item) => item.reviewKind === 'direct_evidence_review')
+                  .map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded border border-review-border bg-review-surface p-3 text-base"
+                      data-testid={`affected-${item.id}`}
+                    >
+                      <p className="font-medium text-review-text">
+                        Claim “{item.id}” — direct evidence review (supporting role)
+                      </p>
+                      {item.text && <p className="mt-1 text-ink">“{item.text}”</p>}
+                      <dl className="mt-2 space-y-1 text-xs">
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Publication (source)</dt>
+                          <dd className="break-all font-mono text-ink">
+                            {item.viaPublicationId}
+                          </dd>
+                        </div>
+                        {item.viaCitationUseId && (
+                          <div className="flex flex-wrap gap-x-2">
+                            <dt className="font-medium text-ink-muted">Citation use</dt>
+                            <dd className="break-all font-mono text-ink">
+                              {item.viaCitationUseId}
+                            </dd>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Claim</dt>
+                          <dd className="break-all font-mono text-ink">{item.id}</dd>
+                        </div>
+                      </dl>
+                    </li>
+                  ))}
               </ul>
             )}
           </section>
 
-          <section aria-labelledby="results-historical" className="rounded-lg border border-ink-border bg-paper-raised p-6">
-            <h2 id="results-historical" className="text-lg font-semibold text-ink">
-              Not affected — historical mentions ({impact.historical.length})
+          {/* (c) Indirect dependent conclusion */}
+          <section
+            aria-labelledby="results-indirect-heading"
+            data-testid="results-indirect-conclusion"
+            className="rounded-lg border border-ink-border bg-paper-raised p-6"
+          >
+            <h2 id="results-indirect-heading" className="text-lg font-semibold text-ink">
+              Indirect dependent conclusion — Conclusion C (depends on Claim A)
             </h2>
+            <p className="mt-1 text-xs text-ink-muted">
+              This conclusion inherits a review obligation from a flagged claim; it is
+              not itself judged false.
+            </p>
+            {impact.affected.filter((i) => i.reviewKind === 'indirect_evidence_review').length === 0 ? (
+              <p className="mt-2 text-base text-ink-muted">
+                No conclusion in the returned graph depends on a flagged claim.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {impact.affected
+                  .filter((item) => item.reviewKind === 'indirect_evidence_review')
+                  .map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded border border-review-border bg-review-surface p-3 text-base"
+                      data-testid={`affected-${item.id}`}
+                    >
+                      <p className="font-medium text-review-text">
+                        Conclusion “{item.id}” — indirect evidence review (depends on a
+                        flagged claim)
+                      </p>
+                      {item.text && <p className="mt-1 text-ink">“{item.text}”</p>}
+                      <dl className="mt-2 space-y-1 text-xs">
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Depends on (claim)</dt>
+                          <dd className="break-all font-mono text-ink">
+                            {item.viaClaimId}
+                          </dd>
+                        </div>
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Publication (source)</dt>
+                          <dd className="break-all font-mono text-ink">
+                            {item.viaPublicationId}
+                          </dd>
+                        </div>
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Conclusion</dt>
+                          <dd className="break-all font-mono text-ink">{item.id}</dd>
+                        </div>
+                      </dl>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </section>
+
+          {/* Not affected */}
+          <section
+            aria-labelledby="results-historical"
+            data-testid="results-historical"
+            className="rounded-lg border border-ink-border bg-paper-raised p-6"
+          >
+            <div data-testid="results-not-affected">
+              <h2 id="results-historical" className="text-lg font-semibold text-ink">
+                Not affected — historical mention ({impact.historical.length})
+              </h2>
+            </div>
             {impact.historical.length === 0 ? (
               <p className="mt-2 text-base text-ink-muted">
                 No historical-mention citation uses reference the verified-notice publication
@@ -298,16 +433,39 @@ export default function DemoResultsPage() {
                       compromise this passage; the citation role was recorded as historical
                       (MENTIONS_HISTORICALLY), not supporting.
                     </p>
+                    <dl className="mt-2 space-y-1 text-xs">
+                      <div className="flex flex-wrap gap-x-2">
+                        <dt className="font-medium text-ink-muted">Publication (source)</dt>
+                        <dd className="break-all font-mono text-ink">
+                          {item.viaPublicationId}
+                        </dd>
+                      </div>
+                      {item.viaCitationUseId && (
+                        <div className="flex flex-wrap gap-x-2">
+                          <dt className="font-medium text-ink-muted">Citation use</dt>
+                          <dd className="break-all font-mono text-ink">
+                            {item.viaCitationUseId}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
                   </li>
                 ))}
               </ul>
             )}
           </section>
 
-          <section aria-labelledby="results-unresolved" className="rounded-lg border border-ink-border bg-paper-raised p-6">
-            <h2 id="results-unresolved" className="text-lg font-semibold text-ink">
-              Unresolved references ({impact.unresolved.length})
-            </h2>
+          {/* Unresolved */}
+          <section
+            aria-labelledby="results-unresolved"
+            data-testid="results-unresolved"
+            className="rounded-lg border border-ink-border bg-paper-raised p-6"
+          >
+            <div data-testid="results-unresolved-references">
+              <h2 id="results-unresolved" className="text-lg font-semibold text-ink">
+                Unresolved references ({impact.unresolved.length})
+              </h2>
+            </div>
             {impact.unresolved.length === 0 ? (
               <p className="mt-2 text-base text-ink-muted">
                 No unresolved reference occurrences were returned.
@@ -331,7 +489,8 @@ export default function DemoResultsPage() {
                     </p>
                     <p className="mt-1 text-xs text-ink-muted">
                       Candidate edges never propagate into claim impact; resolution requires
-                      human comparison of the candidates.
+                      human comparison of the candidates. Lee et al. has 2 possible matches
+                      and stays unresolved — never guessed.
                     </p>
                   </li>
                 ))}
@@ -339,7 +498,11 @@ export default function DemoResultsPage() {
             )}
           </section>
 
-          <section aria-labelledby="results-unknown" className="rounded-lg border border-ink-border bg-paper-raised p-6">
+          {/* Unknown */}
+          <section
+            aria-labelledby="results-unknown"
+            className="rounded-lg border border-ink-border bg-paper-raised p-6"
+          >
             <h2 id="results-unknown" className="text-lg font-semibold text-ink">
               What remains unknown
             </h2>
