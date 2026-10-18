@@ -11,6 +11,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
-    include: ['src/**/*.test.{ts,tsx}', 'netlify/**/*.test.mjs'],
+    include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx,mjs}'],
   },
 });
