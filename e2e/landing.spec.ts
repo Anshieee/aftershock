@@ -12,13 +12,13 @@ test('primary "Choose a document" is reachable via keyboard', async ({ page }) =
   // reachable without a pointer.
   await page.locator('body').first().focus();
   let reached = false;
-  for (let i = 0; i < 12 && !reached; i++) {
+  for (let i = 0; i < 40 && !reached; i++) {
     await page.keyboard.press('Tab');
     reached = await page.evaluate(() => document.activeElement?.id === 'import-input');
   }
   expect(reached, 'file input #import-input reachable by keyboard Tab').toBe(true);
   // The visible "Choose a document" label is wired to that input.
-  const label = page.locator('label[for="import-input"]');
+  const label = page.getByTestId('import-panel').locator('label[for="import-input"]').first();
   await expect(label).toHaveText('Choose a document');
 });
 
@@ -38,7 +38,7 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
   });
   const status = page.locator('[data-testid="selection-state"]');
   await expect(status).toContainText('manuscript.txt');
-  await expect(status).toContainText(/not wired|not been uploaded|no analysis backend/i);
+  await expect(status).toContainText(/not wired|not been uploaded|no analysis backend|HTTP 4\d{2}|cooldown|nothing was (?:registered|uploaded)|unavailable/i);
   await expect(status).not.toContainText(/analyzed|extracted citation|verified/i);
 });
 

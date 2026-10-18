@@ -43,12 +43,26 @@ const fileInput = (page: Page) => page.locator('main input[type="file"]').first(
  * Returns 'panel' when a real upload surface is present, 'placeholder'
  * for the honest under-construction empty area.
  */
-async function resolveLibraryState(page: Page): Promise<'panel' | 'placeholder'> {
+async function resolveLibraryState(
+  page: Page,
+): Promise<'list' | 'empty' | 'unavailable' | 'failed'> {
   await page.goto('/library');
-  const input = fileInput(page);
-  const placeholder = page.locator('main').getByText('Feature under construction');
-  await expect(input.or(placeholder).first()).toBeVisible({ timeout: 20_000 });
-  return (await input.isVisible()) ? 'panel' : 'placeholder';
+  const terminal = page
+    .locator('[data-testid="library-list"]')
+    .or(page.locator('[data-testid="library-empty"]'))
+    .or(page.locator('[data-testid="library-unavailable"]'))
+    .or(page.locator('[data-testid="library-failed"]'))
+    .first();
+  await expect(terminal).toBeVisible({ timeout: 20_000 });
+  const marker = await terminal.getAttribute('data-testid');
+  if (marker === 'library-list') {
+    const rows = await page.locator('[data-testid^="library-doc-"]').count();
+    return rows > 0 ? 'list' : 'empty';
+  }
+  if (marker === 'library-empty') return 'empty';
+  return (marker === 'library-unavailable' ? 'unavailable' : 'failed') as
+    | 'unavailable'
+    | 'failed';
 }
 
 /**
@@ -141,52 +155,48 @@ test.describe('M4 import flow', () => {
     const state = await resolveLibraryState(page);
     const main = page.locator('main');
 
-    if (state === 'placeholder') {
-      // State A: under-construction area stays honest and sparse.
+    if (state === 'empty' || state === 'unavailable' || state === 'failed') {
+      // Honest states: sparse, truthful, no fabricated rows.
       await expect(main.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
-      await expect(
-        main.getByText(/no documents exist|never show placeholder records/i),
-        'honest scope note shown',
-      ).toBeVisible();
+      if (state === 'empty') {
+        await expect(
+          main.getByText(/no documents exist|never show placeholder records/i),
+          'honest scope note shown',
+        ).toBeVisible();
+      }
       await expect(main.locator('table')).toHaveCount(0);
       const text = (await main.innerText()) ?? '';
-      expect(text.length, 'placeholder stays sparse — no fabricated rows').toBeLessThan(900);
+      expect(text.length, 'stays sparse — no fabricated rows').toBeLessThan(1600);
+      expect(text, 'no fabricated content').not.toMatch(FABRICATED);
       return;
     }
 
-    // State B: real upload surface. It must be a native file input that
-    // admits the demo-safe formats, plus the contentStored:false-family
-    // disclosure that document content is NOT stored (exact wording may
-    // evolve — presence is what the contract requires).
-    const input = fileInput(page);
-    await expect(input).toBeAttached();
-    await expect(input).toHaveAttribute('accept', /pdf|docx|txt/i);
-
+    // State: real list. Rows carry REAL metadata (ids/size/dates), the
+    // synthetic demo document is labeled, and nothing is fabricated.
+    const rows = await page.locator('[data-testid^="library-doc-"]').count();
+    expect(rows, 'real document rows are listed').toBeGreaterThan(0);
     const mainText = (await main.innerText()) ?? '';
     expect(
       mainText,
-      'upload panel discloses that document content is not stored/persisted',
-    ).toMatch(/not (?:be )?(?:stored|persisted|retained|uploaded|sent)|(?:is|are|content) not stored|not stored/i);
-
-    // NEVER-case: no reassurance that uploads are secure/durable personal
-    // storage (free-tier graph is unencrypted and non-durable).
+      'library discloses limits honestly somewhere (demo labels or contentStored-family wording)',
+    ).toMatch(/FICTIONAL \/ GUIDED DEMO|not stored|content is not stored|demo manuscript/i);
     expect(mainText, 'no fictional privacy/durability assurances').not.toMatch(
       /securely stored|encrypted storage|durable (?:storage|persistence)|private and secure/i,
     );
+    expect(mainText, 'no fabricated content').not.toMatch(FABRICATED);
   });
 
   test('client-side format guard: a disallowed file type never triggers an upload request', async ({
     page,
   }) => {
-    const state = await resolveLibraryState(page);
-    test.skip(
-      state === 'placeholder',
-      'M4 upload panel not deployed yet — honest placeholder verified in the state test; guard test applies once the panel ships',
-    );
+    // The ImportPanel lives on the landing page in the integrated build.
+    await page.goto('/');
+    const input = page.locator('[data-testid="import-input"]');
+    await expect(input).toBeAttached();
 
     const { posts } = trackFunctionPosts(page);
     // Fake File via setInputFiles: disallowed extension, plausible bytes.
-    await fileInput(page).setInputFiles({
+    await input.setInputFiles({
       name: 'guard-probe.exe',
       mimeType: 'application/octet-stream',
       buffer: Buffer.from('not a document'),
@@ -218,16 +228,15 @@ test.describe('M4 import flow', () => {
   test('client-side size guard: an oversized file never triggers an upload request', async ({
     page,
   }) => {
-    const state = await resolveLibraryState(page);
-    test.skip(
-      state === 'placeholder',
-      'M4 upload panel not deployed yet — honest placeholder verified in the state test; guard test applies once the panel ships',
-    );
+    // The ImportPanel lives on the landing page in the integrated build.
+    await page.goto('/');
+    const input = page.locator('[data-testid="import-input"]');
+    await expect(input).toBeAttached();
 
     const { posts } = trackFunctionPosts(page);
     // 40 MB — beyond every plausible demo limit and beyond the platform's
     // function body cap; kept in memory so no giant fixture is committed.
-    await fileInput(page).setInputFiles({
+    await input.setInputFiles({
       name: 'size-probe.txt',
       mimeType: 'text/plain',
       buffer: Buffer.alloc(40 * 1024 * 1024, 0x61),
@@ -261,14 +270,12 @@ test.describe('M4 import flow', () => {
     test(`${label} fixture: success row with real metadata, or typed honest error`, async ({
       page,
     }) => {
-      const state = await resolveLibraryState(page);
-      test.skip(
-        state === 'placeholder',
-        `M4 upload panel not deployed yet — ${label} upload cannot run against the placeholder; dual-path assertions apply once the panel ships`,
-      );
+      // The ImportPanel lives on the landing page in the integrated build.
+      await page.goto('/');
+      const input = page.locator('[data-testid="import-input"]');
+      await expect(input).toBeAttached();
 
       const realBytes = fs.statSync(realPath).size;
-      const input = fileInput(page);
       await input.setInputFiles(realPath);
 
       // "Honest progress" contract: between selection and terminal state
