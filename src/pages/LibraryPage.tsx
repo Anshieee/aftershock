@@ -1,10 +1,311 @@
+import { useEffect, useRef, useState } from 'react';
 import EmptyArea from '../components/EmptyArea';
+import {
+  ApiClientError,
+  ApiHttpError,
+  ApiNetworkError,
+  ApiTimeoutError,
+  ApiUnavailableError,
+  DEMO_MANUSCRIPT_VERSION_ID,
+  getDemoDocuments,
+  startAnalysis,
+  type DocumentSummary,
+} from '../lib/api';
 
+type ListState =
+  | { phase: 'loading' }
+  | { phase: 'loaded'; documents: DocumentSummary[] }
+  /** Endpoint missing/unimplemented — honest "can't know", never an empty list. */
+  | { phase: 'unavailable' }
+  | { phase: 'failed'; detail: string };
+
+type RowAnalysis =
+  | { phase: 'idle' }
+  | { phase: 'starting' }
+  | { phase: 'started'; runId: string }
+  | { phase: 'content-not-stored'; disclosure: string }
+  | { phase: 'failed'; message: string };
+
+function describeAnalysisError(error: unknown): string {
+  if (
+    error instanceof ApiTimeoutError ||
+    error instanceof ApiNetworkError ||
+    error instanceof ApiUnavailableError
+  ) {
+    return 'The analysis API is unavailable — the run did not start. Nothing is simulated.';
+  }
+  if (error instanceof ApiHttpError) {
+    if (error.status >= 500) {
+      return 'The analysis API is unavailable (server error) — the run did not start. Nothing is simulated.';
+    }
+    if (error.status === 404 || error.status === 501) {
+      return 'Analysis is not wired on this deployment yet — the run did not start.';
+    }
+    return `API error (HTTP ${error.status}) — the run did not start.`;
+  }
+  if (error instanceof ApiClientError) return error.message;
+  return 'The analysis could not start — nothing is simulated.';
+}
+
+function describeListError(error: unknown): string {
+  if (error instanceof ApiUnavailableError) {
+    return 'The library endpoint answered with a non-JSON page (likely the site fallback) instead of a document list.';
+  }
+  if (error instanceof ApiTimeoutError) {
+    return 'The document list request timed out after 10 seconds.';
+  }
+  if (error instanceof ApiHttpError) {
+    return `API answered with HTTP ${error.status}.`;
+  }
+  if (error instanceof ApiNetworkError) {
+    return 'The document list request could not reach the API.';
+  }
+  if (error instanceof ApiClientError) {
+    return error.message;
+  }
+  return 'The response could not be read as a document list.';
+}
+
+/**
+ * Library — real document list via GET /documents (M4).
+ *
+ * Per-document status is honest: the guided demo manuscript version (fixed
+ * contract §6 ID) gets a working Analyze action; documents registered
+ * without stored content show the server's disclosure verbatim and no
+ * analyze affordance. A missing endpoint never masquerades as "no
+ * documents" — unavailability and emptiness are different, labeled states.
+ */
 export default function LibraryPage() {
+  const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const [rowAnalysis, setRowAnalysis] = useState<Record<string, RowAnalysis>>({});
+  const rowAbortRef = useRef<Map<string, AbortController>>(new Map());
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getDemoDocuments({ signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (result.available) {
+          setListState({ phase: 'loaded', documents: result.data });
+        } else {
+          setListState({ phase: 'unavailable' });
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setListState({ phase: 'failed', detail: describeListError(error) });
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const aborts = rowAbortRef.current;
+    return () => {
+      aborts.forEach((rowController) => rowController.abort());
+    };
+  }, []);
+
+  const analyzeRow = (doc: DocumentSummary) => {
+    if (!doc.versionId) return;
+    rowAbortRef.current.get(doc.id)?.abort();
+    const controller = new AbortController();
+    rowAbortRef.current.set(doc.id, controller);
+    setRowAnalysis((previous) => ({ ...previous, [doc.id]: { phase: 'starting' } }));
+
+    startAnalysis(doc.versionId, { signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        setRowAnalysis((previous) => ({
+          ...previous,
+          [doc.id]: result.started
+            ? { phase: 'started', runId: result.runId }
+            : { phase: 'content-not-stored', disclosure: result.disclosure },
+        }));
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setRowAnalysis((previous) => ({
+          ...previous,
+          [doc.id]: { phase: 'failed', message: describeAnalysisError(error) },
+        }));
+      });
+  };
+
+  const empty = listState.phase === 'loaded' && listState.documents.length === 0;
+
   return (
-    <EmptyArea
-      title="Library"
-      note="Your imported research documents, publication records, bibliographies, references and documents versions will be listed here (M2+). No documents exist yet — the Library will never show placeholder records."
-    />
+    <div className="mx-auto max-w-3xl">
+      {!empty && <h1 className="font-display text-3xl text-ink">Library</h1>}
+
+      {listState.phase === 'loading' && (
+        <p className="mt-8 text-base text-ink-muted" role="status" data-testid="library-loading">
+          Reading the document list from the live library API…
+        </p>
+      )}
+
+      {listState.phase === 'failed' && (
+        <div
+          className="mt-8 rounded border border-notice-border bg-notice-surface px-4 py-3 text-base text-ink"
+          role="status"
+          data-testid="library-failed"
+        >
+          <span className="block font-medium">
+            The document list can’t be read right now.
+          </span>
+          <span className="mt-1 block text-sm text-ink-muted">{listState.detail}</span>
+          <span className="mt-1 block text-sm text-ink-muted">
+            No placeholder documents are shown instead — the list is never guessed.
+          </span>
+        </div>
+      )}
+
+      {listState.phase === 'unavailable' && (
+        <div
+          className="mt-8 rounded border border-uncertain-border bg-uncertain-surface px-4 py-3"
+          role="status"
+          data-testid="library-unavailable"
+        >
+          <span className="block font-medium text-uncertain-text">
+            The library list is not available in this deployment yet.
+          </span>
+          <span className="mt-1 block text-sm text-uncertain-text">
+            The Library cannot claim which documents do or don’t exist, so it
+            shows neither a list nor an empty state. Nothing is simulated.
+          </span>
+        </div>
+      )}
+
+      {empty && (
+        <div className="mt-8" data-testid="library-empty">
+          <EmptyArea
+            title="Library"
+            note="Your imported research documents, publication records, bibliographies, references and documents versions will be listed here. No documents exist yet — the Library will never show placeholder records."
+          />
+        </div>
+      )}
+
+      {listState.phase === 'loaded' && listState.documents.length > 0 && (
+        <section aria-labelledby="library-list-heading" className="mt-8" data-testid="library-list">
+          <h2 id="library-list-heading" className="sr-only">
+            Imported documents
+          </h2>
+          <ul className="space-y-4">
+            {listState.documents.map((doc) => {
+              const row = rowAnalysis[doc.id] ?? { phase: 'idle' as const };
+              const isDemoManuscript = doc.versionId === DEMO_MANUSCRIPT_VERSION_ID;
+              const contentless = doc.contentStored === false;
+              return (
+                <li
+                  key={doc.id}
+                  data-testid={`library-doc-${doc.id}`}
+                  className="rounded-lg border border-ink-border bg-paper-raised p-5"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">{doc.title ?? doc.fileName ?? doc.id}</p>
+                      <p className="mt-1 text-sm text-ink-muted">
+                        {[
+                          doc.fileName,
+                          doc.format,
+                          doc.importedAt ? `Imported ${doc.importedAt}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    {doc.isSynthetic && (
+                      <span className="inline-flex shrink-0 items-center gap-2 rounded border border-uncertain-border bg-uncertain-surface px-2 py-0.5 text-xs font-medium text-uncertain-text">
+                        {doc.syntheticLabel ?? 'FICTIONAL / GUIDED DEMO'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Honest per-document status — never a guessed one. */}
+                  <p className="mt-3 text-sm text-ink" data-testid={`doc-status-${doc.id}`}>
+                    {isDemoManuscript
+                      ? 'Guided demo manuscript — stored content is available, so analysis can run.'
+                      : contentless
+                        ? 'Registered without stored content (contentStored: false) — analysis cannot run on this document yet.'
+                        : 'Content status not reported by the API — no analysis is offered.'}
+                  </p>
+
+                  {!isDemoManuscript && contentless && doc.disclosure && (
+                    <blockquote
+                      className="mt-2 border-l-2 border-review-border bg-review-surface px-3 py-2 text-sm text-review-text"
+                      data-testid={`doc-disclosure-${doc.id}`}
+                    >
+                      {doc.disclosure}
+                    </blockquote>
+                  )}
+
+                  {isDemoManuscript && doc.versionId && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => analyzeRow(doc)}
+                        disabled={row.phase === 'starting'}
+                        aria-busy={row.phase === 'starting'}
+                        data-testid={`analyze-${doc.id}`}
+                        className={
+                          row.phase === 'starting'
+                            ? 'cursor-progress rounded bg-brand px-4 py-2 text-sm font-medium text-white opacity-80'
+                            : 'rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep'
+                        }
+                      >
+                        {row.phase === 'starting' ? 'Starting analysis…' : 'Analyze'}
+                      </button>
+                      <div
+                        aria-live="polite"
+                        data-testid={`doc-analysis-${doc.id}`}
+                        className="mt-2 min-h-5"
+                      >
+                        {row.phase === 'starting' && (
+                          <p role="status" className="text-sm text-ink-muted">
+                            Contacting the analysis endpoint…
+                          </p>
+                        )}
+                        {row.phase === 'started' && (
+                          <div role="status">
+                            <p className="text-sm font-medium text-ink">
+                              Analysis run started — runId:{' '}
+                              <span className="font-mono">{row.runId}</span>
+                            </p>
+                            <p className="mt-1 text-sm text-ink-muted">
+                              The runId is the real server response. Status
+                              polling and results are not wired in this build
+                              yet — nothing further is simulated.
+                            </p>
+                          </div>
+                        )}
+                        {row.phase === 'content-not-stored' && (
+                          <div
+                            role="status"
+                            className="rounded border border-uncertain-border bg-uncertain-surface px-3 py-2 text-sm text-uncertain-text"
+                          >
+                            <span className="block font-medium">
+                              Analysis did not start — the server reports
+                              content-not-stored for this version.
+                            </span>
+                            <span className="mt-1 block">{row.disclosure}</span>
+                          </div>
+                        )}
+                        {row.phase === 'failed' && (
+                          <div
+                            role="status"
+                            className="rounded border border-notice-border bg-notice-surface px-3 py-2 text-sm text-ink"
+                          >
+                            {row.message}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+    </div>
   );
 }
