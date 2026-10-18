@@ -4,4 +4,4 @@ node_modules/
 target/
 dist/
 logs/
-netlify/
+.netlify/
