@@ -22,8 +22,9 @@ Last updated: 2026-10-18 (M0 close)
 - Production: https://aftershock-demo.netlify.app (site id b1bb72a1-23de-46c4-8af8-ad4c5010f041)
 
 ## Current blockers
-- **Non-global — FalkorDB MCP incident (2026-10-18):** MCP `list_graphs` hangs/drops intermittently. Orchestrator-side probing suspended; recovery delegated to DevOps child session (diagnosing process/transport/config vs app-side connectivity with bounded timeouts; app-side connection verified OK earlier via `npm run check`). Impact: ONLY MCP-based live verification is blocked (e.g., reviewer's post-fix MCP check of PR #2). App traffic itself uses the official npm client over the same cloud instance — unaffected so far. PR #2 merge requires reviewer verdict + post-recovery graph-state verification (read-only: `test_hosting` present, `aftershock:demo-smoke` absent).
-- (Netlify deploy fact: Netlify rejects function filenames with dots — health unit test relocated to `tests/netlify/`; vitest include fixed.)
+- **None global.** FalkorDB MCP incident (`list_graphs` hang) remains scoped to MCP-only verification; DevOps recovery session running (app-side connectivity + runtime env verified separately).
+- Netlify env persistence SOLVED: MCP `manage-env-vars` requires `upsertEnvVar: true`; secret-flag upserts are dropped by the MCP (known bug) — both sensitive values currently stored non-secret (site-scoped, server-only), manual re-entry as native secrets recommended at project close (DEPLOYMENT.md).
+- `.netlify/functions/envcheck` temporary public names-only diagnostic; to gate/remove at M2.
 
 ## Open risks
 - Plaintext FalkorDB connection (demo-only, synthetic data enforced).

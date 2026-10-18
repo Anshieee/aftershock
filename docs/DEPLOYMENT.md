@@ -10,7 +10,18 @@ Deployment reality as of 2026-10-18 (M1 deployed; M2 in PR review — see `docs/
 
 ## Environment variables (Netlify `functions` scope)
 Names only — **values are never printed, committed, or logged** (AGENTS.md; secrets live server-side only, never in the client bundle):
-`FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_USER`, `FALKORDB_PASSWORD` (secret), `FALKORDB_GRAPH_NAME`, `SEED_SECRET` (secret), `NODE_VERSION=20`.
+`FALKORDB_HOST`, `FALKORDB_PORT`, `FALKORDB_USER`, `FALKORDB_PASSWORD`, `FALKORDB_GRAPH_NAME`, `SEED_SECRET`, `NODE_VERSION=20`.
+
+Verified live 2026-10-18 via `netlify/functions/envcheck` (names-only diagnostic): all 7 present in the
+function runtime. Operational notes from that debugging session:
+- The Netlify MCP `manage-env-vars` operation requires `upsertEnvVar: true` or the write silently no-ops.
+- The same MCP drops `envVarIsSecret: true` upserts entirely (echoes success, stores nothing) — MCP bug.
+  **Deviation on record:** `FALKORDB_PASSWORD` and `SEED_SECRET` are currently stored with the secret flag
+  OFF (still site-scoped env, never in repo/client/logs). Recommended cleanup (user action, non-blocking):
+  re-enter both as true secrets in the Netlify UI → Site settings → Environment variables, then delete the
+  non-secret copies.
+- `/.netlify/functions/envcheck` is a temporary, public, names-only diagnostic; gate or remove it at M2+
+  (tracked in BUILD_STATUS).
 The `FALKORDB_*` names match the local convention in `scripts/check.mjs` / `.env.example`; `FALKORDB_GRAPH_NAME` (`aftershock:demo`, ADR 0001) and `SEED_SECRET` are consumed by the M2 graph/seed path. The browser bundle must never contain DB credentials.
 
 ## CI
