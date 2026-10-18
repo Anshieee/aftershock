@@ -9,7 +9,7 @@ Netlify-deployable app shell with a real `/health` endpoint and GitHub CI.
 **Implemented:** import-first landing (native file picker with an honest
 "not wired yet" state after selection), an empty five-area sidebar shell
 (Overview, Investigations, Library, Review Queue, Activity) plus the
-"Knowledge Graph" secondary destination, and a truthful service-status chip
+"Knowledge Graph" secondary destination, and a truthful discreet service-status line (sidebar/footer)
  querying `/.netlify/functions/health` ("API: online/unavailable" only).
 
 **Not implemented (honest):** document import/upload/analysis, FalkorDB
