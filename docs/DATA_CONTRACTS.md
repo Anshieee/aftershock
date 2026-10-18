@@ -99,11 +99,11 @@ All write endpoints require method guard + input validation + rate limit. No arb
 Fixed, stable IDs for the guided demo. All synthetic content labeled `FICTIONAL / GUIDED DEMO`.
 
 Publications:
-- `pub-mehra-2020` — Mehra et al. (2020), The Lancet. DOI `10.1016/S0140-6736(20)31180-6`. `isSynthetic=false` (real source record).
-- `pub-mehra-retraction-2020` — retraction notice. DOI `10.1016/S0140-6736(20)31324-6`. `isSynthetic=false`.
+- `pub-mehra-2020` — Mehra MR, Desai SS, Ruschitzka F, Patel AN (2020), The Lancet. Title "Hydroxychloroquine or chloroquine with or without a macrolide for treatment of COVID-19: a multinational registry analysis". DOI `10.1016/S0140-6736(20)31180-6`. Published online 2020-05-22 (no print vol/pages). PMID 32450107. `isSynthetic=false` (real source record; verified via Crossref/PubMed/PMC — see docs/research/mehra-notice-verification.md). Do NOT use the NEJM paper's title ("Cardiovascular disease, drug therapy, and mortality in Covid-19") — different DOI/paper.
+- `pub-mehra-retraction-2020` — retraction-notice publication. "Retraction—Hydroxychloroquine or chloroquine with or without a macrolide for treatment of COVID-19: a multinational registry analysis", The Lancet 395(10240):1820. DOI `10.1016/S0140-6736(20)31324-6`. PMID 32511943. `isSynthetic=false`.
 
 Notices:
-- `notice-mehra-retraction-2020-06-04` — retraction published 4 June 2020. `publishedDate=2020-06-04`. `verified=true`.
+- `notice-mehra-retraction-2020-06-04` — retraction. `publishedDate=2020-06-04` (= `noticeAnnouncementDate`, Lancet statement); `noticeRecordedDate=2020-06-05` (PubMed/PMC/Crossref record date — keep both timestamps distinct, never merged). `verified=true`. Links: `https://doi.org/10.1016/S0140-6736(20)31324-6`, official open mirror `https://pmc.ncbi.nlm.nih.gov/articles/PMC7274621/`. Related-but-never-merged: Expression of Concern DOI `10.1016/S0140-6736(20)31290-3` (PMID 32504543).
 
 Synthetic document:
 - `doc-demo-manuscript` — guided demo manuscript (fictional).
