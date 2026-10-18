@@ -22,7 +22,7 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
       if (url.includes('health')) {
         return { status: 200, body: { ok: true, service: 'aftershock-demo', graph: 'not-configured' } };
       }
-      if (url.includes('graph/probe')) {
+      if (url.includes('graph-probe')) {
         return {
           status: 200,
           body: { exists: true, seedVersion: 'seed-1', nodeCount: 17 },
@@ -78,7 +78,7 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
   });
 
   it('renders the human-first two-line failure when the probe is shaded by the SPA fallback', async () => {
-    // Production incident: the deployed /graph/probe is shadowed by the
+    // Production incident: the deployed /graph-probe is shadowed by the
     // M1-era `/* → /index.html` fallback, so it answers 200 with text/html.
     vi.stubGlobal(
       'fetch',

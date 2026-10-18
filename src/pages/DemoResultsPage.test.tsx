@@ -19,8 +19,8 @@ function renderResults() {
 
 function stubGraphRoute(body: { status: number; body?: unknown }) {
   return stubFetchByRoute((url) => {
-    if (url.includes('graph/edges')) return { status: body.status, body: body.body };
-    if (url.includes('graph/probe')) {
+    if (url.includes('graph-edges')) return { status: body.status, body: body.body };
+    if (url.includes('graph-probe')) {
       return { status: 200, body: { exists: true, seedVersion: 'seed-1', nodeCount: 17 } };
     }
     return undefined;
