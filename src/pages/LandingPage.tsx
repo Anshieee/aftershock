@@ -1,6 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ApiClientError, ApiHttpError, ApiNetworkError, ApiTimeoutError, ensureDemoSeed } from '../lib/api';
+import {
+  ApiClientError,
+  ApiHttpError,
+  ApiNetworkError,
+  ApiTimeoutError,
+  ApiUnavailableError,
+  ensureDemoSeed,
+} from '../lib/api';
 
 interface SelectedFile {
   name: string;
@@ -78,6 +85,10 @@ export default function LandingPage() {
         } else if (error instanceof ApiHttpError && error.status === 429) {
           setSeedFlow({ phase: 'cooldown' });
         } else if (error instanceof ApiHttpError && (error.status === 404 || error.status === 501)) {
+          setSeedFlow({ phase: 'not-wired' });
+        } else if (error instanceof ApiUnavailableError) {
+          // HTML-shaded 2xx on the POST: endpoint missing — identical honesty
+          // to a 404, never a seeded-looking outcome.
           setSeedFlow({ phase: 'not-wired' });
         } else if (error instanceof ApiHttpError) {
           setSeedFlow({ phase: 'api-error', status: error.status });

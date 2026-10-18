@@ -104,13 +104,14 @@ export default function KnowledgeGraphPage() {
           <h2 id="graph-missing-heading" className="font-display text-2xl text-ink">
             {state.reason === 'not-implemented'
               ? 'Graph queries are not implemented on this build yet'
-              : 'The demo graph is not seeded yet'}
+              : 'Graph queries are not available on this deployment yet'}
           </h2>
           <p className="mt-2 max-w-prose text-ink-muted">
             The knowledge-graph API did not return records, so there is nothing to draw.
             No placeholder nodes or decorative edges are shown — an empty graph reads as
-            an empty graph. Seed the guided demo from the landing page, or check the
-            service status in the sidebar/Overview.
+            an empty graph. The query function may be missing from this deployment, or
+            the demo graph is not seeded yet; seed it from the landing page, or check
+            the service status in the sidebar/Overview.
           </p>
           <Link
             to="/"

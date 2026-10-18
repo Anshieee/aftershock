@@ -18,8 +18,16 @@ export default function ServiceStatusChip({ className }: { className?: string })
     acRef.current = ac;
     fetch('/.netlify/functions/health', { signal: ac.signal, headers: { Accept: 'application/json' } })
       .then((res) => {
-        if (res.ok) setStatus('online');
-        else setStatus('unavailable');
+        // "Online" requires a JSON answer. A 2xx HTML page (e.g. the site
+        // fallback shading a missing function) is not a healthy API and
+        // must read as unavailable, never online.
+        const contentType = res.headers.get('content-type') ?? '';
+        const mimeType = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+        if (res.ok && mimeType === 'application/json') {
+          setStatus('online');
+        } else {
+          setStatus('unavailable');
+        }
       })
       .catch(() => setStatus('unavailable'));
     return () => ac.abort();

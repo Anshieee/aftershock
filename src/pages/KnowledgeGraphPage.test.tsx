@@ -88,7 +88,9 @@ describe('KnowledgeGraphPage — renders exactly the records the API returned', 
 
     await waitFor(() => expect(screen.getByTestId('graph-missing')).toBeTruthy());
     expect(screen.queryByTestId('graph-canvas')).toBeNull();
-    expect(screen.getByTestId('graph-missing').textContent).toMatch(/not seeded yet|not implemented/i);
+    expect(screen.getByTestId('graph-missing').textContent).toMatch(
+      /not seeded yet|not implemented|not available on this deployment/i,
+    );
     expect(screen.getByTestId('graph-missing').textContent).toMatch(
       /placeholder nodes or decorative edges/i,
     );

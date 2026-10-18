@@ -143,7 +143,7 @@ export default function DemoResultsPage() {
           <p className="mt-2 max-w-prose text-base text-ink-muted">
             {graph.reason === 'not-implemented'
               ? 'The graph-records endpoint reports “not implemented” on this build.'
-              : 'No graph-records endpoint answered (HTTP 404).'}{' '}
+              : 'No graph-records endpoint answered (function missing — HTTP 404 or an HTML page fallback).'}{' '}
             Either the demo graph is not seeded yet in this environment, or the query
             endpoints are not wired to the graph backend yet. Results are derived only
             from real graph data, so none are shown until the API answers with records.

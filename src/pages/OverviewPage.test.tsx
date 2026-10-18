@@ -65,12 +65,48 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
     renderOverview();
 
     await waitFor(() => expect(screen.getByTestId('overview-probe-failure')).toBeTruthy());
-    expect(screen.getByTestId('overview-probe-failure').textContent).toMatch(
+    const failure = screen.getByTestId('overview-probe-failure');
+    expect(failure.textContent).toMatch(
       /could not reach the API/,
     );
-    expect(screen.getByTestId('overview-probe-failure').textContent).toMatch(
-      /status is never guessed/,
+    expect(failure.textContent).toMatch(/status is never guessed/);
+    expect(screen.queryByTestId('continue-card')).toBeNull();
+    expect(screen.queryByTestId('import-first-card')).toBeNull();
+  });
+
+  it('renders the human-first two-line failure when the probe is shaded by the SPA fallback', async () => {
+    // Production incident: the deployed /graph/probe is shadowed by the
+    // M1-era `/* → /index.html` fallback, so it answers 200 with text/html.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = typeof input === 'string' ? input : String((input as Request).url);
+        if (url.includes('health')) {
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response('<!doctype html><div id="root"></div>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        });
+      }),
     );
+    renderOverview();
+
+    const failure = await screen.findByTestId('overview-probe-failure');
+    // Primary line, human phrasing, no jargon.
+    expect(failure.textContent).toMatch(
+      /Seed status can’t be confirmed right now — the overview API didn’t respond\./,
+    );
+    // Secondary line carries the typed classification detail.
+    expect(failure.textContent).toMatch(
+      /Function missing in this deployment \(received HTML instead of JSON\)/,
+    );
+    // The honest never-guess sentence stays.
+    expect(failure.textContent).toMatch(/status is never guessed/);
+    // And no state is guessed: neither card may render.
     expect(screen.queryByTestId('continue-card')).toBeNull();
     expect(screen.queryByTestId('import-first-card')).toBeNull();
   });

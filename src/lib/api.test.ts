@@ -4,6 +4,7 @@ import {
   ApiHttpError,
   ApiNetworkError,
   ApiTimeoutError,
+  ApiUnavailableError,
   API_TIMEOUT_MS,
   apiRoutes,
   ensureDemoSeed,
@@ -212,5 +213,107 @@ describe('api client — truthful timeouts', () => {
     const calls = stubFetch(() => ({ status: 200, body: { exists: false } }));
     await getSeedStatus();
     expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe('api client — 2xx non-JSON shading classifies as endpoint-missing', () => {
+  /**
+   * Raw-body stub (no JSON.stringify): simulates the deployed reality where
+   * a missing function is shaded by the M1-era `/* → /index.html` fallback,
+   * which answers 200 with a text/html document. Proven live in production.
+   */
+  function stubRawFetch(
+    handler: (url: string) => { status: number; body: string; contentType: string } | undefined,
+  ): CallRecord[] {
+    const calls: CallRecord[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : String((input as Request).url);
+        calls.push({ url, init });
+        const resolved = handler(url);
+        if (!resolved) {
+          return new Response(JSON.stringify({ error: 'not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return new Response(resolved.body, {
+          status: resolved.status,
+          headers: { 'Content-Type': resolved.contentType },
+        });
+      }),
+    );
+    return calls;
+  }
+
+  const HTML_PAGE = '<!doctype html><html><body><div id="root"></div></body></html>';
+  const htmlRoute = () => ({ status: 200, body: HTML_PAGE, contentType: 'text/html' });
+
+  it('probe: a 200 text/html body throws ApiUnavailableError and never claims exists:false', async () => {
+    stubRawFetch(htmlRoute);
+    const error = await getSeedStatus().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiUnavailableError);
+    expect((error as ApiUnavailableError).name).toBe('ApiUnavailableError');
+    expect((error as ApiUnavailableError).message).toBe(
+      'Overview API is not available in this deployment (function missing) — seed status unknown.',
+    );
+  });
+
+  it('graph/edges: a 200 text/html body resolves available:false (endpoint-missing), not an error', async () => {
+    stubRawFetch(htmlRoute);
+    await expect(getGraphOverview({ limit: 40 })).resolves.toEqual({
+      available: false,
+      reason: 'endpoint-missing',
+    });
+  });
+
+  it('documents: a 200 text/html body resolves available:false (endpoint-missing)', async () => {
+    stubRawFetch(htmlRoute);
+    await expect(getDemoDocuments()).resolves.toEqual({
+      available: false,
+      reason: 'endpoint-missing',
+    });
+  });
+
+  it('analysis status: a 200 text/html body resolves available:false (endpoint-missing)', async () => {
+    stubRawFetch(htmlRoute);
+    await expect(getAnalysisRun('run-123')).resolves.toEqual({
+      available: false,
+      reason: 'endpoint-missing',
+    });
+  });
+
+  it('demo seed POST: a 200 text/html body classifies endpoint-missing — never a seeded success', async () => {
+    stubRawFetch(htmlRoute);
+    const error = await ensureDemoSeed().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiUnavailableError);
+    expect((error as ApiUnavailableError).message).toMatch(/function missing/);
+    expect((error as ApiUnavailableError).message).toMatch(/nothing ran/);
+  });
+
+  it('genuinely malformed JSON with an application/json content-type keeps the generic client error', async () => {
+    stubRawFetch(() => ({
+      status: 200,
+      body: '{"exists": true, "seedVersion": "seed-1", "nodeCount": 17 // truncated comment',
+      contentType: 'application/json',
+    }));
+    const error = await getSeedStatus().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect(error).not.toBeInstanceOf(ApiUnavailableError);
+    expect((error as ApiClientError).message).toBe(
+      'API returned a non-JSON body with a success status',
+    );
+  });
+
+  it('a JSON answer sent under a non-JSON content-type (e.g. text/plain) still parses when valid', async () => {
+    // Truthfulness constraint: classification is about the BODY failing to
+    // parse, never a reason to discard a valid JSON payload.
+    stubRawFetch(() => ({
+      status: 200,
+      body: JSON.stringify({ exists: false }),
+      contentType: 'text/plain',
+    }));
+    await expect(getSeedStatus()).resolves.toEqual({ exists: false });
   });
 });
