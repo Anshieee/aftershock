@@ -8,6 +8,9 @@ import {
   API_TIMEOUT_MS,
   apiRoutes,
   ensureDemoSeed,
+  exportAnnotatedManuscript,
+  exportReport,
+  exportRevisionPack,
   getAnalysisRun,
   getAnalysisStatus,
   getDemoDocuments,
@@ -515,5 +518,161 @@ describe('api client — analysis status + document detail (M4 routes)', () => {
       available: false,
       reason: 'endpoint-missing',
     });
+  });
+});
+
+describe('api client — export (M6)', () => {
+  const PDF_BLOB = new Blob([new Uint8Array([1, 2, 3])], { type: 'application/pdf' });
+  const DOCX_BLOB = new Blob([new Uint8Array([4, 5])], {
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+
+  /**
+   * Stub that answers each route with a possibly-binary body, recording calls.
+   * Unmatched URLs answer 404 like a missing Netlify function.
+   */
+  function stubBinaryFetch(
+    handler: (url: string, init: RequestInit | undefined) => { status: number; body?: Blob | string; contentType?: string } | undefined,
+  ): { url: string; init: RequestInit | undefined }[] {
+    const calls: { url: string; init: RequestInit | undefined }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : String((input as Request).url);
+        calls.push({ url, init });
+        const resolved = await Promise.resolve(handler(url, init));
+        if (!resolved) {
+          return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+        }
+        const body =
+          resolved.body instanceof Blob
+            ? resolved.body
+            : resolved.body !== undefined
+              ? JSON.stringify(resolved.body)
+              : '';
+        return new Response(body, {
+          status: resolved.status,
+          headers: { 'Content-Type': resolved.contentType ?? 'application/json' },
+        });
+      }),
+    );
+    return calls;
+  }
+
+  it('exportReport POSTs to /export-report with caseId/format and returns a PDF Blob', async () => {
+    const calls = stubBinaryFetch(() => ({
+      status: 200,
+      body: PDF_BLOB,
+      contentType: 'application/pdf',
+    }));
+    const result = await exportReport('doc-demo-manuscript', 'pdf');
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    // jsdom normalises Response.blob() size, so assert a non-empty blob with the
+    // expected content type instead of an exact byte count.
+    expect(result.data).toBeInstanceOf(Blob);
+    expect(result.data.size).toBeGreaterThan(0);
+    expect(result.data.type).toBe('application/pdf');
+    const call = calls[0];
+    expect(call?.url).toBe(
+      '/.netlify/functions/export-report?caseId=doc-demo-manuscript&format=pdf',
+    );
+    expect(call?.init?.method).toBe('POST');
+    expect((call?.init?.headers as Record<string, string>)['Accept']).toBe('application/pdf');
+  });
+
+  it('exportReport defaults to pdf format', async () => {
+    const calls = stubBinaryFetch(() => ({ status: 200, body: PDF_BLOB, contentType: 'application/pdf' }));
+    await exportReport('doc-demo-manuscript');
+    expect(calls[0]?.url).toBe('/.netlify/functions/export-report?caseId=doc-demo-manuscript&format=pdf');
+  });
+
+  it('exportRevisionPack POSTs to /export-revision-pack and returns a DOCX Blob', async () => {
+    const calls = stubBinaryFetch(() => ({
+      status: 200,
+      body: DOCX_BLOB,
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    }));
+    const result = await exportRevisionPack('doc-demo-manuscript');
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.data).toBeInstanceOf(Blob);
+    expect(result.data.size).toBeGreaterThan(0);
+    expect(result.data.type).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+    const call = calls[0];
+    expect(call?.url).toBe('/.netlify/functions/export-revision-pack?caseId=doc-demo-manuscript');
+    expect(call?.init?.method).toBe('POST');
+    expect((call?.init?.headers as Record<string, string>)['Accept']).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+  });
+
+  it('exportAnnotatedManuscript POSTs to /export-annotated-manuscript and returns a Blob', async () => {
+    const calls = stubBinaryFetch(() => ({ status: 200, body: PDF_BLOB, contentType: 'application/pdf' }));
+    const result = await exportAnnotatedManuscript('doc-demo-manuscript');
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.data).toBeInstanceOf(Blob);
+    const call = calls[0];
+    expect(call?.url).toBe('/.netlify/functions/export-annotated-manuscript?caseId=doc-demo-manuscript');
+    expect(call?.init?.method).toBe('POST');
+  });
+
+  it('exportReport 404 resolves available:false (endpoint-missing), never an error', async () => {
+    stubBinaryFetch(() => ({ status: 404 }));
+    const result = await exportReport('doc-demo-manuscript');
+    expect(result).toEqual({ available: false, reason: 'endpoint-missing' });
+  });
+
+  it('exportReport 501 resolves available:false with reason not-implemented', async () => {
+    stubBinaryFetch(() => ({ status: 501 }));
+    const result = await exportReport('doc-demo-manuscript');
+    expect(result).toEqual({ available: false, reason: 'not-implemented' });
+  });
+
+  it('exportReport 500 throws a typed ApiHttpError, never fabricated bytes', async () => {
+    stubBinaryFetch(() => ({ status: 500 }));
+    const error = await exportReport('doc-demo-manuscript').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiHttpError);
+    expect((error as ApiHttpError).status).toBe(500);
+  });
+
+  it('exportReport 2xx text/html (SPA fallback) resolves available:false endpoint-missing', async () => {
+    const HTML_PAGE = '<!doctype html><html><body></body></html>';
+    stubBinaryFetch(() => ({ status: 200, body: HTML_PAGE, contentType: 'text/html' }));
+    const result = await exportReport('doc-demo-manuscript');
+    expect(result).toEqual({ available: false, reason: 'endpoint-missing' });
+  });
+
+  it('exportRevisionPack 404 resolves available:false (endpoint-missing)', async () => {
+    stubBinaryFetch(() => ({ status: 404 }));
+    const result = await exportRevisionPack('doc-demo-manuscript');
+    expect(result).toEqual({ available: false, reason: 'endpoint-missing' });
+  });
+
+  it('exportAnnotatedManuscript 501 resolves available:false reason not-implemented', async () => {
+    stubBinaryFetch(() => ({ status: 501 }));
+    const result = await exportAnnotatedManuscript('doc-demo-manuscript');
+    expect(result).toEqual({ available: false, reason: 'not-implemented' });
+  });
+
+  it('exportReport aborts hanging requests after the promised 10 s', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: unknown, init?: RequestInit) => {
+        const signal = init?.signal;
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason));
+        });
+      }),
+    );
+    const pending = exportReport('doc-demo-manuscript');
+    const expectation = expect(pending).rejects.toBeInstanceOf(ApiTimeoutError);
+    await vi.advanceTimersByTimeAsync(API_TIMEOUT_MS - 1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expectation;
   });
 });

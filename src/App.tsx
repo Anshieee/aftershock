@@ -6,6 +6,7 @@ import InvestigationsPage from './pages/InvestigationsPage';
 import LibraryPage from './pages/LibraryPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
 import ActivityPage from './pages/ActivityPage';
+import ExportPage from './pages/ExportPage';
 import KnowledgeGraphPage from './pages/KnowledgeGraphPage';
 import DemoResultsPage from './pages/DemoResultsPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/review-queue" element={<ReviewQueuePage />} />
         <Route path="/activity" element={<ActivityPage />} />
+        <Route path="/export" element={<ExportPage />} />
         <Route path="/graph" element={<KnowledgeGraphPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

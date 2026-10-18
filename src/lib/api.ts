@@ -56,6 +56,11 @@ export const apiRoutes = {
   // appends encodeURIComponent(caseId) to the leading `?caseId=` prefix.
   reviewDecide: (_caseId: string) => '/review-decide?caseId=',
   reviewRevision: (_caseId: string) => '/review-revision?caseId=',
+  // M6 — export endpoints (fixed contract, §5). Binary responses (PDF/DOCX);
+  // dynamic parameters live in the query string. 404/501 → available:false.
+  exportReport: '/export-report',
+  exportRevisionPack: '/export-revision-pack',
+  exportAnnotatedManuscript: '/export-annotated-manuscript',
 } as const;
 
 /**
@@ -191,6 +196,8 @@ interface FetchArgs {
   options?: RequestOptions;
   /** Statuses that resolve to an `available: false` outcome. */
   notAvailableStatuses?: readonly (404 | 501)[];
+  /** Read the 2xx body as a raw Blob (binary export endpoints) instead of JSON. */
+  blobBody?: boolean;
 }
 
 /**
@@ -257,7 +264,7 @@ async function readJsonBody(response: Response): Promise<unknown> {
 }
 
 /** Low-level request. Returns a `NotAvailable` marker only for pre-handled statuses. */
-async function request({ path, init, options, notAvailableStatuses = [] }: FetchArgs): Promise<unknown | NotAvailable> {
+async function request({ path, init, options, notAvailableStatuses = [], blobBody = false }: FetchArgs): Promise<unknown | NotAvailable> {
   const linked = makeLinkedSignal(options ?? {});
   let response: Response;
   try {
@@ -288,8 +295,24 @@ async function request({ path, init, options, notAvailableStatuses = [] }: Fetch
     throw new ApiHttpError(response.status, `API responded with HTTP ${response.status}`);
   }
 
-  // 2xx: JSON is the only acceptable data shape (classification in
-  // readJsonBody — identical logic to the original inline block).
+  // 2xx: binary endpoints return a Blob; JSON endpoints go through readJsonBody
+  // (content-type classification — identical logic to the original inline block).
+  if (blobBody) {
+    const contentType = response.headers.get('content-type')?.trim().toLowerCase() ?? '';
+    const mainType = contentType.split(';')[0]?.trim();
+    const isBinaryDocument =
+      mainType === 'application/pdf' ||
+      mainType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      mainType === 'application/octet-stream';
+    // An HTML page or JSON document shading a missing function is not a real
+    // export — treat as endpoint-unavailable so the caller says "not available yet".
+    if (!isBinaryDocument) {
+      throw new ApiUnavailableError(
+        'The export endpoint answered 2xx with a non-binary document (likely the site fallback) — the endpoint is not available here.',
+      );
+    }
+    return response.blob();
+  }
   return readJsonBody(response);
 }
 
@@ -1062,4 +1085,116 @@ export async function reviewRevision(
     options,
   });
   return parseRevisionProposalResult(data);
+}
+
+/* ------------------------------------------------------------------ *
+ * M6 — export endpoints (fixed server contract, §5). Binary responses
+ * (PDF / DOCX). 404/501 → available:false ("not available yet", never
+ * fabricated bytes); 400/503 throw typed errors so the UI can report the
+ * failure honestly. ------------------------------------------------------------------ */
+
+/** Format a report export is rendered in. */
+export type ExportFormat = 'pdf' | 'docx';
+
+/**
+ * Outcome of POST /export-report, /export-revision-pack or
+ * /export-annotated-manuscript. 2xx → a binary Blob the caller downloads;
+ * 404/501 → honest "not available yet".
+ */
+export type ExportOutcome =
+  | { available: true; data: Blob }
+  | { available: false; reason: 'endpoint-missing' | 'not-implemented' };
+
+function parseExportBlob(payload: unknown): Blob {
+  if (!(payload instanceof Blob)) {
+    throw new ApiClientError('Export endpoint returned a non-blob body');
+  }
+  return payload;
+}
+
+/**
+ * POST /export-report?caseId=&format= — Evidence Impact Report (PDF).
+ * Returns a PDF Blob the caller downloads; 404/501 → available:false.
+ */
+export async function exportReport(
+  caseId: string,
+  format: ExportFormat = 'pdf',
+  options?: RequestOptions,
+): Promise<ExportOutcome> {
+  const search = new URLSearchParams({ caseId, format });
+  let data: unknown;
+  try {
+    data = await request({
+      path: `${apiRoutes.exportReport}?${search.toString()}`,
+      init: { method: 'POST', headers: { Accept: 'application/pdf' } },
+      options,
+      notAvailableStatuses: [404, 501],
+      blobBody: true,
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
+  return outcome(data, parseExportBlob);
+}
+
+/**
+ * POST /export-revision-pack?caseId= — Revision Pack (DOCX).
+ * Returns a DOCX Blob the caller downloads; 404/501 → available:false.
+ */
+export async function exportRevisionPack(
+  caseId: string,
+  options?: RequestOptions,
+): Promise<ExportOutcome> {
+  const search = new URLSearchParams({ caseId });
+  let data: unknown;
+  try {
+    data = await request({
+      path: `${apiRoutes.exportRevisionPack}?${search.toString()}`,
+      init: {
+        method: 'POST',
+        headers: {
+          Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+      },
+      options,
+      notAvailableStatuses: [404, 501],
+      blobBody: true,
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
+  return outcome(data, parseExportBlob);
+}
+
+/**
+ * POST /export-annotated-manuscript?caseId= — Annotated Manuscript.
+ * Returns a binary manuscript Blob the caller downloads; 404/501 → available:false.
+ */
+export async function exportAnnotatedManuscript(
+  caseId: string,
+  options?: RequestOptions,
+): Promise<ExportOutcome> {
+  const search = new URLSearchParams({ caseId });
+  let data: unknown;
+  try {
+    data = await request({
+      path: `${apiRoutes.exportAnnotatedManuscript}?${search.toString()}`,
+      init: { method: 'POST', headers: { Accept: 'application/pdf' } },
+      options,
+      notAvailableStatuses: [404, 501],
+      blobBody: true,
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
+  return outcome(data, parseExportBlob);
 }
