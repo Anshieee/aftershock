@@ -74,11 +74,20 @@ export default function OverviewPage() {
             Continue your work
           </h2>
           <p className="mt-3 max-w-prose text-base text-ink" data-testid="continue-summary">
-            The guided demo graph is present
-            {probe.status.seedVersion && ` (seedVersion ${probe.status.seedVersion})`}
-            {typeof probe.status.nodeCount === 'number' && ` with ${probe.status.nodeCount} nodes as reported by the graph probe`}
-            . The demo results view maps verified notices, affected claims, historical
-            mentions and unresolved references from the real graph data.
+            The guided demo graph is present. The demo results view maps verified
+            notices, affected claims, historical mentions and unresolved
+            references from the real graph data.
+          </p>
+          {/* Probe details stay inspectable but out of the primary message:
+              a quiet, truthful caption rather than dev jargon in the card. */}
+          <p
+            className="mt-3 text-xs leading-5 text-ink-muted"
+            data-testid="continue-caption"
+          >
+            Graph probe details{probe.status.seedVersion && `: seedVersion ${probe.status.seedVersion}`}
+            {typeof probe.status.nodeCount === 'number' && `, ${probe.status.nodeCount} nodes`} —
+            read from the real <code className="rounded bg-paper-deep px-1">/graph-probe</code>{' '}
+            check, never guessed.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link

@@ -33,9 +33,15 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
     renderOverview();
 
     await waitFor(() => expect(screen.getByTestId('continue-card')).toBeTruthy());
+    // De-dev: probe details moved out of the primary card message into a
+    // muted caption — still truthful and inspectable, but not headline copy.
     const summary = screen.getByTestId('continue-summary').textContent ?? '';
-    expect(summary).toContain('seedVersion seed-1');
-    expect(summary).toContain('17 nodes');
+    expect(summary).not.toContain('seedVersion');
+    expect(summary).not.toContain('17 nodes');
+    const caption = screen.getByTestId('continue-caption').textContent ?? '';
+    expect(caption).toContain('seedVersion seed-1');
+    expect(caption).toContain('17 nodes');
+    expect(caption).toContain('/graph-probe');
     expect(screen.getByRole('link', { name: 'View guided results' })).toBeTruthy();
     // The Knowledge Graph lives in its own clearly secondary card.
     expect(
