@@ -114,13 +114,16 @@ export default function LandingPage() {
           >
             {seeding ? 'Contacting demo API…' : 'Explore guided investigation'}
           </button>
-          {/* Secondary affordance: forwards to the real file picker. */}
-          <label
-            htmlFor="import-input"
+          {/* Secondary affordance: forwards to the real file picker (single
+              label association — the panel's label is the canonical one). */}
+          <button
+            type="button"
+            data-testid="hero-choose-document"
+            onClick={() => document.getElementById('import-input')?.click()}
             className="cursor-pointer rounded-lg border border-ink-border bg-paper-raised px-6 py-3.5 text-center text-base font-medium text-ink hover:bg-paper-deep"
           >
             Choose a document
-          </label>
+          </button>
         </div>
         {seeding && (
           <p className="mt-3 text-sm text-ink-muted" role="status">
