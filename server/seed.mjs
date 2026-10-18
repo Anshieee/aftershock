@@ -17,7 +17,6 @@
  * - No credentials are ever logged; warnings are returned, not printed.
  */
 
-import { readFileSync } from 'node:fs';
 import {
   EDGE_TYPES,
   FIXTURE_IDS,
@@ -28,21 +27,27 @@ import {
 } from './contract.mjs';
 import { getSeedStatus } from './impact.mjs';
 
-const FIXTURE_URL = new URL('./fixtures/demo-fixture.json', import.meta.url);
+// Bundler-safe static JSON import (M3): Netlify functions bundle this module
+// with esbuild, which inlines the JSON at build time. The previous
+// `readFileSync(new URL('./fixtures/…'))` loader did not survive bundling
+// (import.meta.url points into the function scratch bundle, where the
+// standalone JSON file does not exist). The `with { type: 'json' }` attribute
+// is the same pattern already shipped and verified live by the deployed M1
+// `health` function; vite/esbuild mediate the syntax for vitest/local runs.
+import defaultFixtureData from './fixtures/demo-fixture.json' with { type: 'json' };
 
 /** @type {Record<string, unknown> | null} */
 let defaultFixtureInstance = null;
 
 /**
  * The default guided-demo fixture (fixtures/demo-fixture.json).
- * Parsed once and cached; safe to import in credential-free unit tests.
+ * Parsed once and cached (via the static import above); safe in
+ * credential-free unit tests. Consumers must treat the fixture as read-only.
  * @returns {Record<string, unknown>} fixture — see docs/DATA_CONTRACTS.md §6 and fixtures/README.md
  */
 export function defaultFixture() {
   if (!defaultFixtureInstance) {
-    defaultFixtureInstance = /** @type {Record<string, unknown>} */ (
-      JSON.parse(readFileSync(FIXTURE_URL, 'utf8'))
-    );
+    defaultFixtureInstance = /** @type {Record<string, unknown>} */ (defaultFixtureData);
   }
   return defaultFixtureInstance;
 }

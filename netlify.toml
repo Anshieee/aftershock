@@ -6,8 +6,74 @@
 [functions]
   node_bundler = "esbuild"
 
+# ---------------------------------------------------------------------
+# Function routes (M3 backend wiring).
+#
+# The client (src/lib/api.ts, read-only reference) calls these paths under
+# the /.netlify/functions base; dash-named function files cannot express
+# dotted sub-paths, so each client-facing route is a status-200 rewrite
+# (internal rewrite, no HTTP redirect) onto the real function file.
+# `force = true` puts these ahead of file resolution and the functions
+# auto-router; ALL of them must stay ABOVE the SPA fallback, which is
+# deliberately LAST.
+# ---------------------------------------------------------------------
+
+# GET — read-only seeded-state probe: { exists, seedVersion?, nodeCount? }.
+[[redirects]]
+  from = "/.netlify/functions/graph/probe"
+  to = "/.netlify/functions/graph-probe"
+  status = 200
+  force = true
+
+# POST — bodyless public guided-demo seed (idempotent, rate-limited).
+[[redirects]]
+  from = "/.netlify/functions/demo/seed"
+  to = "/.netlify/functions/demo-seed"
+  status = 200
+  force = true
+
+# GET — read-only graph records overview (?limit=&nodeId=&depth=).
+[[redirects]]
+  from = "/.netlify/functions/graph/edges"
+  to = "/.netlify/functions/graph-edges"
+  status = 200
+  force = true
+
+# GET — document list (real Document nodes incl. isSynthetic labeling).
+[[redirects]]
+  from = "/.netlify/functions/documents"
+  to = "/.netlify/functions/documents"
+  status = 200
+  force = true
+
+# GET /documents/:id — M4 scope: honest 501 stub (client maps 404/501 to
+# "not available yet"). The wildcard is the wiring chosen by
+# netlify/functions/unimplemented.mjs.
+[[redirects]]
+  from = "/.netlify/functions/documents/*"
+  to = "/.netlify/functions/unimplemented"
+  status = 200
+  force = true
+
+# GET /analyze/:runId/status — M4/M5 scope: same 501 stub (wildcard covers
+# any sub-path per unimplemented.mjs's intent).
+[[redirects]]
+  from = "/.netlify/functions/analyze/*"
+  to = "/.netlify/functions/unimplemented"
+  status = 200
+  force = true
+
+# POST — SENSITIVE managed reseed (DATA_CONTRACTS §5): explicit route entry
+# for the secret-guarded function (x-seed-secret + rate limit + method and
+# body guards enforced by the handler itself).
+[[redirects]]
+  from = "/.netlify/functions/seed"
+  to = "/.netlify/functions/seed"
+  status = 200
+  force = true
+
 # SPA fallback: files that exist on disk are served first; anything else
-# (page GETs that are not a file) renders the app shell.
+# (page GETs that are not a file) renders the app shell. MUST stay last.
 [[redirects]]
   from = "/*"
   to = "/index.html"
