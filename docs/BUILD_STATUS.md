@@ -14,9 +14,11 @@ Last updated: 2026-10-18 (M0 close)
 |---|---|---|
 | M0 Environment & architecture | **Done** | ADR 0001, DATA_CONTRACTS, MILESTONES, AGENTS.md committed; CI green |
 | M1 Live walking skeleton | **Done — DEPLOYED** | PR #1 approved+merged; `https://aftershock-demo.netlify.app` live: / 200, SPA fallback 200, `/health` = `{ok, service, graph:"not-configured", version}`; no secrets in bundle; unit tests 10/10 (incl. relocated health test); CI green |
-| M2 Real FalkorDB & demo seed | **In review** | PR #2 `feat/m2-graph-library`: `server/` lib (client+contract+fixture+seed+impact), 47 unit + 6 live integration tests pass on real instance (smoke graph isolated); reviewer verifying |
+| M2 Real FalkorDB & demo seed | **In review — fixes impl.** | PR #2 `feat/m2-graph-library`: reviewer verdict REQUEST_CHANGES (MAJOR: SeedMeta duplication on reseed) — fixes in `aftershock-wt-m2fix` with new integration assertions; 47 unit + 6 live integration tests green + independently reproduced by reviewer (app path) |
 | M3 Source verification & impact | **Done (records verified)** | `docs/research/mehra-notice-verification.md` merged; corrected bibliographic fields live in contract §6 + fixture |
-| M4–M8 | Not started | Wave 2 dispatch after PR #2 merge |
+| M2 UI (part of M2/M4) | **PR #4 open** | `feat/m2-connected-ui`: API client + guided-example flow + real-data graph view + Context Inspector; 55 unit tests; reviewer verifying |
+| Test harness | **PR #3 open** | `test/hosted-acceptance`: Playwright E2E + axe a11y on live production; 38/38 green; honesty probes pass; reviewer verifying |
+| M4–M8 | Not started | Wave 3 (backend API wiring) after PR #2 + #4 merge |
 
 ## Deployed URLs
 - Production: https://aftershock-demo.netlify.app (site id b1bb72a1-23de-46c4-8af8-ad4c5010f041)
