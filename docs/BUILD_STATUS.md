@@ -18,7 +18,7 @@ Last updated: 2026-10-18 (post M2-UI merge)
 | M3 Source verification & impact | **Done (records verified)** | `docs/research/mehra-notice-verification.md` merged; corrected bibliographic fields live in contract §6 + fixture |
 | M2 UI (part of M2/M4) | **Merged + deployed** | PR #4 `feat/m2-connected-ui` approved (sage-reservation MODERATE fixed pre-merge) → deployed; E2E suite updated to M2 flow (38/38 green live) |
 | Test harness | **Merged** | PR #3 approved → merged; reviewer suggestions applied (html reporter + concurrency); 38/38 green after deploy |
-| M4–M8 | M3 in progress next | PR #2 fix pushed (`6826f31`): MAJOR SeedMeta fixed + tests 50/50 unit, 6/6 integration; delta re-review in flight; Wave 3 backend wiring on merge |
+| M4–M8 | **Wave 3 running** | PR #2 MERGED (`634f871`, delta re-review approved — SeedMeta fix verified: unit 50/50, integration 6/6); backend API wiring (`feat/m3-backend-api`; §5 routes: probe/demo-seed/seed-guarded/graph-edges/documents + netlify.toml rewrites) and UI polish batch (`feat/m3-ui-polish`) in flight |
 
 ## Deployed URLs
 - Production: https://aftershock-demo.netlify.app (site id b1bb72a1-23de-46c4-8af8-ad4c5010f041)
