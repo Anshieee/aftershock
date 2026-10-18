@@ -297,8 +297,7 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect, focuse
         viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
         preserveAspectRatio="xMidYMin meet"
         width="100%"
-        height="auto"
-        className="max-w-full h-auto touch-none"
+        className="h-auto max-w-full touch-none"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
