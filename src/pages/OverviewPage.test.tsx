@@ -115,7 +115,7 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
     expect(screen.queryByTestId('import-first-card')).toBeNull();
   });
 
-  it('keeps service status quiet: a muted line at the end, never a chip beside the heading', async () => {
+  it('keeps service status quiet: no chip, no page-level line (Layout owns the line), honest footnote copy', async () => {
     stubFetchByRoute((url) =>
       url.includes('health')
         ? { status: 200, body: { ok: true } }
@@ -123,11 +123,19 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
     );
     renderOverview();
     await waitFor(() =>
-      expect(screen.getByTestId('service-status-line').textContent).toMatch(/^API: online$/),
+      expect(screen.getByTestId('overview-status-footnote')).toBeTruthy(),
     );
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy();
-    // The prominent pill is gone from the heading row — status is
-    // de-emphasized to the quiet line at the bottom of the page.
+    // The prominent pill is gone from the heading row…
     expect(screen.queryByTestId('service-status')).toBeNull();
+    // …and the page renders NO status line of its own — the Layout sidebar
+    // line is the single instance (no duplicate fetch, no duplicate
+    // aria-live announcements).
+    expect(screen.queryByTestId('service-status-line')).toBeNull();
+    // The footnote copy names the REAL endpoints (dash-path canonical).
+    const footnote = screen.getByTestId('overview-status-footnote').textContent ?? '';
+    expect(footnote).toContain('/health');
+    expect(footnote).toContain('/graph-probe');
+    expect(footnote).not.toContain('/graph/probe');
   });
 });

@@ -8,7 +8,6 @@ import {
   getSeedStatus,
   type SeedStatus,
 } from '../lib/api';
-import ServiceStatusLine from '../components/ServiceStatusLine';
 
 type ProbeState =
   | { phase: 'checking' }
@@ -172,11 +171,10 @@ export default function OverviewPage() {
       </section>
 
       <div className="mt-10 border-t border-ink-border pt-4" data-testid="overview-status-footnote">
-        <ServiceStatusLine />
-        <p className="mt-2 max-w-prose text-base text-ink-muted">
-          The status line queries the platform’s real{' '}
-          <code className="rounded bg-paper-deep px-1">/health</code> endpoint; the card
-          above reflects the real <code className="rounded bg-paper-deep px-1">/graph/probe</code>{' '}
+        <p className="max-w-prose text-base text-ink-muted">
+          The sidebar status line queries the platform’s real{' '}
+          <code className="rounded bg-paper-deep px-1">/health</code> endpoint; the cards
+          above reflect the real <code className="rounded bg-paper-deep px-1">/graph-probe</code>{' '}
           read-only check. “Online” never implies a connected data layer, and nothing here
           is simulated.
         </p>
