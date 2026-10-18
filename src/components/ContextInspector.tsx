@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { GraphEdge, GraphNode } from '../lib/api';
+import { nodePrimaryLabel } from './GraphCanvas';
 
 interface ContextInspectorProps {
   node: GraphNode | null;
@@ -47,6 +48,7 @@ export default function ContextInspector({ node, edges, onClose }: ContextInspec
           <button
             type="button"
             onClick={onClose}
+            data-testid="inspector-close"
             className="rounded border border-ink-border px-2 py-0.5 text-xs text-ink hover:bg-paper-deep"
           >
             Close
@@ -64,6 +66,12 @@ export default function ContextInspector({ node, edges, onClose }: ContextInspec
         <div>
           <dt className="font-medium text-ink-muted">Type</dt>
           <dd className="text-ink">{node.kind}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-ink-muted">Label</dt>
+          <dd className="break-words text-ink" data-testid="inspector-label">
+            {nodePrimaryLabel(node)}
+          </dd>
         </div>
         <div>
           <dt className="font-medium text-ink-muted">Provenance</dt>
