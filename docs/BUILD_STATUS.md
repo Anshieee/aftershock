@@ -12,17 +12,17 @@ Last updated: 2026-10-18 (M0 close)
 ## Milestones
 | Stage | Status | Notes |
 |---|---|---|
-| M0 Environment & architecture | **Done** | ADR 0001, DATA_CONTRACTS, MILESTONES, AGENTS.md committed; CI skeleton lands with scaffold PR |
-| M1 Live walking skeleton | In progress | coder agent: app scaffold + UI shell + `/health` + netlify.toml + CI |
-| M2 Real FalkorDB & demo seed | In progress | database agent: `server/` graph library + fixtures + idempotent seed |
-| M3 Source verification & impact | In progress | researcher agent: Mehra notice authoritative-record verification |
-| M4–M8 | Not started | after Wave 1 integration |
-
-## Current blockers
-- None.
+| M0 Environment & architecture | **Done** | ADR 0001, DATA_CONTRACTS, MILESTONES, AGENTS.md committed; CI green |
+| M1 Live walking skeleton | **Done — DEPLOYED** | PR #1 approved+merged; `https://aftershock-demo.netlify.app` live: / 200, SPA fallback 200, `/health` = `{ok, service, graph:"not-configured", version}`; no secrets in bundle; unit tests 10/10 (incl. relocated health test); CI green |
+| M2 Real FalkorDB & demo seed | **In review** | PR #2 `feat/m2-graph-library`: `server/` lib (client+contract+fixture+seed+impact), 47 unit + 6 live integration tests pass on real instance (smoke graph isolated); reviewer verifying |
+| M3 Source verification & impact | **Done (records verified)** | `docs/research/mehra-notice-verification.md` merged; corrected bibliographic fields live in contract §6 + fixture |
+| M4–M8 | Not started | Wave 2 dispatch after PR #2 merge |
 
 ## Deployed URLs
-- (pending — first Netlify deploy after scaffold PR merge)
+- Production: https://aftershock-demo.netlify.app (site id b1bb72a1-23de-46c4-8af8-ad4c5010f041)
+
+## Current blockers
+- None. (Netlify deploy fact: Netlify rejects function filenames with dots — health unit test relocated to `tests/netlify/`; vitest include fixed.)
 
 ## Open risks
 - Plaintext FalkorDB connection (demo-only, synthetic data enforced).
