@@ -20,7 +20,7 @@ Last updated: 2026-10-18 (PR5 brand wave merged; M3 backend wiring code-complete
 | M2 UI (part of M2/M4) | **Merged + deployed** | PR #4 `feat/m2-connected-ui` approved (sage-reservation MODERATE fixed pre-merge) → deployed; E2E suite updated to M2 flow (38/38 green live) |
 | Test harness | **Merged** | PR #3 approved → merged; reviewer suggestions applied (html reporter + concurrency); 38/38 green after deploy |
 | Brand/UX wave | **In flight** | `feat/brand-wordmark-ux`: wordmark `Aftershock.` (Bodoni Moda 900, compressed), header badge → discreet status, Overview refinement, mobile-resilience specs; user-approved 2026-10-18 |
-| M4–M8 | **Wave 3 running** | PR #2 MERGED (`634f871`, delta re-review approved — SeedMeta fix verified: unit 50/50, integration 6/6); backend API wiring (`feat/m3-backend-api`; §5 routes: probe/demo-seed/seed-guarded/graph-edges/documents + netlify.toml rewrites) and UI polish batch (`feat/m3-ui-polish`) in flight |
+| M4–M8 | **M2/M3 core merged** | PR #5 (UI polish + SPA-shade hardening) and PR #6 (backend §5 wiring: probe/demo-seed/guarded-seed/graph-edges/documents/stubs, rewrites above SPA; unit 152 passed + live 7/7) MERGED. Brand/UX wave (PR #7: wordmark `Aftershock.`, discreet status line, Overview refinement, mobile specs) in review. Next: deploy + production verification sweep |
 
 ## Deployed URLs
 - Production: https://aftershock-demo.netlify.app (site id b1bb72a1-23de-46c4-8af8-ad4c5010f041)
