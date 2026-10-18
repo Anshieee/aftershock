@@ -1,0 +1,511 @@
+{
+  "@fixture": "aftershock-demo-fixture",
+  "fixtureVersion": "seed-1",
+  "contractReferences": {
+    "entities": "docs/DATA_CONTRACTS.md §1",
+    "edges": "docs/DATA_CONTRACTS.md §2",
+    "provenanceKinds": "docs/DATA_CONTRACTS.md §3",
+    "fixtureIds": "docs/DATA_CONTRACTS.md §6",
+    "invariants": "docs/DATA_CONTRACTS.md §7"
+  },
+  "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+  "fixtureTimestamp": "2026-10-18T00:00:00.000Z",
+  "provenancePolicy": {
+    "observed": "Presencing directly authored into the demo content (text exists, edges that merely contain/quote it).",
+    "human_confirmed": "Interpretive classification curated by the fixture author (citation roles, claim dependencies, fictional evidence-family links).",
+    "source_verified": "Real bibliographic/status facts taken from the public record (Crossref access 2026-10-18); M3 must re-verify live before automation treats them authoritatively.",
+    "unresolved": "Ambiguous identity candidates that must never propagate (see ref-lee-2020)."
+  },
+  "knownDiscrepancies": [],
+  "nodes": [
+    {
+      "kind": "ResearchDocument",
+      "id": "doc-demo-manuscript",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "title": "Data-Integrity Consequences in Respiratory Infection Care (Guided Demo Manuscript)",
+      "fileName": "guided-demo-manuscript.pdf",
+      "format": "pdf",
+      "sizeBytes": 51200,
+      "importedAt": "2026-10-18T00:00:00.000Z",
+      "versionId": "ver-demo-manuscript-v1",
+      "note": "Whole document and all its passages are a fictional guided-demo manuscript written to exercise the M2 invariant path. No real manuscript content is stored."
+    },
+    {
+      "kind": "DocumentVersion",
+      "id": "ver-demo-manuscript-v1",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "documentId": "doc-demo-manuscript",
+      "label": "Draft A",
+      "sourceHash": "fixture://aftershock-demo-fixture-v1/ver-demo-manuscript-v1",
+      "pageCount": 6,
+      "extractedTextRef": null,
+      "note": "Immutable snapshot placeholder; sourceHash points at the fixture itself because no real document body exists."
+    },
+    {
+      "kind": "Publication",
+      "id": "pub-mehra-2020",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "source_verified",
+      "analysisVersion": "seed-1",
+      "isSynthetic": false,
+      "doi": "10.1016/S0140-6736(20)31180-6",
+      "title": "Hydroxychloroquine or chloroquine with or without a macrolide for treatment of COVID-19: a multinational registry analysis",
+      "authors": [
+        "Mandeep R. Mehra",
+        "Sapan S. Desai",
+        "Frank Ruschitzka",
+        "Amit N. Patel"
+      ],
+      "journal": "The Lancet",
+      "year": 2020,
+      "url": "https://doi.org/10.1016/S0140-6736(20)31180-6",
+      "titleStatusAsRecorded": "Retracted-state bibliographic records (Crossref/PubMed) carry a 'RETRACTED: ' title prefix; this node stores the clean article title and the retracted state separately (UI must not merge them). Verified 2026-10-18 via Crossref/PubMed/PMC per docs/research/mehra-notice-verification.md.",
+      "bibliographicNote": "Real publication record (isSynthetic=false). Bibliographic identity verified 2026-10-18 against Crossref/PubMed/PMC (see docs/research/mehra-notice-verification.md); published online 2020-05-22, no print vol/pages ever assigned. Do not use the NEJM paper title — different paper/DOI.",
+      "publishedDate": "2020-05-22",
+      "pmId": "32450107",
+      "pmcId": "PMC7255293",
+      "pii": "S0140673620311806",
+      "retracted": true
+    },
+    {
+      "kind": "Publication",
+      "id": "pub-mehra-retraction-2020",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "source_verified",
+      "analysisVersion": "seed-1",
+      "isSynthetic": false,
+      "doi": "10.1016/S0140-6736(20)31324-6",
+      "title": "Retraction—Hydroxychloroquine or chloroquine with or without a macrolide for treatment of COVID-19: a multinational registry analysis",
+      "authors": [
+        "Mandeep R. Mehra",
+        "Frank Ruschitzka",
+        "Amit N. Patel"
+      ],
+      "journal": "The Lancet",
+      "year": 2020,
+      "url": "https://doi.org/10.1016/S0140-6736(20)31324-6",
+      "bibliographicNote": "Real retraction-notice publication (isSynthetic=false): The Lancet 395(10240):1820, PMID 32511943, record date 2020-06-05. Verified 2026-10-18 via Crossref/PubMed/PMC per docs/research/mehra-notice-verification.md. The notice's own author list (Mehra/Ruschitzka/Patel, no Desai) is intentionally distinct from the original paper's.",
+      "pmId": "32511943",
+      "pmcId": "PMC7274621",
+      "pii": "S0140673620313246",
+      "volume": 395,
+      "issue": "10240",
+      "page": "1820"
+    },
+    {
+      "kind": "SourceNotice",
+      "id": "notice-mehra-retraction-2020-06-04",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "source_verified",
+      "analysisVersion": "seed-1",
+      "isSynthetic": false,
+      "publicationId": "pub-mehra-2020",
+      "noticeType": "retraction",
+      "publishedDate": "2020-06-04",
+      "detectedAt": "2026-10-18T00:00:00.000Z",
+      "lastVerifiedAt": "2026-10-18T00:00:00.000Z",
+      "sourceUrl": "https://doi.org/10.1016/S0140-6736(20)31324-6",
+      "verified": true,
+      "verificationNote": "verified=true: authoritative Crossref/PubMed/PMC/doi.org retrievals succeeded (docs/research/mehra-notice-verification.md, HIGH confidence, 4 independent systems agree). publishedDate serves as noticeAnnouncementDate (Lancet statement, 2020-06-04); noticeRecordedDate (2020-06-05) is the PubMed/PMC/Crossref record date. The two timestamps stay distinct and are never merged (contract §6).",
+      "noticeAnnouncementDate": "2020-06-04",
+      "noticeRecordedDate": "2020-06-05",
+      "pmcMirrorUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7274621/",
+      "pmId": "32511943",
+      "title": "Retraction—Hydroxychloroquine or chloroquine with or without a macrolide for treatment of COVID-19: a multinational registry analysis",
+      "noticeAuthorList": [
+        "Mandeep R. Mehra",
+        "Frank Ruschitzka",
+        "Amit N. Patel"
+      ]
+    },
+    {
+      "kind": "ReferenceOccurrence",
+      "id": "ref-lee-2020",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "documentVersionId": "ver-demo-manuscript-v1",
+      "rawText": "Lee et al., 2020",
+      "location": {
+        "page": 4,
+        "section": "3.2",
+        "offset": null
+      },
+      "candidatePublicationIds": [
+        "pub-lee-2020-candidate-a",
+        "pub-lee-2020-candidate-b"
+      ],
+      "resolutionState": "unresolved",
+      "note": "Ambiguous reference with only a surname+year. Candidate edges stay POSSIBLE_MATCH (explicitly unverified) and must never propagate; a Skip re-records the state as 'deferred', which remains non-resolved."
+    },
+    {
+      "kind": "Claim",
+      "id": "claim-A",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "documentVersionId": "ver-demo-manuscript-v1",
+      "text": "Agent P-9 was selected on the strength of the registry analysis we cite (Mehra et al., 2020), which we read as establishing a drug-treatment mortality signal in the target cohort.",
+      "location": {
+        "page": 3,
+        "section": "2.1"
+      },
+      "status": "unreviewed",
+      "demoRole": "Passage A: relies directly on the retracted Mehra record, so this claim expects a direct evidence review when the notice is verified."
+    },
+    {
+      "kind": "Claim",
+      "id": "claim-B",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "documentVersionId": "ver-demo-manuscript-v1",
+      "text": "The 2020 retraction of the registry analysis referenced in Passage 2.1 serves here as a historical example of why mandatory raw-data audits matter; nothing in this manuscript depends on that analysis.",
+      "location": {
+        "page": 5,
+        "section": "4.1"
+      },
+      "status": "unreviewed",
+      "demoRole": "Passage B: mentions the retracted study only as historical context and must NOT be flagged as compromised supporting evidence."
+    },
+    {
+      "kind": "Conclusion",
+      "id": "conclusion-C",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "documentVersionId": "ver-demo-manuscript-v1",
+      "text": "Guided-demo recommendation: agent P-9 enters the priority protocol for the simulated care unit; this conclusion depends on the Passage 2.1 statement (claim-A) and inherits its evidence obligations.",
+      "location": {
+        "page": 6,
+        "section": "5.2"
+      }
+    },
+    {
+      "kind": "CitationUse",
+      "id": "cu-A-supporting",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "documentVersionId": "ver-demo-manuscript-v1",
+      "publicationId": "pub-mehra-2020",
+      "excerpt": "As our primary evidence we adopt the registry analysis reported by Mehra et al. (2020) and propagate its mortality signal into the P-9 risk model.",
+      "location": {
+        "page": 3,
+        "section": "2.1",
+        "excerptOffset": 0
+      },
+      "role": "supporting",
+      "note": "Role=supporting is the curated demo classification also encoded by CITATION_USE_SUPPORTS_CLAIM."
+    },
+    {
+      "kind": "CitationUse",
+      "id": "cu-B-historical",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "documentVersionId": "ver-demo-manuscript-v1",
+      "publicationId": "pub-mehra-2020",
+      "excerpt": "The June 2020 retraction record for Mehra et al. (2020) is discussed as historical context in a passage about audit practice; it does not support any finding here.",
+      "location": {
+        "page": 5,
+        "section": "4.1",
+        "excerptOffset": 0
+      },
+      "role": "historical",
+      "note": "Role=historical is the curated demo classification also encoded by MENTIONS_HISTORICALLY."
+    },
+    {
+      "kind": "Publication",
+      "id": "pub-lee-2020-candidate-a",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "unresolved",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "doi": "10.demo/demo-lee-2020-a",
+      "title": "Outcome modelling after respiratory support adjustment (demo-fictional)",
+      "authors": [
+        "Lee, J. (demo-fictional author)"
+      ],
+      "journal": "Journal of Simulated Outcomes (demo-fictional)",
+      "year": 2020,
+      "url": "https://demo.example.invalid/pub-lee-2020-candidate-a",
+      "note": "Fictional identity candidate; the DOI prefix 10.demo and the .invalid URL exist only so they can never collide with or route to a real record."
+    },
+    {
+      "kind": "Publication",
+      "id": "pub-lee-2020-candidate-b",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "unresolved",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "doi": "10.demo/demo-lee-2020-b",
+      "title": "Ventilation duration and discharge patterns in modelled clinics (demo-fictional)",
+      "authors": [
+        "Lee, M. (demo-fictional author)"
+      ],
+      "journal": "Archives of Modeled Therapies (demo-fictional)",
+      "year": 2020,
+      "url": "https://demo.example.invalid/pub-lee-2020-candidate-b",
+      "note": "Fictional identity candidate; unverified and intentionally plausible-looking so the ambiguity is real."
+    },
+    {
+      "kind": "Study",
+      "id": "study-E",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "title": "Study E — simulated effectiveness assessment of P-9 (demo-fictional)",
+      "note": "Fictional study entity used to demonstrate shared-dataset grouping; it is NOT the Mehra record and must stay disconnected from real publications."
+    },
+    {
+      "kind": "EvidenceFamily",
+      "id": "review-F",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "title": "Review F — synthetic synthesis family over Study E (demo-fictional)",
+      "note": "Evidence family (contract §1 label) demonstrating REVIEW_SYNTHESIZES_STUDY inside the fictional cluster only."
+    },
+    {
+      "kind": "Dataset",
+      "id": "dataset-X",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "updatedAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "analysisVersion": "seed-1",
+      "isSynthetic": true,
+      "syntheticLabel": "FICTIONAL / GUIDED DEMO",
+      "title": "Dataset X — shared simulated cohort table (demo-fictional)",
+      "note": "Fictional shared dataset; citations to works using it are never independent confirmations without verified edges (invariant §7.4)."
+    }
+  ],
+  "edges": [
+    {
+      "type": "DOCUMENT_HAS_VERSION",
+      "id": "edge-doc-has-version",
+      "fromId": "doc-demo-manuscript",
+      "toId": "ver-demo-manuscript-v1",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "rationale": "Structural import edge authored into the fixture: every ResearchDocument is grouped with its immutable version snapshot.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#doc-demo-manuscript",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "DOCUMENT_HAS_REFERENCE",
+      "id": "edge-doc-has-reference-lee",
+      "fromId": "doc-demo-manuscript",
+      "toId": "ref-lee-2020",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "rationale": "The raw reference occurrence is text of the document, so containing it is directly observed in the fixture content.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#ref-lee-2020",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "CLAIM_HAS_CITATION_USE",
+      "id": "edge-claimA-has-cuA",
+      "fromId": "claim-A",
+      "toId": "cu-A-supporting",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "rationale": "The citation context is quoted directly under Passage 2.1 in the fixture text.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#claim-A",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "CLAIM_HAS_CITATION_USE",
+      "id": "edge-claimB-has-cuB",
+      "fromId": "claim-B",
+      "toId": "cu-B-historical",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "observed",
+      "rationale": "The citation context is quoted directly under Passage 4.1 in the fixture text.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#claim-B",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "CITATION_USE_REFERENCES_PUBLICATION",
+      "id": "edge-cuA-references-mehra",
+      "fromId": "cu-A-supporting",
+      "toId": "pub-mehra-2020",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "rationale": "Identity resolution curated into the demo: the fictional manuscript cites Mehra et al. 2020; the mapping follows the public record but is pending the live M3 bibliographic cross-check.",
+      "sourcePointer": "https://doi.org/10.1016/S0140-6736(20)31180-6",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "CITATION_USE_REFERENCES_PUBLICATION",
+      "id": "edge-cuB-references-mehra",
+      "fromId": "cu-B-historical",
+      "toId": "pub-mehra-2020",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "rationale": "Identity resolution curated into the demo; the historical mention targets the same record. Pending live M3 cross-check.",
+      "sourcePointer": "https://doi.org/10.1016/S0140-6736(20)31324-6",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "CITATION_USE_SUPPORTS_CLAIM",
+      "id": "edge-cuA-supports-claimA",
+      "fromId": "cu-A-supporting",
+      "toId": "claim-A",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "rationale": "Curated demo classification: the passage asserts it rests on the cited registry analysis, making it a direct-evidence dependency.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#cu-A-supporting",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "MENTIONS_HISTORICALLY",
+      "id": "edge-cuB-mentions-claimB",
+      "fromId": "cu-B-historical",
+      "toId": "claim-B",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "rationale": "Curated demo classification: the passage invokes the retracted record only as a historical data-integrity example, never as supporting evidence.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#cu-B-historical",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "CONCLUSION_DEPENDS_ON_CLAIM",
+      "id": "edge-conclusionC-depends-claimA",
+      "fromId": "conclusion-C",
+      "toId": "claim-A",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "rationale": "Authored demo dependency so the impact traversal has a downstream consequence to flag; ReviewDecision human-confirmation flow arrives with M3+.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#conclusion-C",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed",
+      "scope": "full",
+      "confidence": 0.9
+    },
+    {
+      "type": "PUBLICATION_HAS_NOTICE",
+      "id": "edge-mehra-has-notice",
+      "fromId": "pub-mehra-2020",
+      "toId": "notice-mehra-retraction-2020-06-04",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "source_verified",
+      "rationale": "The retraction is a real, public journal notice for this publication (contract §6 pins verified=true); the exact published date discrepancy is disclosed in the fixture and must be reconciled by M3.",
+      "sourcePointer": "https://doi.org/10.1016/S0140-6736(20)31324-6",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "POSSIBLE_MATCH",
+      "id": "edge-lee-possible-match-a",
+      "fromId": "ref-lee-2020",
+      "toId": "pub-lee-2020-candidate-a",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "unresolved",
+      "rationale": "Candidate identity only: surname plus year is not enough to resolve 'Lee et al., 2020'. Unverified and non-propagating by contract (§2, §7 invariant 3).",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#ref-lee-2020",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed",
+      "matchConfidence": 0.45
+    },
+    {
+      "type": "POSSIBLE_MATCH",
+      "id": "edge-lee-possible-match-b",
+      "fromId": "ref-lee-2020",
+      "toId": "pub-lee-2020-candidate-b",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "unresolved",
+      "rationale": "Second plausible fictional identity; keeping two candidates demonstrates genuine ambiguity and that no confirmed edge is implied.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#ref-lee-2020",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed",
+      "matchConfidence": 0.35
+    },
+    {
+      "type": "STUDY_USES_DATASET",
+      "id": "edge-studyE-uses-datasetX",
+      "fromId": "study-E",
+      "toId": "dataset-X",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "rationale": "Fictional evidence-family linkage demonstrating shared-dataset grouping; derivative works must not be counted as independent confirmations without verified edges (invariant §7.4).",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#study-E",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    },
+    {
+      "type": "REVIEW_SYNTHESIZES_STUDY",
+      "id": "edge-reviewF-synthesizes-studyE",
+      "fromId": "review-F",
+      "toId": "study-E",
+      "createdAt": "2026-10-18T00:00:00.000Z",
+      "provenanceKind": "human_confirmed",
+      "rationale": "Fictional synthesis edge, confined to the demo evidence-family cluster; carries no independent-confirmation semantics.",
+      "sourcePointer": "fixture://aftershock-demo-fixture-v1#review-F",
+      "analysisVersion": "seed-1",
+      "reviewState": "unreviewed"
+    }
+  ],
+  "dateDistinctions": [
+    {
+      "id": "retraction-announcement-vs-record-date",
+      "detail": "publishedDate 2020-06-04 equals noticeAnnouncementDate (Lancet editorial statement; Retraction Watch post, same day); noticeRecordedDate 2020-06-05 equals the PubMed/PMC/Crossref record/deposit date. Per the corrected contract §6 both timestamps are stored distinct and never merged. Evidence: docs/research/mehra-notice-verification.md."
+    }
+  ],
+  "relatedNeverMerged": [
+    {
+      "id": "expression-of-concern",
+      "doi": "10.1016/S0140-6736(20)31290-3",
+      "note": "Related notice on the same original paper; intentionally NOT seeded as a node/edge and never merged with the retraction (contract §6)."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@aftershock/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FalkorDB graph library + idempotent synthetic fixture seeding for Aftershock (M2). Server-side only; imported by Netlify functions.",
+  "scripts": {
+    "test": "vitest run --config vitest.unit.config.js",
+    "test:integration": "vitest run --config vitest.integration.config.js"
+  },
+  "dependencies": {
+    "falkordb": "^6.2.7"
+  },
+  "devDependencies": {
+    "dotenv": "^17.2.3",
+    "vitest": "^3.2.4"
+  }
+}
