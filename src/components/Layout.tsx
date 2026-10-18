@@ -79,8 +79,9 @@ export default function Layout() {
         </nav>
 
         <p className="hidden px-0 pb-6 text-xs leading-5 text-ink-muted md:block">
-          M1 walking skeleton. Areas marked “under construction” are not
-          implemented yet — nothing here is simulated.
+          Guided-demo build. Areas marked “under construction” are not
+          implemented yet — nothing here is simulated. Graph areas read the
+          live demo API only.
         </p>
       </header>
 
