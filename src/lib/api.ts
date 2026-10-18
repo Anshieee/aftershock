@@ -13,6 +13,9 @@
  *   what we tell the user; hanging requests surface as ApiTimeoutError.
  * - Graph reads stay read-only; the demo-seed POST is bodyless and guarded
  *   server-side (secret + rate limit). No arbitrary query payloads exist.
+ * - M4 additions (fixed contract with the server wave): document import and
+ *   analysis start expose honest typed outcomes — a contentless registration
+ *   is a distinct truthful result, never a fake analysis success.
  */
 
 /** Netlify Functions base — all JSON per contract §5. */
@@ -30,6 +33,11 @@ export const API_TIMEOUT_MS = 10_000;
  * stub `unimplemented` (`?for=` selects the surface). DATA_CONTRACTS §5
  * lists the generic `POST /seed`; if the wired endpoint differs, change it
  * here only.
+ *
+ * M4 wired routes (fixed contract with the parallel server wave — do not
+ * rename): `importDocument`, `analyze`, `analysisStatus`, `documentDetail`.
+ * The two `unimplemented?for=` entries above stay byte-identical: parallel
+ * agents and the deployed M2 wave still resolve through them.
  */
 export const apiRoutes = {
   health: '/health',
@@ -39,7 +47,46 @@ export const apiRoutes = {
   documents: '/documents',
   document: (id: string) => '/unimplemented?for=document&id=' + encodeURIComponent(id),
   analysisRunStatus: (runId: string) => '/unimplemented?for=analyze&runId=' + encodeURIComponent(runId),
+  importDocument: '/import-document',
+  analyze: '/analyze',
+  analysisStatus: '/analyze-status',
+  documentDetail: '/document-detail',
 } as const;
+
+/**
+ * Client-side import guard — mirrors the server's bounded payload so an
+ * oversized file is rejected BEFORE any byte leaves the browser.
+ */
+export const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+
+/** Guided-demo manuscript IDs — fixed synthetic fixture IDs (contract §6). */
+export const DEMO_MANUSCRIPT_DOCUMENT_ID = 'doc-demo-manuscript';
+export const DEMO_MANUSCRIPT_VERSION_ID = 'ver-demo-manuscript-v1';
+
+/** Import formats the M4 pipeline accepts (contract §1: pdf|docx|txt). */
+export type ImportFormat = 'pdf' | 'docx' | 'txt';
+
+/**
+ * Derives the pipeline format from a file. A recognized extension decides;
+ * the MIME type is trusted only for files with NO extension at all (a
+ * present-but-unrecognized extension is rejected regardless of MIME, so a
+ * mislabeled or double-extension file can never slip through). Returns null
+ * for anything outside the accepted set — callers must reject BEFORE
+ * uploading, never after.
+ */
+export function importFormatOf(fileName: string, mimeType?: string): ImportFormat | null {
+  const extension = /\.([a-z0-9]+)$/i.exec(fileName.trim())?.[1]?.toLowerCase();
+  if (extension) {
+    return extension === 'pdf' || extension === 'docx' || extension === 'txt' ? extension : null;
+  }
+  const mime = (mimeType ?? '').trim().toLowerCase();
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    return 'docx';
+  }
+  if (mime === 'text/plain') return 'txt';
+  return null;
+}
 
 /* ------------------------------------------------------------------ *
  * Errors
@@ -175,6 +222,35 @@ function isAbortDomException(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
+/**
+ * Shared 2xx body reader: JSON is the only acceptable data shape. Classifies
+ * non-JSON bodies by Content-Type — a non-JSON document (typically the SPA
+ * fallback shading an undeployed function) is "endpoint unavailable"; an
+ * unparseable body that at least claims to be JSON keeps the honest
+ * malformed-payload error.
+ */
+async function readJsonBody(response: Response): Promise<unknown> {
+  const contentType = response.headers.get('content-type')?.trim().toLowerCase() ?? '';
+  const isJsonContentType = contentType.split(';')[0]?.trim() === 'application/json';
+  const text = await response.text();
+  let parsed: unknown;
+  let parseFailed = false;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parseFailed = true;
+  }
+  if (parseFailed) {
+    if (!isJsonContentType) {
+      throw new ApiUnavailableError(
+        'The API answered 2xx with a non-JSON page (likely the site fallback) — the endpoint is not available here.',
+      );
+    }
+    throw new ApiClientError('API returned a non-JSON body with a success status');
+  }
+  return parsed;
+}
+
 /** Low-level request. Returns a `NotAvailable` marker only for pre-handled statuses. */
 async function request({ path, init, options, notAvailableStatuses = [] }: FetchArgs): Promise<unknown | NotAvailable> {
   const linked = makeLinkedSignal(options ?? {});
@@ -207,29 +283,9 @@ async function request({ path, init, options, notAvailableStatuses = [] }: Fetch
     throw new ApiHttpError(response.status, `API responded with HTTP ${response.status}`);
   }
 
-  // 2xx: JSON is the only acceptable data shape. Classify non-JSON bodies by
-  // Content-Type: a non-JSON document (typically the SPA fallback shading an
-  // undeployed function) is "endpoint unavailable"; an unparseable body that
-  // at least claims to be JSON keeps the honest malformed-payload error.
-  const contentType = response.headers.get('content-type')?.trim().toLowerCase() ?? '';
-  const isJsonContentType = contentType.split(';')[0]?.trim() === 'application/json';
-  const text = await response.text();
-  let parsed: unknown;
-  let parseFailed = false;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    parseFailed = true;
-  }
-  if (parseFailed) {
-    if (!isJsonContentType) {
-      throw new ApiUnavailableError(
-        'The API answered 2xx with a non-JSON page (likely the site fallback) — the endpoint is not available here.',
-      );
-    }
-    throw new ApiClientError('API returned a non-JSON body with a success status');
-  }
-  return parsed;
+  // 2xx: JSON is the only acceptable data shape (classification in
+  // readJsonBody — identical logic to the original inline block).
+  return readJsonBody(response);
 }
 
 /* ------------------------------------------------------------------ *
@@ -498,6 +554,15 @@ export interface DocumentSummary {
   format?: string;
   importedAt?: string;
   versionId?: string;
+  /**
+   * M4 import truth: the server may register a document without storing its
+   * text content. Absent means "not reported by this payload" — never guessed.
+   */
+  contentStored?: boolean;
+  /** Server-provided disclosure for registered-but-contentless documents. */
+  disclosure?: string;
+  isSynthetic?: boolean;
+  syntheticLabel?: string;
 }
 
 export interface DocumentDetail extends DocumentSummary {
@@ -546,6 +611,11 @@ export async function getDemoDocuments(options?: RequestOptions): Promise<ApiOut
       format: stringField(element.format),
       importedAt: stringField(element.importedAt),
       versionId: stringField(element.versionId),
+      contentStored:
+        typeof element.contentStored === 'boolean' ? element.contentStored : undefined,
+      disclosure: stringField(element.disclosure),
+      isSynthetic: typeof element.isSynthetic === 'boolean' ? element.isSynthetic : undefined,
+      syntheticLabel: stringField(element.syntheticLabel),
     })),
   );
 }
@@ -561,6 +631,21 @@ export interface AnalysisRunInfo {
   stage?: string;
   completedAt?: string;
   error?: string;
+}
+
+/** Shared parse for both the M2 stub route and the wired M4 status route. */
+function parseAnalysisInfo(payload: unknown, fallbackRunId: string): AnalysisRunInfo {
+  if (!payload || typeof payload !== 'object') {
+    throw new ApiClientError('Analysis status endpoint returned an unexpected payload');
+  }
+  const source = payload as Record<string, unknown>;
+  return {
+    runId: stringField(source.runId) ?? fallbackRunId,
+    status: stringField(source.status),
+    stage: stringField(source.stage),
+    completedAt: stringField(source.completedAt),
+    error: stringField(source.error),
+  };
 }
 
 export async function getAnalysisRun(
@@ -580,17 +665,237 @@ export async function getAnalysisRun(
     }
     throw error;
   }
+  return outcome(data, (payload) => parseAnalysisInfo(payload, runId));
+}
+
+/* ------------------------------------------------------------------ *
+ * M4 — document import + analysis start (fixed server contract).
+ * The client performs the size/format guards BEFORE any request; the
+ * server re-checks and answers 413/415/400 as typed HTTP errors.
+ * ------------------------------------------------------------------ */
+
+export interface ImportDocumentInfo {
+  documentId: string;
+  versionId: string;
+  /**
+   * False in this build: the file bytes register a document record but the
+   * text content is not stored, so analysis of it would honestly refuse.
+   */
+  contentStored: boolean;
+  /** Server's disclosure for the contentless registration — shown verbatim. */
+  disclosure?: string;
+}
+
+export type ImportDocumentOutcome = ApiOutcome<ImportDocumentInfo>;
+
+function parseImportDocumentInfo(payload: unknown): ImportDocumentInfo {
+  if (!payload || typeof payload !== 'object') {
+    throw new ApiClientError('Import endpoint returned an unexpected payload');
+  }
+  const body = payload as Record<string, unknown>;
+  const documentId = stringField(body.documentId);
+  const versionId = stringField(body.versionId);
+  if (!documentId || !versionId) {
+    throw new ApiClientError('Import response is missing `documentId` or `versionId`');
+  }
+  if (typeof body.contentStored !== 'boolean') {
+    throw new ApiClientError('Import response is missing the `contentStored` flag');
+  }
+  return {
+    documentId,
+    versionId,
+    contentStored: body.contentStored,
+    disclosure: stringField(body.disclosure),
+  };
+}
+
+/**
+ * POST /import-document?fileName=&format= — raw file bytes as the body.
+ * Client-side guards run first (format + ≤10 MB) and reject WITHOUT any
+ * network request. 413/415/400 arrive as ApiHttpError so the UI can show a
+ * typed honest message; 404/501 resolve to `available: false` (import not
+ * wired on this deployment) — never a fabricated registration.
+ */
+export async function importDocument(
+  file: File,
+  options?: RequestOptions,
+): Promise<ImportDocumentOutcome> {
+  const format = importFormatOf(file.name, file.type);
+  if (!format) {
+    throw new ApiClientError('Only PDF, DOCX and TXT files are accepted. Nothing was uploaded.');
+  }
+  if (file.size > MAX_IMPORT_BYTES) {
+    throw new ApiClientError(
+      `This file is larger than the 10 MB limit (${describeBytes(file.size)}). Nothing was uploaded.`,
+    );
+  }
+  const search = new URLSearchParams({ fileName: file.name, format });
+  let data: unknown;
+  try {
+    data = await request({
+      path: `${apiRoutes.importDocument}?${search.toString()}`,
+      init: { method: 'POST', body: file },
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      // SPA-shaded 2xx (function missing): same honest outcome as 404/501.
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
+  return outcome(data, parseImportDocumentInfo);
+}
+
+function describeBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${bytes} bytes`;
+}
+
+/**
+ * Outcome of POST /analyze. A 422 `{error:'content-not-stored', disclosure}`
+ * is a legitimate, expected refusal for registered-only documents — parsed
+ * into a DISTINCT truthful outcome, not a generic error and not a fake start.
+ */
+export type StartAnalysisOutcome =
+  | { started: true; runId: string }
+  | { started: false; reason: 'content-not-stored'; disclosure: string };
+
+/**
+ * POST /analyze — JSON body `{ documentVersionId }`. 200 returns the real
+ * `{ runId }`; 422 content-not-stored parses into the distinct honest
+ * outcome; 5xx (and every other non-OK status) throws a typed error so the
+ * UI can say "API unavailable" — never a simulated run.
+ */
+export async function startAnalysis(
+  documentVersionId: string,
+  options?: RequestOptions,
+): Promise<StartAnalysisOutcome> {
+  const linked = makeLinkedSignal(options ?? {});
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${apiRoutes.analyze}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documentVersionId }),
+      signal: linked.signal,
+    });
+  } catch (error) {
+    linked.cleanup();
+    if (isAbortDomException(error)) {
+      // Caller aborts rethrow; timeout aborts surface as ApiTimeoutError.
+      if (options?.signal?.aborted) throw error;
+      throw new ApiTimeoutError(error);
+    }
+    throw new ApiNetworkError(error instanceof Error ? error.message : 'Network error', {
+      cause: error,
+    });
+  }
+  linked.cleanup();
+
+  if (response.status === 422) {
+    // Lenient read: the distinct outcome requires the exact marker plus a
+    // disclosure; anything else stays a typed HTTP error (no guessing).
+    let body: unknown = null;
+    try {
+      body = JSON.parse(await response.text());
+    } catch {
+      body = null;
+    }
+    const fields = body && typeof body === 'object' ? (body as Record<string, unknown>) : null;
+    const disclosure = fields ? stringField(fields.disclosure) : undefined;
+    if (fields && fields.error === 'content-not-stored' && disclosure) {
+      return { started: false, reason: 'content-not-stored', disclosure };
+    }
+    throw new ApiHttpError(
+      422,
+      'Analysis refused to start (HTTP 422) without a readable content-not-stored reason',
+    );
+  }
+
+  if (!response.ok) {
+    throw new ApiHttpError(response.status, `API responded with HTTP ${response.status}`);
+  }
+  const parsed = await readJsonBody(response);
+  if (!parsed || typeof parsed !== 'object') {
+    throw new ApiClientError('Analysis start endpoint returned an unexpected payload');
+  }
+  const runId = stringField((parsed as Record<string, unknown>).runId);
+  if (!runId) {
+    throw new ApiClientError('Analysis start response is missing `runId` — no run is claimed');
+  }
+  return { started: true, runId };
+}
+
+/**
+ * GET /analyze-status?runId= — wired M4 route for analysis-run status.
+ * 404/501 resolve to `available: false` (status polling not deployed) and a
+ * SPA-shaded 2xx to endpoint-missing — never a guessed run state.
+ */
+export async function getAnalysisStatus(
+  runId: string,
+  options?: RequestOptions,
+): Promise<ApiOutcome<AnalysisRunInfo>> {
+  const search = new URLSearchParams({ runId });
+  let data: unknown;
+  try {
+    data = await request({
+      path: `${apiRoutes.analysisStatus}?${search.toString()}`,
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
+  return outcome(data, (payload) => parseAnalysisInfo(payload, runId));
+}
+
+/**
+ * GET /document-detail?id= — single-document detail. Same honesty rules as
+ * the list route: 404/501/SPA-shaded 2xx resolve to `available: false`.
+ */
+export async function getDocumentDetail(
+  id: string,
+  options?: RequestOptions,
+): Promise<ApiOutcome<DocumentDetail>> {
+  const search = new URLSearchParams({ id });
+  let data: unknown;
+  try {
+    data = await request({
+      path: `${apiRoutes.documentDetail}?${search.toString()}`,
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
   return outcome(data, (payload) => {
     if (!payload || typeof payload !== 'object') {
-      throw new ApiClientError('Analysis status endpoint returned an unexpected payload');
+      throw new ApiClientError('Document detail endpoint returned an unexpected payload');
     }
-    const source = payload as Record<string, unknown>;
+    const element = payload as Record<string, unknown>;
     return {
-      runId: stringField(source.runId) ?? runId,
-      status: stringField(source.status),
-      stage: stringField(source.stage),
-      completedAt: stringField(source.completedAt),
-      error: stringField(source.error),
+      id: stringField(element.id) ?? id,
+      title: stringField(element.title),
+      fileName: stringField(element.fileName),
+      format: stringField(element.format),
+      importedAt: stringField(element.importedAt),
+      versionId: stringField(element.versionId),
+      createdAt: stringField(element.createdAt),
+      sourceHash: stringField(element.sourceHash),
+      isSynthetic: typeof element.isSynthetic === 'boolean' ? element.isSynthetic : undefined,
+      syntheticLabel: stringField(element.syntheticLabel),
+      noticeLink: stringField(element.noticeLink),
+      contentStored:
+        typeof element.contentStored === 'boolean' ? element.contentStored : undefined,
+      disclosure: stringField(element.disclosure),
     };
   });
 }
