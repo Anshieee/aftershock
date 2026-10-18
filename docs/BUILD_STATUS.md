@@ -22,7 +22,8 @@ Last updated: 2026-10-18 (M0 close)
 - Production: https://aftershock-demo.netlify.app (site id b1bb72a1-23de-46c4-8af8-ad4c5010f041)
 
 ## Current blockers
-- None. (Netlify deploy fact: Netlify rejects function filenames with dots — health unit test relocated to `tests/netlify/`; vitest include fixed.)
+- **Non-global — FalkorDB MCP incident (2026-10-18):** MCP `list_graphs` hangs/drops intermittently. Orchestrator-side probing suspended; recovery delegated to DevOps child session (diagnosing process/transport/config vs app-side connectivity with bounded timeouts; app-side connection verified OK earlier via `npm run check`). Impact: ONLY MCP-based live verification is blocked (e.g., reviewer's post-fix MCP check of PR #2). App traffic itself uses the official npm client over the same cloud instance — unaffected so far. PR #2 merge requires reviewer verdict + post-recovery graph-state verification (read-only: `test_hosting` present, `aftershock:demo-smoke` absent).
+- (Netlify deploy fact: Netlify rejects function filenames with dots — health unit test relocated to `tests/netlify/`; vitest include fixed.)
 
 ## Open risks
 - Plaintext FalkorDB connection (demo-only, synthetic data enforced).
