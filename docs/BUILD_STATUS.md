@@ -22,7 +22,7 @@ Last updated: 2026-10-18 (M0 close)
 - Production: https://aftershock-demo.netlify.app (site id b1bb72a1-23de-46c4-8af8-ad4c5010f041)
 
 ## Current blockers
-- **None global.** FalkorDB MCP incident (`list_graphs` hang) remains scoped to MCP-only verification; DevOps recovery session running (app-side connectivity + runtime env verified separately).
+- **None global.** FalkorDB MCP incident: **closed at process level** (`docs/ops/mcp-incident-2026-10-18.md`, root cause = wedged idle pools in `falkordb-mcp`; stale servers serviced SIGTERM'd 21:10 local, service untouched; DB state intact; app path healthy throughout). **Residual, needs user action (non-blocking):** MCP tools are absent from all agent-spawned sessions afterward — regaining assistant-side FalkorDB MCP visibility requires an OpenCode service restart/reconnect on the user's side. Until then, assistant-side graph verification runs through the application path (the same path the product uses).
 - Netlify env persistence SOLVED: MCP `manage-env-vars` requires `upsertEnvVar: true`; secret-flag upserts are dropped by the MCP (known bug) — both sensitive values currently stored non-secret (site-scoped, server-only), manual re-entry as native secrets recommended at project close (DEPLOYMENT.md).
 - `.netlify/functions/envcheck` temporary public names-only diagnostic; to gate/remove at M2.
 
