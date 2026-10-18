@@ -1,16 +1,15 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { GraphEdge, GraphNode } from '../lib/api';
+import * as GV from '../lib/graphView';
+export * from '../lib/graphView';
 
 /**
  * Static, force-free layered graph (M2 Knowledge Graph first cut).
  *
- * No layout physics, no animation loops (reduced-motion respected), no heavy
- * dependencies. Nodes group into semantic layers (document → version →
- * claim/citation/publication → notices), deterministically ordered by id so
- * the same graph always renders the same picture. Every visual style has a
- * non-color equivalent: the legend names each pattern, dashed-vs-solid marks
- * uncertainty vs confirmed, and the records list below the canvas is the
- * screen-reader equivalent (handoff §2, §6).
+ * M4.5 adds: ctrl+wheel zoom, drag-pan on empty canvas, accessible zoom/
+ * reset buttons, focused-dependency-path dimming. Static transforms only
+ * (no animation); reduced-motion unaffected (nothing animates).
  */
 
 const NODE_W = 132;
@@ -153,9 +152,11 @@ interface GraphCanvasProps {
   edges: GraphEdge[];
   selectedId: string | null;
   onSelect: (node: GraphNode) => void;
+  focusedNodeIds?: Set<string> | null;
+  focusedEdgeIds?: Set<string> | null;
 }
 
-export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: GraphCanvasProps) {
+export default function GraphCanvas({ nodes, edges, selectedId, onSelect, focusedNodeIds, focusedEdgeIds }: GraphCanvasProps) {
   const layout = computeLayout(nodes);
 
   const positions = new Map<string, { x: number; y: number }>();
@@ -172,17 +173,136 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
 
   const styleClasses = new Set(edges.map((edge) => edgeStyleFor(edge)));
 
+  // Viewport state (viewBox-based zoom/pan).
+  const [vb, setVb] = useState({ x: 0, y: 0, w: layout.width, h: layout.height });
+  useEffect(() => {
+    setVb({ x: 0, y: 0, w: layout.width, h: layout.height });
+  }, [layout.width, layout.height]);
+
+  const svgRef = useRef<SVGSVGElement>(null);
+  const panningRef = useRef<{ active: boolean; lastX: number; lastY: number } | null>(null);
+
+  const zoom = useCallback(
+    (factor: number, origin?: { x: number; y: number }) => {
+      setVb((prev) => {
+        const scale = prev.w > 0 ? layout.width / prev.w : 1;
+        const newScale = GV.clampZoom(scale * factor);
+        const newW = layout.width / newScale;
+        const newH = layout.height / newScale;
+        const ox = origin ? origin.x : prev.x + prev.w / 2;
+        const oy = origin ? origin.y : prev.y + prev.h / 2;
+        const ratio = newScale / (scale || 1);
+        const newX = ox - (ox - prev.x) / ratio;
+        const newY = oy - (oy - prev.y) / ratio;
+        return { x: newX, y: newY, w: newW, h: newH };
+      });
+    },
+    [layout.width, layout.height],
+  );
+
+  const reset = useCallback(() => {
+    setVb({ x: 0, y: 0, w: layout.width, h: layout.height });
+  }, [layout.width, layout.height]);
+
+  // Native wheel listener (passive false) so ctrl+wheel can preventDefault.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const ctm = svg.getScreenCTM();
+      let origin = { x: vb.x + vb.w / 2, y: vb.y + vb.h / 2 };
+      if (ctm) {
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX;
+        pt.y = e.clientY;
+        const p = pt.matrixTransform(ctm.inverse());
+        origin = { x: p.x, y: p.y };
+      }
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+      zoom(factor, origin);
+    };
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
+  }, [zoom, vb.x, vb.y, vb.w, vb.h]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Only pan on empty canvas (background rect or svg root).
+    const target = e.target as Element;
+    if (target !== svgRef.current && target.getAttribute?.('data-bg') !== 'true') return;
+    panningRef.current = { active: true, lastX: e.clientX, lastY: e.clientY };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const p = panningRef.current;
+    if (!p?.active) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const scaleScreen = svg.clientWidth > 0 ? svg.clientWidth / vb.w : 1;
+    const dx = (e.clientX - p.lastX) / scaleScreen;
+    const dy = (e.clientY - p.lastY) / scaleScreen;
+    // Dragging content right => viewBox x decreases.
+    setVb((prev) => ({ ...prev, x: prev.x - dx, y: prev.y - dy }));
+    panningRef.current = { active: true, lastX: e.clientX, lastY: e.clientY };
+  };
+  const onPointerUp = () => {
+    if (panningRef.current) panningRef.current.active = false;
+  };
+
+  const isDimmedNode = (id: string) =>
+    !!focusedNodeIds && focusedNodeIds.size > 0 && !focusedNodeIds.has(id);
+  const isDimmedEdge = (key: string) =>
+    !!focusedEdgeIds && focusedEdgeIds.size > 0 && !focusedEdgeIds.has(key);
+
   return (
-    <div className="max-w-full overflow-x-auto rounded-lg border border-ink-border bg-paper p-3 min-h-[280px] md:min-h-[420px]">
+    <div className="max-w-full overflow-hidden rounded-lg border border-ink-border bg-paper p-3 min-h-[280px] md:min-h-[420px]">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          data-testid="zoom-in"
+          aria-label="Zoom in"
+          onClick={() => zoom(1.25)}
+          className="rounded border border-ink-border bg-paper-raised px-2 py-1 text-xs text-ink hover:bg-paper-deep"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          data-testid="zoom-out"
+          aria-label="Zoom out"
+          onClick={() => zoom(1 / 1.25)}
+          className="rounded border border-ink-border bg-paper-raised px-2 py-1 text-xs text-ink hover:bg-paper-deep"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          data-testid="reset-view"
+          aria-label="Reset view"
+          onClick={reset}
+          className="rounded border border-ink-border bg-paper-raised px-2 py-1 text-xs text-ink hover:bg-paper-deep"
+        >
+          Reset view
+        </button>
+        <span className="text-xs text-ink-muted" data-testid="zoom-level">
+          {Math.round((layout.width / vb.w) * 100)}%
+        </span>
+      </div>
       <svg
+        ref={svgRef}
         role="group"
         aria-label="Layered graph layout. Interactive records; a complete text list follows below."
         data-testid="graph-canvas"
-        viewBox={`0 0 ${layout.width} ${layout.height}`}
+        viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
         preserveAspectRatio="xMidYMin meet"
         width="100%"
         height="auto"
-        className="max-w-full h-auto"
+        className="max-w-full h-auto touch-none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
         <defs>
           {STYLE_ORDER.filter((style) => styleClasses.has(style)).map((style) => (
@@ -196,10 +316,13 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
               markerHeight="6"
               orient="auto-start-reverse"
             >
-                            <path d="M 0 0 L 10 5 L 0 10 z" className={EDGE_PALETTE[style].fillClass} />
+              <path d="M 0 0 L 10 5 L 0 10 z" className={EDGE_PALETTE[style].fillClass} />
             </marker>
           ))}
         </defs>
+
+        {/* Transparent background for pan hit-target. */}
+        <rect data-bg="true" x={vb.x} y={vb.y} width={vb.w} height={vb.h} fill="transparent" />
 
         {/* Edges first so node boxes overlay the lines. */}
         {edges.map((edge, index) => {
@@ -208,6 +331,7 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
           const style = edgeStyleFor(edge);
           const palette = EDGE_PALETTE[style];
           if (!from || !to) return null;
+          const key = GV.edgeKey(edge, index);
           const x1 = from.x + NODE_W / 2;
           const y1 = from.y + NODE_H;
           const x2 = to.x + NODE_W / 2;
@@ -215,17 +339,19 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
           const isUpward = y2 < y1;
           const start = { x: x1, y: isUpward ? from.y : y1 };
           const end = { x: x2, y: isUpward ? y2 + NODE_H : y2 };
+          const dimmed = isDimmedEdge(key);
           return (
             <line
-              key={edge.id ?? `${edge.type}-${index}`}
+              key={key}
               x1={start.x}
               y1={start.y}
               x2={end.x}
               y2={end.y}
-              className={`${palette.strokeClass} fill-none`}
+              className={`${palette.strokeClass} fill-none ${dimmed ? 'opacity-30' : ''}`}
               strokeWidth="1.5"
               strokeDasharray={palette.dash || undefined}
               markerEnd={`url(#${palette.markerId})`}
+              data-dimmed={dimmed}
             />
           );
         })}
@@ -260,13 +386,15 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
                   }
                 },
               };
+              const dimmed = isDimmedNode(node.id);
               return (
                 <g
                   key={node.id}
                   transform={`translate(${pos.x}, ${pos.y})`}
-                  className="cursor-pointer focus-visible:outline-2 focus-visible:outline-brand"
+                  className={`cursor-pointer focus-visible:outline-2 focus-visible:outline-brand ${dimmed ? 'opacity-30' : ''}`}
                   data-testid={`graph-node-${node.id}`}
                   data-selected={selected}
+                  data-dimmed={dimmed}
                   {...interactive}
                 >
                   <title>{`${node.kind}: ${rawLabel}`}</title>
@@ -308,7 +436,8 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
       <p className="mt-2 text-xs text-ink-muted">
         Arrows point from source to target record; node outlines carry the dashed/solid
         encoding explained in the legend. Nothing here is animated, and the layout always
-        shows exactly the records the server returned.
+        shows exactly the records the server returned. Drag empty space to pan; Ctrl+wheel
+        (or the buttons above) to zoom.
       </p>
     </div>
   );
@@ -394,6 +523,8 @@ export interface RecordsListProps {
   edges: GraphEdge[];
   selectedId: string | null;
   onSelect: (node: GraphNode) => void;
+  focusedNodeIds?: Set<string> | null;
+  focusedEdgeIds?: Set<string> | null;
 }
 
 function nodeSublabel(node: GraphNode): string {
@@ -404,14 +535,18 @@ function nodeSublabel(node: GraphNode): string {
  * The records list is the accessible equivalent of the canvas (handoff §6)
  * and doubles as the plain-HTML fallback view required by the M2 brief.
  */
-export function GraphRecordsList({ nodes, edges, selectedId, onSelect }: RecordsListProps) {
+export function GraphRecordsList({ nodes, edges, selectedId, onSelect, focusedNodeIds, focusedEdgeIds }: RecordsListProps) {
+  const isDimmedNode = (id: string) =>
+    !!focusedNodeIds && focusedNodeIds.size > 0 && !focusedNodeIds.has(id);
+  const isDimmedEdge = (key: string) =>
+    !!focusedEdgeIds && focusedEdgeIds.size > 0 && !focusedEdgeIds.has(key);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div data-testid="graph-nodes-list">
         <h3 className="text-sm font-semibold text-ink">Records ({nodes.length})</h3>
         <ul className="mt-2 space-y-1">
           {nodes.map((node) => (
-            <li key={node.id}>
+            <li key={node.id} className={isDimmedNode(node.id) ? 'opacity-40' : ''} data-dimmed={isDimmedNode(node.id)}>
               <button
                 type="button"
                 onClick={() => onSelect(node)}
@@ -445,10 +580,13 @@ export function GraphRecordsList({ nodes, edges, selectedId, onSelect }: Records
         <ul className="mt-2 space-y-1">
           {edges.map((edge, index) => {
             const style = EDGE_PALETTE[edgeStyleFor(edge)];
+            const key = GV.edgeKey(edge, index);
+            const dimmed = isDimmedEdge(key);
             return (
               <li
-                key={edge.id ?? `${edge.type}-${index}`}
-                className="rounded border border-ink-border bg-paper-raised px-3 py-2 text-xs text-ink"
+                key={key}
+                className={`rounded border border-ink-border bg-paper-raised px-3 py-2 text-xs text-ink ${dimmed ? 'opacity-40' : ''}`}
+                data-dimmed={dimmed}
               >
                 <span className="font-mono text-[11px] text-ink-muted">{edge.type}</span>
                 <span className="block">

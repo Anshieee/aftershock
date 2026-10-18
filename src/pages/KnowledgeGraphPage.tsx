@@ -11,6 +11,13 @@ import {
   type GraphOverview,
 } from '../lib/api';
 import GraphCanvas, { GraphLegend, GraphRecordsList } from '../components/GraphCanvas';
+import {
+  applyGraphFilters,
+  availableEdgeProvenanceKinds,
+  availableNodeKinds,
+  deriveFocusedPath,
+  isFlaggedClaimOrConclusion,
+} from '../lib/graphView';
 import ContextInspector from '../components/ContextInspector';
 
 const OVERVIEW_LIMIT = 40;
@@ -30,6 +37,10 @@ type LoadState =
 export default function KnowledgeGraphPage() {
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
   const [selected, setSelected] = useState<GraphNode | null>(null);
+  const [focusActive, setFocusActive] = useState(false);
+  const [selectedNodeKinds, setSelectedNodeKinds] = useState<Set<string>>(new Set());
+  const [selectedEdgeProv, setSelectedEdgeProv] = useState<Set<string>>(new Set());
+  const [filtersReady, setFiltersReady] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
 
   const load = useCallback(() => {
@@ -72,6 +83,40 @@ export default function KnowledgeGraphPage() {
   const overview = state.phase === 'ready' ? state.overview : null;
   const edges: GraphEdge[] = overview?.edges ?? [];
   const nodes: GraphNode[] = overview?.nodes ?? [];
+
+  const nodeKindsAvailable = availableNodeKinds(nodes);
+  const edgeProvAvailable = availableEdgeProvenanceKinds(edges);
+
+  // Initialize filters to "all present" once data loads.
+  useEffect(() => {
+    setSelectedNodeKinds(new Set(nodeKindsAvailable));
+    setSelectedEdgeProv(new Set(edgeProvAvailable));
+    setFiltersReady(true);
+  }, [nodes.length, edges.length]);
+
+  // Reset focus when selection changes.
+  useEffect(() => {
+    setFocusActive(false);
+  }, [selected?.id]);
+
+  const filtered = filtersReady
+    ? applyGraphFilters(nodes, edges, {
+        nodeKinds: selectedNodeKinds,
+        edgeProvenance: selectedEdgeProv,
+      })
+    : { nodes, edges };
+  const filteredNodes = filtered.nodes;
+  const filteredEdges = filtered.edges;
+
+  const focusedPath =
+    focusActive && selected
+      ? deriveFocusedPath(nodes, edges, selected.id)
+      : null;
+  const focusedNodeIds = focusedPath?.nodeIds ?? null;
+  const focusedEdgeIds = focusedPath?.edgeIds ?? null;
+
+  const flaggedSelected =
+    !!selected && isFlaggedClaimOrConclusion(nodes, edges, selected.id);
 
   return (
     <div className="mx-auto max-w-7xl overflow-x-hidden">
@@ -161,23 +206,108 @@ export default function KnowledgeGraphPage() {
           ) : (
             <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_18rem]">
               <div className="min-w-0 space-y-4">
+                <section data-testid="graph-filters" className="rounded-lg border border-ink-border bg-paper-raised p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink">Filters (client-side over returned records)</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <fieldset data-testid="node-kind-filter">
+                      <legend className="text-xs font-medium text-ink">Node kind</legend>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {nodeKindsAvailable.map((kind) => (
+                          <label key={kind} className="inline-flex items-center gap-1 text-xs text-ink">
+                            <input
+                              type="checkbox"
+                              data-testid={`node-kind-checkbox-${kind}`}
+                              checked={filtersReady ? selectedNodeKinds.has(kind) : true}
+                              onChange={(event) => {
+                                setSelectedNodeKinds((prev) => {
+                                  const next = new Set(prev);
+                                  if (event.target.checked) next.add(kind);
+                                  else next.delete(kind);
+                                  return next;
+                                });
+                              }}
+                            />
+                            {kind}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                    <fieldset data-testid="edge-provenance-filter">
+                      <legend className="text-xs font-medium text-ink">Edge provenance</legend>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {edgeProvAvailable.map((kind) => (
+                          <label key={kind} className="inline-flex items-center gap-1 text-xs text-ink">
+                            <input
+                              type="checkbox"
+                              data-testid={`edge-provenance-checkbox-${kind}`}
+                              checked={filtersReady ? selectedEdgeProv.has(kind) : true}
+                              onChange={(event) => {
+                                setSelectedEdgeProv((prev) => {
+                                  const next = new Set(prev);
+                                  if (event.target.checked) next.add(kind);
+                                  else next.delete(kind);
+                                  return next;
+                                });
+                              }}
+                            />
+                            {kind}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  </div>
+                  {filteredNodes.length === 0 && nodes.length > 0 && (
+                    <p data-testid="graph-filter-empty" className="mt-2 text-xs text-ink-muted">
+                      No records match the current filters. Adjust the checkboxes above — nothing
+                      was removed from the underlying graph.
+                    </p>
+                  )}
+                </section>
+
+                {flaggedSelected && (
+                  <button
+                    type="button"
+                    data-testid="focus-dependency-path"
+                    onClick={() => setFocusActive((v) => !v)}
+                    className="rounded border border-brand bg-brand-surface px-3 py-1.5 text-xs font-medium text-brand-deep hover:bg-paper-deep"
+                  >
+                    {focusActive ? 'Clear focused path' : 'Focus dependency path'}
+                  </button>
+                )}
+
+                {focusActive && focusedNodeIds && (
+                  <p className="text-xs text-ink-muted" data-testid="focused-path-note">
+                    Focused path highlights {focusedNodeIds.size} record(s); other records are
+                    dimmed but remain listed below.
+                  </p>
+                )}
+
                 <GraphCanvas
-                  nodes={nodes}
-                  edges={edges}
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
                   selectedId={selected?.id ?? null}
                   onSelect={setSelected}
+                  focusedNodeIds={focusedNodeIds}
+                  focusedEdgeIds={focusedEdgeIds}
                 />
                 <GraphLegend />
                 <hr className="border-ink-border" />
                 <GraphRecordsList
-                  nodes={nodes}
-                  edges={edges}
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
                   selectedId={selected?.id ?? null}
                   onSelect={setSelected}
+                  focusedNodeIds={focusedNodeIds}
+                  focusedEdgeIds={focusedEdgeIds}
                 />
               </div>
               <div className="min-w-0 lg:sticky lg:top-6 lg:self-start">
-                <ContextInspector node={selected} edges={edges} onClose={selected ? () => setSelected(null) : undefined} />
+                <ContextInspector
+                  node={selected}
+                  edges={edges}
+                  onClose={selected ? () => setSelected(null) : undefined}
+                  focusActive={focusActive}
+                />
               </div>
             </div>
           )}
