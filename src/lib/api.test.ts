@@ -127,12 +127,12 @@ describe('api client — graph overview', () => {
     }
   });
 
-  it('forwards limit/nodeId/depth query params on GET /graph/edges', async () => {
+  it('forwards limit/nodeId/depth query params on GET /graph-edges', async () => {
     const calls = stubFetch(() => ({ status: 200, body: { nodes: [], edges: [] } }));
     await getGraphOverview({ limit: 40 });
     await getGraphOverview({ nodeId: 'pub-mehra-2020', depth: 2 });
-    expect(calls[0]?.url).toBe('/.netlify/functions/graph/edges?limit=40');
-    expect(calls[1]?.url).toBe('/.netlify/functions/graph/edges?nodeId=pub-mehra-2020&depth=2');
+    expect(calls[0]?.url).toBe('/.netlify/functions/graph-edges?limit=40');
+    expect(calls[1]?.url).toBe('/.netlify/functions/graph-edges?nodeId=pub-mehra-2020&depth=2');
   });
 
   it('404 reads as available:false (endpoint missing), never as fake success', async () => {
@@ -260,7 +260,7 @@ describe('api client — 2xx non-JSON shading classifies as endpoint-missing', (
     );
   });
 
-  it('graph/edges: a 200 text/html body resolves available:false (endpoint-missing), not an error', async () => {
+  it('graph-edges: a 200 text/html body resolves available:false (endpoint-missing), not an error', async () => {
     stubRawFetch(htmlRoute);
     await expect(getGraphOverview({ limit: 40 })).resolves.toEqual({
       available: false,

@@ -67,10 +67,10 @@ describe('guided example — the real seed flow', () => {
       if (url.endsWith(apiRoutes.demoSeed)) {
         return { status: 200, body: { seeded: true, alreadySeeded: false, seedVersion: 'seed-1' } };
       }
-      if (url.includes('graph/probe')) {
+      if (url.includes('graph-probe')) {
         return { status: 200, body: { exists: true, seedVersion: 'seed-1', nodeCount: 17 } };
       }
-      if (url.includes('graph/edges')) {
+      if (url.includes('graph-edges')) {
         return { status: 200, body: buildDemoOverviewRecord() };
       }
       return undefined;

@@ -1,16 +1,131 @@
 /**
- * Rewrite-table correctness for netlify.toml: every client-facing function
- * route must be present as a status-200 force rewrite, and ALL function
- * rewrites must sit ABOVE the SPA fallback (which must be LAST), so the
- * app-shell fallback can never shadow an API route.
+ * Routing drift guard, built on a production-verified fact (2026-10-18):
+ * Netlify rewrites CANNOT intercept inside the reserved
+ * /.netlify/functions/* namespace — a sub-path like
+ * /.netlify/functions/graph/probe resolves function name "graph" (miss)
+ * and falls through to the SPA fallback serving HTML, while the dash-named
+ * function path /.netlify/functions/graph-probe is served directly (200
+ * JSON). Canonical client routes are therefore the dash-named function
+ * file paths with NO rewrite indirection.
+ *
+ * This guard asserts that:
+ *  1. EVERY route template in src/lib/api.ts `apiRoutes` starts with the
+ *     filename of an existing netlify/functions/<name>.mjs (dash-name =
+ *     filename) — EXCEPT `/unimplemented` routes, which must target the
+ *     unimplemented.mjs 501 stub with a `for=` query param.
+ *  2. Dynamic parameters appear ONLY as query strings — no path params,
+ *     none of which the reserved namespace supports.
+ *  3. netlify.toml contains NO rewrite whose `from` starts with
+ *     /.netlify/functions/ (regression guard), and the SPA fallback is
+ *     the LAST redirect.
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 // vitest transforms import.meta.url (no file: scheme) — resolve from cwd,
 // which vitest pins to the project root.
 const TOML = readFileSync('netlify.toml', 'utf8');
+const API_TS = readFileSync('src/lib/api.ts', 'utf8');
+
+/**
+ * Extracts the apiRoutes table from the TypeScript client source. Entries
+ * are either `key: '/literal'` (static) or `key: (params) => '/literal' + …`
+ * (parametric — the leading literal is captured; the tail concatenates
+ * encodeURIComponent output). Throws on any line inside the exported block
+ * it cannot parse, so a refactor that changes the table's shape fails
+ * loudly here instead of drifting silently.
+ * @param {string} apiTs
+ * @returns {Map<string, { route: string, sourceLine: string }>}
+ */
+function parseApiRoutes(apiTs) {
+  const block = apiTs.match(/export const apiRoutes = \{([\s\S]*?)\n\} as const;/);
+  if (!block) throw new Error('apiRoutes block not found in src/lib/api.ts');
+  /** @type {Map<string, { route: string, sourceLine: string }>} */
+  const routes = new Map();
+  for (const rawLine of block[1].split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line === '' || line.startsWith('//') || line.startsWith('*')) continue;
+    const entry = line.match(/^(\w+):\s*(?:\([^)]*\)\s*=>\s*)?'((?:[^'\\]|\\.)*)'/);
+    if (!entry) {
+      throw new Error(`Unparseable apiRoutes entry — update this drift guard: ${line}`);
+    }
+    routes.set(entry[1], { route: entry[2], sourceLine: line });
+  }
+  if (routes.size === 0) throw new Error('apiRoutes block parsed to zero routes');
+  return routes;
+}
+
+const ROUTES = parseApiRoutes(API_TS);
+
+/** Deployed function names: netlify/functions/<name>.mjs (dash names). */
+const FUNCTIONS = readdirSync('netlify/functions')
+  .filter((file) => file.endsWith('.mjs'))
+  .map((file) => file.slice(0, -'.mjs'.length));
+
+/** Splits `/name/path?query` into { head, tail, query }. */
+function splitRoute(route) {
+  const [path, query = ''] = route.split('?');
+  const segments = path.split('/').filter(Boolean);
+  return { head: segments[0], tail: segments.slice(1), query };
+}
+
+describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
+  it('exposes the expected route keys (extend this guard when adding routes)', () => {
+    expect([...ROUTES.keys()].sort()).toEqual([
+      'analysisRunStatus',
+      'demoSeed',
+      'document',
+      'documents',
+      'graphEdges',
+      'graphProbe',
+      'health',
+    ]);
+  });
+
+  for (const [key, { route, sourceLine }] of ROUTES) {
+    describe(`route ${key} = ${route}`, () => {
+      const { head, tail, query } = splitRoute(route);
+
+      it('first path segment names an existing netlify/functions/<name>.mjs file', () => {
+        expect(
+          FUNCTIONS.includes(head),
+          `first segment "${head}" must be a function filename (deployed: ${FUNCTIONS.join(', ')})`,
+        ).toBe(true);
+      });
+
+      it('carries NO path parameters — dynamic params are query-only', () => {
+        expect(route, 'no ":"-style or "*" path params (unsupported in-namespace)').not.toMatch(
+          /(^|\/)[:*]/,
+        );
+        expect(route, 'no template placeholders in the route literal').not.toMatch(/[${}]/);
+        for (const segment of tail) {
+          expect(segment, 'no dynamic segments beyond the function name').not.toMatch(/[:*]/);
+        }
+      });
+
+      if (head === 'unimplemented') {
+        it('targets the unimplemented.mjs 501 stub with a `for=` query param', () => {
+          expect(query, 'unimplemented route must carry for=').toMatch(/(^|&)for=/);
+        });
+        it('appends dynamic params via encodeURIComponent (never into the path)', () => {
+          expect(
+            sourceLine,
+            'dynamic params must be appended encodeURIComponent-encoded',
+          ).toContain('encodeURIComponent(');
+        });
+      } else {
+        it('is a static function-file path (no appended value concatenation)', () => {
+          // Real endpoints are plain function-file paths; per-request query
+          // strings are built at the call site (see getGraphOverview). A
+          // trailing "=" here would mean a dynamic value was appended to
+          // the route table instead of the query construction.
+          expect(route.endsWith('='), `unexpected appended value in route ${key}`).toBe(false);
+        });
+      }
+    });
+  }
+});
 
 /**
  * Minimal ordered parser for the `[[redirects]]` blocks we ship. Throws on
@@ -42,60 +157,24 @@ function parseRedirects(toml) {
 }
 
 const redirects = parseRedirects(TOML);
-const byFrom = new Map(redirects.map((r) => [String(r.from), r]));
 const spaFallbackIndex = redirects.findIndex((r) => r.from === '/*');
 
-/** The client-facing routes and the functions they must reach. */
-const FUNCTION_ROUTES = {
-  '/.netlify/functions/graph/probe': '/.netlify/functions/graph-probe',
-  '/.netlify/functions/demo/seed': '/.netlify/functions/demo-seed',
-  '/.netlify/functions/graph/edges': '/.netlify/functions/graph-edges',
-  '/.netlify/functions/documents': '/.netlify/functions/documents',
-  '/.netlify/functions/documents/*': '/.netlify/functions/unimplemented',
-  '/.netlify/functions/analyze/*': '/.netlify/functions/unimplemented',
-  '/.netlify/functions/seed': '/.netlify/functions/seed',
-};
-
-describe('netlify.toml redirect table', () => {
-  it('parses at all and contains the SPA fallback', () => {
-    expect(redirects.length).toBeGreaterThan(0);
-    expect(spaFallbackIndex).toBeGreaterThanOrEqual(0);
+describe('netlify.toml — redirect table', () => {
+  it('contains NO rewrite inside the reserved /.netlify/functions namespace', () => {
+    const offenders = redirects
+      .map((rule) => String(rule.from ?? ''))
+      .filter((from) => from.startsWith('/.netlify/functions/'));
+    expect(
+      offenders,
+      'rewrites cannot intercept /.netlify/functions/* (production-verified 2026-10-18) — canonical dash paths only',
+    ).toEqual([]);
   });
 
-  it('maps every client-facing function route with status 200 + force', () => {
-    for (const [from, to] of Object.entries(FUNCTION_ROUTES)) {
-      const rule = byFrom.get(from);
-      expect(rule, `missing rewrite for ${from}`).toBeDefined();
-      expect(rule.to, `${from} → to`).toBe(to);
-      expect(rule.status, `${from} status`).toBe(200);
-      expect(rule.force, `${from} force`).toBe(true);
-    }
-  });
-
-  it('keeps the SPA fallback LAST — every function rewrite sits above it', () => {
-    expect(spaFallbackIndex).toBe(redirects.length - 1);
+  it('keeps the SPA fallback as the LAST redirect', () => {
+    expect(spaFallbackIndex, 'SPA fallback (from = "/*") must exist').toBeGreaterThanOrEqual(0);
+    expect(spaFallbackIndex, 'SPA fallback must be the LAST redirect').toBe(redirects.length - 1);
     const fallback = redirects[spaFallbackIndex];
     expect(fallback.to).toBe('/index.html');
     expect(fallback.status).toBe(200);
-    for (const from of Object.keys(FUNCTION_ROUTES)) {
-      const index = redirects.findIndex((r) => r.from === from);
-      expect(index, `${from} must be above the SPA fallback`).toBeGreaterThanOrEqual(0);
-      expect(index).toBeLessThan(spaFallbackIndex);
-    }
-  });
-
-  it('covers every static client route the deployed api client calls', async () => {
-    const apiTs = readFileSync('src/lib/api.ts', 'utf8');
-    const routeEntries = [...apiTs.matchAll(/(\w+):\s*'(\/[^']*)'/g)].map(([, key, path]) => ({ key, path }));
-    const staticPaths = routeEntries
-      .filter(({ key }) => ['health', 'graphProbe', 'demoSeed', 'graphEdges', 'documents'].includes(key))
-      .map(({ path }) => `/.netlify/functions${path.replace(/\/$/, '')}`);
-    expect(staticPaths.length).toBeGreaterThanOrEqual(5);
-    for (const clientPath of staticPaths) {
-      const served =
-        byFrom.has(clientPath) // explicit rewrite
-        || clientPath === '/.netlify/functions/health'; // or auto-routed function file
-      expect(served, `client route ${clientPath} has no rewrite and no function file`).toBe(true);
-    }
   });
 });

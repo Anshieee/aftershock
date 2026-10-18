@@ -23,18 +23,22 @@ export const API_TIMEOUT_MS = 10_000;
 
 /**
  * Route table — single place to adjust when the functions layer wires the
- * backend (server/ branch). `demoSeed` points at the guided-demo seed POST
- * described for M2 (`/demo/seed`); DATA_CONTRACTS §5 lists the generic
- * `POST /seed`. If the wired endpoint differs, change it here only.
+ * backend. Canonical dash paths = function filenames; Netlify cannot rewrite
+ * inside the reserved /.netlify/functions namespace (production-verified
+ * 2026-10-18), so every route is a function file's own path and dynamic
+ * parameters live only in the query string. Unwired routes target the 501
+ * stub `unimplemented` (`?for=` selects the surface). DATA_CONTRACTS §5
+ * lists the generic `POST /seed`; if the wired endpoint differs, change it
+ * here only.
  */
 export const apiRoutes = {
   health: '/health',
-  graphProbe: '/graph/probe',
-  demoSeed: '/demo/seed',
-  graphEdges: '/graph/edges',
+  graphProbe: '/graph-probe',
+  demoSeed: '/demo-seed',
+  graphEdges: '/graph-edges',
   documents: '/documents',
-  document: (id: string) => `/documents/${encodeURIComponent(id)}`,
-  analysisRunStatus: (runId: string) => `/analyze/${encodeURIComponent(runId)}/status`,
+  document: (id: string) => '/unimplemented?for=document&id=' + encodeURIComponent(id),
+  analysisRunStatus: (runId: string) => '/unimplemented?for=analyze&runId=' + encodeURIComponent(runId),
 } as const;
 
 /* ------------------------------------------------------------------ *
@@ -249,7 +253,7 @@ export async function getHealth(options?: RequestOptions): Promise<HealthInfo> {
 }
 
 /**
- * GET /graph/probe — M2 read-only probe.
+ * GET /graph-probe — M2 read-only probe.
  * Server contract: `{ exists, seedVersion?, nodeCount? }`.
  * 404 is mapped to `exists: false` per the M2 brief (missing == unseeded).
  */
@@ -296,7 +300,7 @@ export async function getSeedStatus(options?: RequestOptions): Promise<SeedStatu
 }
 
 /**
- * POST /demo/seed — bodyless, idempotent, server-side guarded
+ * POST /demo-seed — bodyless, idempotent, server-side guarded
  * (secret + rate limit). Returns `{ seeded, alreadySeeded, seedVersion }`
  * on success; 429 and other statuses arrive as ApiHttpError so the UI can
  * say "cooldown" or "API unavailable", never fake success.
@@ -342,7 +346,7 @@ export async function ensureDemoSeed(options?: RequestOptions): Promise<DemoSeed
 }
 
 /**
- * GET /graph/edges — overview of records with provenance kinds
+ * GET /graph-edges — overview of records with provenance kinds
  * (`?limit=` caps size; `?nodeId=&depth=1|2` scopes a neighborhood).
  * This route is being wired by the M2 server wave; 404/501 resolve to
  * `available: false` instead of throwing, per the brief.
@@ -547,8 +551,9 @@ export async function getDemoDocuments(options?: RequestOptions): Promise<ApiOut
 }
 
 /**
- * GET /analyze/:runId/status — analysis job state (contract §4 stage list).
- * Not wired yet (M4); 404/501 resolve to `available: false` per the brief.
+ * Analysis-run status (contract §4 stage list) — not wired yet (M4/M5);
+ * the route targets the 501 stub `unimplemented?for=analyze&runId=…`,
+ * so 404/501 resolve to `available: false` per the brief.
  */
 export interface AnalysisRunInfo {
   runId: string;

@@ -20,7 +20,7 @@ function renderGraph() {
 describe('KnowledgeGraphPage — renders exactly the records the API returned', () => {
   it('draws the layered canvas, legend, records list and counts', async () => {
     stubFetchByRoute((url) =>
-      url.includes('graph/edges') ? { status: 200, body: buildDemoOverviewRecord() } : undefined,
+      url.includes('graph-edges') ? { status: 200, body: buildDemoOverviewRecord() } : undefined,
     );
     renderGraph();
 
@@ -62,7 +62,7 @@ describe('KnowledgeGraphPage — renders exactly the records the API returned', 
 
   it('selecting a node opens the shared Context Inspector with provenance details', async () => {
     stubFetchByRoute((url) =>
-      url.includes('graph/edges') ? { status: 200, body: buildDemoOverviewRecord() } : undefined,
+      url.includes('graph-edges') ? { status: 200, body: buildDemoOverviewRecord() } : undefined,
     );
     renderGraph();
     await screen.findByTestId('graph-node-claim-A');
@@ -109,7 +109,7 @@ describe('KnowledgeGraphPage — renders exactly the records the API returned', 
 
   it('an empty-but-healthy payload reads as empty — never illustrated', async () => {
     stubFetchByRoute((url) =>
-      url.includes('graph/edges') ? { status: 200, body: { nodes: [], edges: [] } } : undefined,
+      url.includes('graph-edges') ? { status: 200, body: { nodes: [], edges: [] } } : undefined,
     );
     renderGraph();
     await waitFor(() =>
