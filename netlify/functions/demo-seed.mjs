@@ -43,9 +43,9 @@ import {
   withSession,
 } from '../../server/demoApi.mjs';
 
-const RATE_LIMIT_COOLDOWN_MS = 30_000; // one run per IP per 30 s
-const RATE_LIMIT_WINDOW_MS = 600_000; // 10-minute window
-const RATE_LIMIT_MAX_PER_WINDOW = 5; // at most 5 runs per window per IP
+const RATE_LIMIT_COOLDOWN_MS = 10_000; // one run per IP per 10 s
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1-minute window
+const RATE_LIMIT_MAX_PER_WINDOW = 6; // at most 6 runs per window per IP
 
 export function createDemoSeedHandler(deps = {}) {
   const env = deps.env ?? process.env;
@@ -96,7 +96,7 @@ export function createDemoSeedHandler(deps = {}) {
         429,
         {
           error: 'rate-limited',
-          message: 'Demo seeding is rate limited: at most once every 30 seconds and 5 times per 10 minutes per client. Please wait and try again. This request seeded nothing.',
+          message: 'Demo seeding is rate limited: at most once every 10 seconds and 6 times per minute per client. Please wait and try again. This request seeded nothing.',
         },
         { 'retry-after': String(retryAfterSeconds) },
       );

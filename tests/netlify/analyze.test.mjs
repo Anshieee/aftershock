@@ -149,7 +149,7 @@ describe('analyze handler — the REAL demo-manuscript analysis', () => {
     expect(params.id).toBe(body.runId);
     expect(params.documentVersionId).toBe(DEMO_MANUSCRIPT_VERSION_ID);
     expect(params.status).toBe('completed');
-    expect(params.stage).toBe('completed');
+    expect(params.stage).toBe('results');
     expect(params.findingsCount).toBe(2); // 1 direct + 1 indirect — the real count
     expect(params.analysisVersion).toBe(IMPACT_ANALYSIS_VERSION);
     expect(params.startedAt).toBe(params.completedAt);

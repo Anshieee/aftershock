@@ -41,9 +41,9 @@ import {
   registerDocumentImport,
 } from '../../server/importAnalyze.mjs';
 
-const RATE_LIMIT_COOLDOWN_MS = 30_000; // one import per IP per 30 s
-const RATE_LIMIT_WINDOW_MS = 600_000; // 10-minute window
-const RATE_LIMIT_MAX_PER_WINDOW = 5; // at most 5 imports per window per IP
+const RATE_LIMIT_COOLDOWN_MS = 6_000; // one import per IP per 6 s
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1-minute window
+const RATE_LIMIT_MAX_PER_WINDOW = 10; // at most 10 imports per window per IP
 const MAX_FILE_NAME_LENGTH = 255;
 const WRITE_BUDGET_MS = 20_000;
 
@@ -133,7 +133,7 @@ export function createImportDocumentHandler(deps = {}) {
         429,
         {
           error: 'rate-limited',
-          message: 'Import is rate limited: at most once every 30 seconds and 5 times per 10 minutes per client. Please wait and try again. Nothing was stored.',
+          message: 'Import is rate limited: at most once every 6 seconds and 10 times per minute per client. Please wait and try again. Nothing was stored.',
         },
         { 'retry-after': String(retryAfterSeconds) },
       );
