@@ -29,10 +29,10 @@ const acceptAttributeValue =
   '.pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
 
 const analyzeDisabledClass =
-  'cursor-not-allowed rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink-muted';
+  'cursor-not-allowed rounded-lg border border-ink-border bg-paper px-6 py-3 text-sm font-medium text-ink-muted';
 
 const analyzeEnabledClass =
-  'rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep' +
+  'rounded-lg bg-brand px-6 py-3 text-sm font-medium text-white hover:bg-brand-deep' +
   ' disabled:cursor-progress disabled:opacity-80';
 
 type ImportFlow =
@@ -247,14 +247,11 @@ export default function ImportPanel() {
       </label>
 
       <p className="mt-4 text-sm leading-6 text-ink-muted">
-        Accepted formats: PDF, DOCX and TXT, up to 10 MB. The file is sent once
-        to register a document record; in this build the text content is not
-        kept afterwards (contentStored: false), and analysis is available only
-        for the guided demo manuscript. Failures are reported as failures —
-        nothing is simulated.
-      </p>
-      <p className="mt-3 text-sm leading-6 text-ink-muted">
-        Privacy note: this guided-demo deployment runs on a disposable
+        Accepted formats: PDF, DOCX and TXT, up to 10 MB. The file is sent once to
+        register a document record; in this build the text content is not kept
+        afterwards (contentStored: false), and analysis is available only for the
+        guided demo manuscript. Failures are reported as failures — nothing is
+        simulated. Privacy note: this guided-demo deployment runs on a disposable
         free-tier graph without TLS or durable storage. Do not import private,
         unpublished or sensitive manuscripts — use fictional test files or the
         guided demo instead.

@@ -108,7 +108,7 @@ describe('ReviewQueuePage — derives real flagged items from the graph', () => 
     stubGraphRoute(200, buildDemoOverviewRecord());
     renderQueue();
     const section = await screen.findByRole('heading', {
-      name: /Unresolved references — not review cases \(1\)/,
+      name: /Possible publication matches — not review cases \(1\)/,
     });
     expect(section).toBeTruthy();
 

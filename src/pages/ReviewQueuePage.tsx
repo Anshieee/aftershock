@@ -17,17 +17,6 @@ type QueueLoad =
   | { phase: 'missing'; reason: 'endpoint-missing' | 'not-implemented' }
   | { phase: 'failure'; message: string };
 
-/**
- * A review-queue item derived ONLY from returned graph records: a claim or
- * conclusion the real flag traversal (verified notice → supporting citation
- * use → claim → dependent conclusion) marks for evidence review, plus the
- * actual flag edge so the "why" shows the edge's own provenance text.
- *
- * `reviewed` (sage styling) is true ONLY when the node itself records a
- * human review outcome (contract §4 states `review_recorded` | `resolved`).
- * The seeded demo carries `unreviewed` everywhere, so sage never appears
- * for it — the queue never pre-marks anything as reviewed.
- */
 interface ReviewItem {
   id: string;
   kind: 'claim' | 'conclusion';
@@ -36,7 +25,6 @@ interface ReviewItem {
   viaPublicationId: string;
   viaCitationUseId?: string;
   viaClaimId?: string;
-  /** The returned edge that carries the flag — provenance source for the "why". */
   flagEdge?: GraphEdge;
   reviewed: boolean;
 }
@@ -60,13 +48,6 @@ function findEdge(
   );
 }
 
-/**
- * Same flag semantics as the results page (shared deriveDemoImpact), with
- * the flag edge attached. Never conflates relation types: only
- * CITATION_USE_SUPPORTS_CLAIM (direct) and CONCLUSION_DEPENDS_ON_CLAIM
- * (indirect) edges can flag — historical mentions and POSSIBLE_MATCH
- * candidates never join this list (DATA_CONTRACTS §7).
- */
 export function deriveReviewItems(overview: GraphOverview): ReviewItem[] {
   const impact = deriveDemoImpact(overview);
   return impact.affected.map((item: AffectedItem) => ({
@@ -87,13 +68,6 @@ export function deriveReviewItems(overview: GraphOverview): ReviewItem[] {
   }));
 }
 
-/**
- * Review Queue — risk-prioritized human review cases, derived client-side
- * from the real graph overview (limit 200). A flag means “needs human
- * review”, never truth or falsity (§7). Decision recording is not wired in
- * this build: the affordances below are disabled and labelled as such —
- * nothing is simulated, no case counts or decisions are invented.
- */
 export default function ReviewQueuePage() {
   const [state, setState] = useState<QueueLoad>({ phase: 'loading' });
   const controllerRef = useRef<AbortController | null>(null);
@@ -228,95 +202,128 @@ export default function ReviewQueuePage() {
                 reliability or complete notice coverage.
               </p>
             ) : (
-              <ul className="mt-3 space-y-3">
-                {items.map((item) => (
-                  <li
-                    key={item.id}
-                    data-testid={`review-item-${item.id}`}
-                    data-review-state={item.reviewed ? 'reviewed' : 'needs-review'}
-                    className={
-                      item.reviewed
-                        ? 'rounded border border-reviewed bg-reviewed-surface p-4 text-base'
-                        : 'rounded border border-review-border bg-review-surface p-4 text-base'
-                    }
-                  >
-                    <p className={`font-medium ${item.reviewed ? 'text-reviewed-text' : 'text-review-text'}`}>
-                      {item.kind === 'claim' ? 'Claim' : 'Conclusion'} “{item.id}” —{' '}
-                      {item.reviewKind === 'direct_evidence_review'
-                        ? 'direct evidence review (supporting role)'
-                        : 'indirect evidence review (depends on a flagged claim)'}
-                    </p>
-                    {item.text && <p className="mt-1 text-ink">“{item.text}”</p>}
+              <ul className="mt-3 space-y-4">
+                {items.map((item) => {
+                  const reviewed = item.reviewed;
+                  return (
+                    <li
+                      key={item.id}
+                      data-testid={`review-item-${item.id}`}
+                      data-review-state={reviewed ? 'reviewed' : 'needs-review'}
+                      className={
+                        reviewed
+                          ? 'rounded-lg border border-reviewed bg-reviewed-surface p-4 text-base'
+                          : 'rounded-lg border border-review-border bg-review-surface p-4 text-base'
+                      }
+                    >
+                      <header className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p
+                          className={
+                            reviewed ? 'font-medium text-reviewed-text' : 'font-medium text-review-text'
+                          }
+                        >
+                          {item.kind === 'claim' ? 'Claim' : 'Conclusion'}{' '}
+                          <span className="break-all font-mono">{item.id}</span> —{' '}
+                          {item.reviewKind === 'direct_evidence_review'
+                            ? 'direct evidence review (supporting role)'
+                            : 'indirect evidence review (depends on a flagged claim)'}
+                        </p>
+                        <span
+                          className={
+                            reviewed
+                              ? 'inline-flex shrink-0 items-center rounded border border-reviewed bg-reviewed-surface px-2 py-0.5 text-xs font-medium text-reviewed-text'
+                              : 'inline-flex shrink-0 items-center rounded border border-review-border bg-review-surface px-2 py-0.5 text-xs font-medium text-review-text'
+                          }
+                        >
+                          {reviewed ? 'Reviewed' : 'Needs review'}
+                        </span>
+                      </header>
 
-                    <div className="mt-2 text-xs text-ink-muted" data-testid={`review-item-${item.id}-why`}>
-                      <p>
-                        Why flagged:{' '}
-                        {item.reviewKind === 'direct_evidence_review' ? (
-                          <>
-                            its supporting citation use{' '}
-                            <span className="break-all font-mono">{item.viaCitationUseId}</span> cites
-                            publication <span className="break-all font-mono">{item.viaPublicationId}</span>,
-                            which carries a verified source notice in the returned graph.
-                          </>
-                        ) : (
-                          <>
-                            it depends on flagged claim{' '}
-                            <span className="break-all font-mono">{item.viaClaimId}</span> via
-                            CONCLUSION_DEPENDS_ON_CLAIM — inherited evidence-review obligation,
-                            never automatic falsity.
-                          </>
-                        )}
-                      </p>
-                      {item.flagEdge && (
+                      {item.text && (
+                        <blockquote className="mt-2 border-l-2 border-ink-border pl-3 text-ink">
+                          “{item.text}”
+                        </blockquote>
+                      )}
+
+                      <div
+                        className="mt-3 text-xs text-ink-muted"
+                        data-testid={`review-item-${item.id}-why`}
+                      >
+                        <p className="font-medium text-ink">Why flagged</p>
                         <p className="mt-1">
-                          Flag edge <span className="font-mono">{item.flagEdge.type}</span> · provenance{' '}
-                          {item.flagEdge.provenanceKind ?? 'not recorded'} · reviewState{' '}
-                          {item.flagEdge.reviewState ?? 'not recorded'}
-                          {item.flagEdge.sourcePointer && (
+                          {item.reviewKind === 'direct_evidence_review' ? (
                             <>
-                              {' · source '}
-                              <span className="break-all font-mono">{item.flagEdge.sourcePointer}</span>
+                              its supporting citation use{' '}
+                              <span className="break-all font-mono">{item.viaCitationUseId}</span> cites
+                              publication <span className="break-all font-mono">{item.viaPublicationId}</span>,
+                              which carries a verified source notice in the returned graph.
+                            </>
+                          ) : (
+                            <>
+                              it depends on flagged claim{' '}
+                              <span className="break-all font-mono">{item.viaClaimId}</span> via
+                              CONCLUSION_DEPENDS_ON_CLAIM — inherited evidence-review obligation,
+                              never automatic falsity.
                             </>
                           )}
-                          {item.flagEdge.rationale
-                            ? ` — rationale: ${item.flagEdge.rationale}`
-                            : ' — no rationale text was recorded on the returned edge.'}
                         </p>
-                      )}
-                    </div>
+                        {item.flagEdge && (
+                          <footer className="mt-2 border-t border-ink-border pt-2">
+                            Flag edge <span className="font-mono">{item.flagEdge.type}</span> · provenance{' '}
+                            {item.flagEdge.provenanceKind ?? 'not recorded'} · reviewState{' '}
+                            {item.flagEdge.reviewState ?? 'not recorded'}
+                            {item.flagEdge.sourcePointer && (
+                              <>
+                                {' · source '}
+                                <span className="break-all font-mono">{item.flagEdge.sourcePointer}</span>
+                              </>
+                            )}
+                            {item.flagEdge.rationale
+                              ? ` — rationale: ${item.flagEdge.rationale}`
+                              : ' — no rationale text was recorded on the returned edge.'}
+                          </footer>
+                        )}
+                      </div>
 
-                    {/* Honest decision affordance: visible, disabled, truthful. */}
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-border pt-3">
-                      <button
-                        type="button"
-                        disabled
-                        title="Decision recording is not wired in this build — nothing is saved or sent."
-                        data-testid={`review-decide-${item.id}`}
-                        className="cursor-not-allowed rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink-muted opacity-60"
-                      >
-                        Record decision
-                      </button>
-                      <span className="text-xs text-ink-muted">
-                        Decision actions arrive with the review backend — not available yet; this
-                        build records nothing.
-                      </span>
-                    </div>
-                  </li>
-                ))}
+                      {/* Honest decision affordance: visible, disabled, truthful. */}
+                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-border pt-3">
+                        <button
+                          type="button"
+                          disabled
+                          title="Decision recording is not wired in this build — nothing is saved or sent."
+                          data-testid={`review-decide-${item.id}`}
+                          className="cursor-not-allowed rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink-muted opacity-60"
+                        >
+                          Record decision
+                        </button>
+                        <span className="text-xs text-ink-muted">
+                          Decision actions arrive with the review backend — not available yet; this
+                          build records nothing.
+                        </span>
+                        <span className="text-xs text-ink-muted">
+                          Decisions require the review backend and an audit trail (M5 proper).
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
 
-          <section aria-labelledby="review-unresolved-heading" className="rounded-lg border border-ink-border bg-paper-raised p-6">
-            <h2 id="review-unresolved-heading" className="text-lg font-semibold text-ink">
-              Unresolved references — not review cases ({state.impact.unresolved.length})
+          <section
+            aria-labelledby="review-unresolved-heading"
+            className="rounded-lg border border-uncertain-border bg-uncertain-surface p-6"
+          >
+            <h2 id="review-unresolved-heading" className="text-lg font-semibold text-uncertain-text">
+              Possible publication matches — not review cases ({state.impact.unresolved.length})
             </h2>
             {state.impact.unresolved.length === 0 ? (
-              <p className="mt-2 max-w-prose text-base text-ink-muted">
+              <p className="mt-2 max-w-prose text-base text-uncertain-text">
                 No unresolved reference occurrences were returned.
               </p>
             ) : (
-              <p className="mt-2 max-w-prose text-sm text-ink-muted">
+              <p className="mt-2 max-w-prose text-sm text-uncertain-text">
                 These are ambiguous “possible matches” awaiting human resolution. They are
                 deliberately kept out of the flagged list above: candidate edges never
                 propagate into claim impact, and ambiguity is not a flag.
@@ -328,7 +335,7 @@ export default function ReviewQueuePage() {
                   key={item.id}
                   data-testid={`review-unresolved-${item.id}`}
                   data-review-state="unresolved"
-                  className="rounded border border-uncertain-border bg-uncertain-surface p-3 text-base"
+                  className="rounded border border-uncertain-border bg-paper-raised p-3 text-base"
                 >
                   <p className="font-medium text-uncertain-text">
                     “{item.text ?? item.id}” — unresolved ({item.resolutionState ?? 'state not recorded'})

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import EmptyArea from '../components/EmptyArea';
 import {
   ApiClientError,
@@ -15,7 +16,6 @@ import {
 type ListState =
   | { phase: 'loading' }
   | { phase: 'loaded'; documents: DocumentSummary[] }
-  /** Endpoint missing/unimplemented — honest "can't know", never an empty list. */
   | { phase: 'unavailable' }
   | { phase: 'failed'; detail: string };
 
@@ -66,15 +66,6 @@ function describeListError(error: unknown): string {
   return 'The response could not be read as a document list.';
 }
 
-/**
- * Library — real document list via GET /documents (M4).
- *
- * Per-document status is honest: the guided demo manuscript version (fixed
- * contract §6 ID) gets a working Analyze action; documents registered
- * without stored content show the server's disclosure verbatim and no
- * analyze affordance. A missing endpoint never masquerades as "no
- * documents" — unavailability and emptiness are different, labeled states.
- */
 export default function LibraryPage() {
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [rowAnalysis, setRowAnalysis] = useState<Record<string, RowAnalysis>>({});
@@ -139,19 +130,17 @@ export default function LibraryPage() {
 
       {listState.phase === 'loading' && (
         <p className="mt-8 text-base text-ink-muted" role="status" data-testid="library-loading">
-          Reading the document list from the live library API…
+          Loading…
         </p>
       )}
 
       {listState.phase === 'failed' && (
         <div
-          className="mt-8 rounded border border-notice-border bg-notice-surface px-4 py-3 text-base text-ink"
+          className="mt-8 rounded-lg border border-notice-border bg-notice-surface px-4 py-3 text-base text-ink"
           role="status"
           data-testid="library-failed"
         >
-          <span className="block font-medium">
-            The document list can’t be read right now.
-          </span>
+          <span className="block font-medium">The document list can’t be read right now.</span>
           <span className="mt-1 block text-sm text-ink-muted">{listState.detail}</span>
           <span className="mt-1 block text-sm text-ink-muted">
             No placeholder documents are shown instead — the list is never guessed.
@@ -161,7 +150,7 @@ export default function LibraryPage() {
 
       {listState.phase === 'unavailable' && (
         <div
-          className="mt-8 rounded border border-uncertain-border bg-uncertain-surface px-4 py-3"
+          className="mt-8 rounded-lg border border-uncertain-border bg-uncertain-surface px-4 py-3"
           role="status"
           data-testid="library-unavailable"
         >
@@ -169,8 +158,8 @@ export default function LibraryPage() {
             The library list is not available in this deployment yet.
           </span>
           <span className="mt-1 block text-sm text-uncertain-text">
-            The Library cannot claim which documents do or don’t exist, so it
-            shows neither a list nor an empty state. Nothing is simulated.
+            The Library cannot claim which documents do or don’t exist, so it shows neither a
+            list nor an empty state. Nothing is simulated.
           </span>
         </div>
       )}
@@ -200,27 +189,36 @@ export default function LibraryPage() {
                   data-testid={`library-doc-${doc.id}`}
                   className="rounded-lg border border-ink-border bg-paper-raised p-5"
                 >
-                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-medium text-ink">{doc.title ?? doc.fileName ?? doc.id}</p>
                       <p className="mt-1 text-sm text-ink-muted">
                         {[
                           doc.fileName,
-                          doc.format,
+                          doc.format ? `.${doc.format}` : null,
                           doc.importedAt ? `Imported ${doc.importedAt}` : null,
                         ]
                           .filter(Boolean)
                           .join(' · ')}
                       </p>
                     </div>
-                    {doc.isSynthetic && (
-                      <span className="inline-flex shrink-0 items-center gap-2 rounded border border-uncertain-border bg-uncertain-surface px-2 py-0.5 text-xs font-medium text-uncertain-text">
-                        {doc.syntheticLabel ?? 'FICTIONAL / GUIDED DEMO'}
-                      </span>
-                    )}
+                    <div className="flex shrink-0 items-center gap-2">
+                      {doc.isSynthetic && (
+                        <span className="inline-flex items-center gap-2 rounded border border-uncertain-border bg-uncertain-surface px-2 py-0.5 text-xs font-medium text-uncertain-text">
+                          {doc.syntheticLabel ?? 'FICTIONAL / GUIDED DEMO'}
+                        </span>
+                      )}
+                      {isDemoManuscript && (
+                        <Link
+                          to="/results"
+                          className="rounded border border-ink-border bg-paper px-3 py-1 text-xs text-ink no-underline hover:bg-paper-deep"
+                        >
+                          Open investigation
+                        </Link>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Honest per-document status — never a guessed one. */}
                   <p className="mt-3 text-sm text-ink" data-testid={`doc-status-${doc.id}`}>
                     {isDemoManuscript
                       ? 'Guided demo manuscript — stored content is available, so analysis can run.'
@@ -271,9 +269,8 @@ export default function LibraryPage() {
                               <span className="font-mono">{row.runId}</span>
                             </p>
                             <p className="mt-1 text-sm text-ink-muted">
-                              The runId is the real server response. Status
-                              polling and results are not wired in this build
-                              yet — nothing further is simulated.
+                              The runId is the real server response. Status polling and results are
+                              not wired in this build yet — nothing further is simulated.
                             </p>
                           </div>
                         )}
@@ -283,8 +280,8 @@ export default function LibraryPage() {
                             className="rounded border border-uncertain-border bg-uncertain-surface px-3 py-2 text-sm text-uncertain-text"
                           >
                             <span className="block font-medium">
-                              Analysis did not start — the server reports
-                              content-not-stored for this version.
+                              Analysis did not start — the server reports content-not-stored for this
+                              version.
                             </span>
                             <span className="mt-1 block">{row.disclosure}</span>
                           </div>
