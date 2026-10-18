@@ -23,13 +23,83 @@ function renderWithRoutes(initialPath = '/') {
 }
 
 describe('LandingPage (import-first)', () => {
+  it('renders the research-workspace hero with the wired guided action', () => {
+    renderWithRoutes();
+
+    // New hero: the research question in display serif (the Aftershock.
+    // wordmark stays in the header, not the hero).
+    expect(
+      screen.getByRole('heading', { name: 'What would you like to investigate?' }),
+    ).toBeTruthy();
+    expect(screen.getByTestId('hero-guided-action').textContent).toContain(
+      'Explore guided investigation',
+    );
+    // The hero secondary and the import section both label the real picker.
+    expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('heading', { name: 'Try guided example' })).toBeTruthy();
+  });
+
+  it('routes the hero action through the same guarded seed flow', async () => {
+    const calls = stubFetchByRoute((url) => {
+      if (url.endsWith(apiRoutes.demoSeed)) {
+        return { status: 200, body: { seeded: true, alreadySeeded: false, seedVersion: 'seed-1' } };
+      }
+      if (url.includes('graph-probe')) {
+        return { status: 200, body: { exists: true, seedVersion: 'seed-1', nodeCount: 17 } };
+      }
+      if (url.includes('graph-edges')) {
+        return { status: 200, body: buildDemoOverviewRecord() };
+      }
+      return undefined;
+    });
+
+    renderWithRoutes();
+    fireEvent.click(screen.getByTestId('hero-guided-action'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /guided demo results/i })).toBeTruthy(),
+    );
+    const seedCall = calls.find((call) => call.url.endsWith(apiRoutes.demoSeed));
+    expect(seedCall?.init?.method).toBe('POST');
+    expect(seedCall?.init?.body).toBeUndefined();
+  });
+
+  it('features the 2020 hydroxychloroquine retraction with real, distinct dates', () => {
+    renderWithRoutes();
+
+    const featured = screen.getByRole('article');
+    // Real facts only (docs/DATA_CONTRACTS §6): Mehra et al. 2020, The
+    // Lancet; announcement 2020-06-04 distinct from record date 2020-06-05;
+    // both PMIDs present. Verified status is labeled, never invented.
+    expect(featured.textContent).toContain('Mehra');
+    expect(featured.textContent).toContain('announced 2020-06-04');
+    expect(featured.textContent).toContain('recorded 2020-06-05');
+    // The two timestamps stay distinct — never merged into one date.
+    expect(featured.textContent).not.toContain('2020-06-04/05');
+    expect(featured.textContent).toContain('32450107');
+    expect(featured.textContent).toContain('32511943');
+    expect(featured.textContent).toContain('Verified real record');
+    // Honesty: fictional demo manuscript vs. real record distinction kept.
+    expect(featured.textContent).toContain('FICTIONAL / GUIDED DEMO');
+    const resultsLink = screen.getByRole('link', { name: 'Open the guided investigation' });
+    expect(resultsLink.getAttribute('href')).toBe('/results');
+  });
+
+  it('keeps the workspace shortcuts as real route links', () => {
+    renderWithRoutes();
+    const shortcuts = screen.getByRole('navigation', { name: 'Workspace areas' });
+    expect(shortcuts.querySelector('a[href="/overview"]')).toBeTruthy();
+    expect(shortcuts.querySelector('a[href="/graph"]')).toBeTruthy();
+    expect(shortcuts.querySelector('a[href="/library"]')).toBeTruthy();
+  });
+
   it('renders the primary document affordance and secondary DOI/bibliography affordances', () => {
     renderWithRoutes();
 
-    expect(screen.getByLabelText('Choose a document')).toBeTruthy();
+    expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByTestId('import-input')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Bibliography' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Single DOI' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Try guided example' })).toBeTruthy();
   });
 
   it('registers a chosen file through the real import endpoint and shows the server disclosure — no fake upload', async () => {
