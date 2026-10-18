@@ -146,7 +146,7 @@ export default function OverviewPage() {
         </section>
       )}
 
-      <p className="mt-4 max-w-prose text-sm text-ink-muted">
+      <p className="mt-4 max-w-prose text-base text-ink-muted">
         The status chip above queries the platform’s real{' '}
         <code className="rounded bg-paper-deep px-1">/health</code> endpoint; the card
         above reflects the real <code className="rounded bg-paper-deep px-1">/graph/probe</code>{' '}

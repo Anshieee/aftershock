@@ -116,7 +116,7 @@ export default function DemoResultsPage() {
       <p
         role="note"
         data-testid="results-attribution"
-        className="mt-4 rounded-lg border border-uncertain-border bg-uncertain-surface px-4 py-3 text-sm text-uncertain-text"
+        className="mt-4 rounded-lg border border-uncertain-border bg-uncertain-surface px-4 py-3 text-base text-uncertain-text"
       >
         <strong>Fictional</strong> guided-demo manuscript: the passages, claims and citation
         uses below are invented for this demo and labelled FICTIONAL / GUIDED DEMO. The
@@ -140,7 +140,7 @@ export default function DemoResultsPage() {
           <h2 id="results-missing-heading" className="text-lg font-semibold text-ink">
             Graph records not available yet
           </h2>
-          <p className="mt-2 max-w-prose text-sm text-ink-muted">
+          <p className="mt-2 max-w-prose text-base text-ink-muted">
             {graph.reason === 'not-implemented'
               ? 'The graph-records endpoint reports “not implemented” on this build.'
               : 'No graph-records endpoint answered (HTTP 404).'}{' '}
@@ -160,7 +160,7 @@ export default function DemoResultsPage() {
           <h2 id="results-failure-heading" className="text-lg font-semibold text-notice-text">
             Results unavailable
           </h2>
-          <p className="mt-2 text-sm text-ink" data-testid="results-failure-detail">
+          <p className="mt-2 text-base text-ink" data-testid="results-failure-detail">
             {stateMessage(graph)} Nothing is simulated in place of the real data.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
@@ -185,14 +185,14 @@ export default function DemoResultsPage() {
               Verified source notices ({impact.verifiedNotices.length})
             </h2>
             {impact.verifiedNotices.length === 0 ? (
-              <p className="mt-2 text-sm text-ink-muted">
+              <p className="mt-2 text-base text-ink-muted">
                 None recorded in the returned graph. “No notice found” never implies
                 scientific reliability or complete global coverage.
               </p>
             ) : (
               <ul className="mt-3 space-y-3">
                 {impact.verifiedNotices.map((notice) => (
-                  <li key={notice.noticeId} className="rounded border border-notice-border bg-notice-surface p-3 text-sm">
+                  <li key={notice.noticeId} className="rounded border border-notice-border bg-notice-surface p-3 text-base">
                     <p className="font-medium text-notice-text" data-testid="notice-type">
                       {notice.title ?? `${notice.publicationId ?? 'publication'} — notice ${notice.noticeType}`}
                     </p>
@@ -232,7 +232,7 @@ export default function DemoResultsPage() {
               Needs human review ({impact.affected.length})
             </h2>
             {impact.affected.length === 0 ? (
-              <p className="mt-2 text-sm text-ink-muted">
+              <p className="mt-2 text-base text-ink-muted">
                 Nothing in the returned graph links a verified notice to a supporting
                 citation chain — as far as this build can see, no passage needs review.
               </p>
@@ -241,7 +241,7 @@ export default function DemoResultsPage() {
                 {impact.affected.map((item) => (
                   <li
                     key={item.id}
-                    className="rounded border border-review-border bg-review-surface p-3 text-sm"
+                    className="rounded border border-review-border bg-review-surface p-3 text-base"
                     data-testid={`affected-${item.id}`}
                   >
                     <p className="font-medium text-review-text">
@@ -279,7 +279,7 @@ export default function DemoResultsPage() {
               Not affected — historical mentions ({impact.historical.length})
             </h2>
             {impact.historical.length === 0 ? (
-              <p className="mt-2 text-sm text-ink-muted">
+              <p className="mt-2 text-base text-ink-muted">
                 No historical-mention citation uses reference the verified-notice publication
                 in the returned graph.
               </p>
@@ -288,7 +288,7 @@ export default function DemoResultsPage() {
                 {impact.historical.map((item) => (
                   <li
                     key={item.id}
-                    className="rounded border border-ink-border bg-paper-deep p-3 text-sm"
+                    className="rounded border border-ink-border bg-paper-deep p-3 text-base"
                     data-testid={`historical-${item.id}`}
                   >
                     <p className="font-medium text-ink">Claim “{item.id}” — not flagged</p>
@@ -309,7 +309,7 @@ export default function DemoResultsPage() {
               Unresolved references ({impact.unresolved.length})
             </h2>
             {impact.unresolved.length === 0 ? (
-              <p className="mt-2 text-sm text-ink-muted">
+              <p className="mt-2 text-base text-ink-muted">
                 No unresolved reference occurrences were returned.
               </p>
             ) : (
@@ -317,7 +317,7 @@ export default function DemoResultsPage() {
                 {impact.unresolved.map((item) => (
                   <li
                     key={item.id}
-                    className="rounded border border-uncertain-border bg-uncertain-surface p-3 text-sm"
+                    className="rounded border border-uncertain-border bg-uncertain-surface p-3 text-base"
                     data-testid={`unresolved-${item.id}`}
                   >
                     <p className="font-medium text-uncertain-text">
@@ -343,7 +343,7 @@ export default function DemoResultsPage() {
             <h2 id="results-unknown" className="text-lg font-semibold text-ink">
               What remains unknown
             </h2>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-muted" data-testid="results-unknown">
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-base text-ink-muted" data-testid="results-unknown">
               <li>
                 Synthetic entities in this demo: {impact.syntheticEntityCount} · real
                 bibliographic records: {impact.realEntityCount}

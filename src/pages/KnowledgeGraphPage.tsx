@@ -130,7 +130,7 @@ export default function KnowledgeGraphPage() {
           <h2 id="graph-failure-heading" className="text-lg font-semibold text-notice-text">
             Graph unavailable
           </h2>
-          <p className="mt-2 text-sm text-ink" data-testid="graph-failure-detail">
+          <p className="mt-2 text-base text-ink" data-testid="graph-failure-detail">
             {state.message} Nothing is rendered in place of real records.
           </p>
           <button
@@ -145,7 +145,7 @@ export default function KnowledgeGraphPage() {
 
       {state.phase === 'ready' && (
         <>
-          <p className="mt-2 max-w-prose text-sm text-ink-muted">
+          <p className="mt-2 max-w-prose text-base text-ink-muted">
             Every record below lives in the real graph store and is read live through the
             backend API (read-only from the browser). Fictional guided-demo records are
             labelled “FICTIONAL / GUIDED DEMO”; real bibliographic records are marked
@@ -153,7 +153,7 @@ export default function KnowledgeGraphPage() {
           </p>
 
           {nodes.length === 0 ? (
-            <p className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6 text-sm text-ink-muted" data-testid="graph-empty">
+            <p className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6 text-base text-ink-muted" data-testid="graph-empty">
               The graph API answered, but returned no records. An empty graph is shown as
               empty — nothing is illustrated with placeholder structure.
             </p>
