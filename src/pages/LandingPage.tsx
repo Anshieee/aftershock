@@ -108,9 +108,15 @@ export default function LandingPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="font-display text-4xl leading-tight text-ink">
-        Find out which of your sources changed after publication
+      {/* Brand masthead: the wordmark is the hero statement (h1); the
+          value proposition follows as a display-serif standfirst. The
+          wordmark treatment is scoped to exactly these two brand spots. */}
+      <h1 className="wordmark mt-2 text-5xl leading-none text-ink md:mt-4 md:text-7xl">
+        Aftershock.
       </h1>
+      <p className="mt-4 max-w-prose font-display text-2xl leading-snug text-ink md:mt-6">
+        Find out which of your sources changed after publication
+      </p>
       <p className="mt-3 max-w-prose text-ink-muted">
         Aftershock traces retraction and status notices from your cited sources
         to the claims that depend on them, so you can review with evidence in

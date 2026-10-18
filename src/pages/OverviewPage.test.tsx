@@ -37,7 +37,10 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
     expect(summary).toContain('seedVersion seed-1');
     expect(summary).toContain('17 nodes');
     expect(screen.getByRole('link', { name: 'View guided results' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Explore the Knowledge Graph' })).toBeTruthy();
+    // The Knowledge Graph lives in its own clearly secondary card.
+    expect(
+        screen.getByRole('link', { name: 'Open the Knowledge Graph' }),
+    ).toBeTruthy();
     // The import-first card is not shown alongside it.
     expect(screen.queryByTestId('import-first-card')).toBeNull();
   });
@@ -100,9 +103,10 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
     expect(failure.textContent).toMatch(
       /Seed status can’t be confirmed right now — the overview API didn’t respond\./,
     );
-    // Secondary line carries the typed classification detail.
+    // Secondary line carries the typed classification detail — hedged, but
+    // still specific about what was observed.
     expect(failure.textContent).toMatch(
-      /Function missing in this deployment \(received HTML instead of JSON\)/,
+      /Likely the site fallback served HTML instead of JSON/,
     );
     // The honest never-guess sentence stays.
     expect(failure.textContent).toMatch(/status is never guessed/);
@@ -111,7 +115,7 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
     expect(screen.queryByTestId('import-first-card')).toBeNull();
   });
 
-  it('keeps the truthful service chip beside the heading', async () => {
+  it('keeps service status quiet: a muted line at the end, never a chip beside the heading', async () => {
     stubFetchByRoute((url) =>
       url.includes('health')
         ? { status: 200, body: { ok: true } }
@@ -119,8 +123,11 @@ describe('OverviewPage — seed-probe driven honest cards', () => {
     );
     renderOverview();
     await waitFor(() =>
-      expect(screen.getByTestId('service-status').textContent).toMatch(/^API: online$/),
+      expect(screen.getByTestId('service-status-line').textContent).toMatch(/^API: online$/),
     );
     expect(screen.getByRole('heading', { name: 'Overview' })).toBeTruthy();
+    // The prominent pill is gone from the heading row — status is
+    // de-emphasized to the quiet line at the bottom of the page.
+    expect(screen.queryByTestId('service-status')).toBeNull();
   });
 });

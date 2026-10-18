@@ -8,7 +8,7 @@ import {
   getSeedStatus,
   type SeedStatus,
 } from '../lib/api';
-import ServiceStatusChip from '../components/ServiceStatusChip';
+import ServiceStatusLine from '../components/ServiceStatusLine';
 
 type ProbeState =
   | { phase: 'checking' }
@@ -17,9 +17,12 @@ type ProbeState =
   | { phase: 'failure'; detail: string };
 
 /**
- * Overview — one attention card, not a KPI dashboard (handoff §5):
- * a returning user sees "Continue your work" when the demo graph is seeded;
- * a new user sees the import-first prompt. Seed presence is verified with a
+ * Overview — one primary card, one secondary destination (handoff §5):
+ * the top card is the main next action ("Continue your work" when the
+ * demo graph is seeded; the guided-example start when it is not), the
+ * Knowledge Graph is a clearly secondary destination card, and the
+ * service status lives in a quiet line at the end of the page (its
+ * prominent header placement is gone). Seed presence is verified with a
  * real /graph/probe call; failed checks are disclosed, never assumed away.
  */
 export default function OverviewPage() {
@@ -45,7 +48,7 @@ export default function OverviewPage() {
         // and never a guessed workspace state instead of the failure.
         const detail =
           error instanceof ApiUnavailableError
-            ? 'Function missing in this deployment (received HTML instead of JSON).'
+            ? 'Likely the site fallback served HTML instead of JSON — the status function may be missing from this deployment.'
             : error instanceof ApiTimeoutError
               ? 'The seed status check timed out after 10 seconds.'
               : error instanceof ApiHttpError
@@ -60,39 +63,30 @@ export default function OverviewPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="font-display text-3xl text-ink">Overview</h1>
-        <ServiceStatusChip />
-      </div>
+      <h1 className="font-display text-3xl text-ink">Overview</h1>
 
       {probe.phase === 'seeded' ? (
         <section
           aria-labelledby="overview-continue"
-          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6"
+          className="mt-8 rounded-lg border border-ink-border bg-paper-raised p-6 md:p-8"
           data-testid="continue-card"
         >
           <h2 id="overview-continue" className="text-lg font-semibold text-ink">
             Continue your work
           </h2>
-          <p className="mt-2 max-w-prose text-ink" data-testid="continue-summary">
+          <p className="mt-3 max-w-prose text-base text-ink" data-testid="continue-summary">
             The guided demo graph is present
             {probe.status.seedVersion && ` (seedVersion ${probe.status.seedVersion})`}
             {typeof probe.status.nodeCount === 'number' && ` with ${probe.status.nodeCount} nodes as reported by the graph probe`}
             . The demo results view maps verified notices, affected claims, historical
             mentions and unresolved references from the real graph data.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-5 flex flex-wrap gap-3">
             <Link
               to="/results"
               className="rounded bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
             >
               View guided results
-            </Link>
-            <Link
-              to="/graph"
-              className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
-            >
-              Explore the Knowledge Graph
             </Link>
             <Link
               to="/review-queue"
@@ -103,12 +97,12 @@ export default function OverviewPage() {
           </div>
         </section>
       ) : probe.phase === 'checking' ? (
-        <p className="mt-6 text-sm text-ink-muted" role="status" data-testid="overview-checking">
+        <p className="mt-8 text-base text-ink-muted" role="status" data-testid="overview-checking">
           Checking whether a demo graph already exists…
         </p>
       ) : probe.phase === 'failure' ? (
         <p
-          className="mt-6 rounded border border-notice-border bg-notice-surface px-3 py-2 text-base text-ink"
+          className="mt-8 rounded border border-notice-border bg-notice-surface px-4 py-3 text-base text-ink"
           role="note"
           data-testid="overview-probe-failure"
         >
@@ -124,43 +118,69 @@ export default function OverviewPage() {
       ) : (
         <section
           aria-labelledby="overview-attention"
-          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6"
+          className="mt-8 rounded-lg border border-ink-border bg-paper-raised p-6 md:p-8"
           data-testid="import-first-card"
         >
           <h2 id="overview-attention" className="text-lg font-semibold text-ink">
             Getting started
           </h2>
-          <p className="mt-2 max-w-prose text-ink-muted">
-            Aftershock helps you see which claims in your manuscript rest on sources that
-            have changed after publication — such as retraction or correction notices.
+          <p className="mt-3 max-w-prose text-base text-ink">
             There is no seeded demo graph in this environment yet, so there is no
-            continuation work to show. Start from a document import once wired — or try
-            the guided example, which seeds the synthetic demo through the guarded API.
+            continuation work to show. The guided example seeds the synthetic demo
+            through the guarded, rate-limited API and then shows real graph-derived
+            results. Document import is not wired in this build — nothing is uploaded
+            anywhere.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-5 flex flex-wrap gap-3">
             <Link
               to="/"
               className="rounded bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
             >
-              Import a document
+              Try guided example
             </Link>
             <Link
               to="/"
               className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
             >
-              Try guided example
+              Import a document
             </Link>
           </div>
         </section>
       )}
 
-      <p className="mt-4 max-w-prose text-base text-ink-muted">
-        The status chip above queries the platform’s real{' '}
-        <code className="rounded bg-paper-deep px-1">/health</code> endpoint; the card
-        above reflects the real <code className="rounded bg-paper-deep px-1">/graph/probe</code>{' '}
-        read-only check. “Online” never implies a connected data layer, and nothing here
-        is simulated.
-      </p>
+      {/* Secondary destination — deliberately quieter than the primary card. */}
+      <section
+        aria-labelledby="overview-graph"
+        className="mt-6 rounded-lg border border-ink-border bg-paper p-5"
+        data-testid="overview-graph-card"
+      >
+        <h2 id="overview-graph" className="text-base font-semibold text-ink">
+          Knowledge Graph
+        </h2>
+        <p className="mt-2 max-w-prose text-base text-ink-muted">
+          Browse the records the demo graph actually returns — canvas plus a
+          plain-text records list, with provenance, review state and
+          FICTIONAL / GUIDED DEMO labels. If the graph API is unavailable, the
+          page says so plainly.
+        </p>
+        <Link
+          to="/graph"
+          className="mt-4 inline-block rounded border border-ink-border bg-paper-raised px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
+        >
+          Open the Knowledge Graph
+        </Link>
+      </section>
+
+      <div className="mt-10 border-t border-ink-border pt-4" data-testid="overview-status-footnote">
+        <ServiceStatusLine />
+        <p className="mt-2 max-w-prose text-base text-ink-muted">
+          The status line queries the platform’s real{' '}
+          <code className="rounded bg-paper-deep px-1">/health</code> endpoint; the card
+          above reflects the real <code className="rounded bg-paper-deep px-1">/graph/probe</code>{' '}
+          read-only check. “Online” never implies a connected data layer, and nothing here
+          is simulated.
+        </p>
+      </div>
     </div>
   );
 }

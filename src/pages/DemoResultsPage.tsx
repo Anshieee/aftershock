@@ -252,21 +252,21 @@ export default function DemoResultsPage() {
                     </p>
                     {item.text && <p className="mt-1 text-ink">“{item.text}”</p>}
                     <p className="mt-1 text-xs text-ink-muted">
-                      Path: verified notice → <span className="font-mono">{item.viaPublicationId}</span>
+                      Path: verified notice → <span className="break-all font-mono">{item.viaPublicationId}</span>
                       {item.viaCitationUseId && (
                         <>
                           {' → supporting citation use '}
-                          <span className="font-mono">{item.viaCitationUseId}</span>
+                          <span className="break-all font-mono">{item.viaCitationUseId}</span>
                         </>
                       )}
                       {item.viaClaimId && (
                         <>
                           {' → flagged claim '}
-                          <span className="font-mono">{item.viaClaimId}</span>
+                          <span className="break-all font-mono">{item.viaClaimId}</span>
                         </>
                       )}
                       {' → '}
-                      <span className="font-mono">{item.id}</span>
+                      <span className="break-all font-mono">{item.id}</span>
                     </p>
                   </li>
                 ))}

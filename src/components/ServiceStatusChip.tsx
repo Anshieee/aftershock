@@ -1,21 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type Status = 'checking' | 'online' | 'unavailable';
 
+export type ServiceStatus = Status;
+
 /**
- * Truthful service-status chip. Queries the real Netlify function and
- * reports exactly what it observed — never a derived or simulated state.
- * The only labels used are "online" and "unavailable" (plus an honest
- * transient "checking…"). No claim is made about the graph backend here:
- * the health endpoint in M1 does not probe FalkorDB.
+ * The chip's truth logic, reusable by quieter placements: queries the real
+ * Netlify function and reports exactly what it observed — never a derived
+ * or simulated state. "Online" requires a JSON answer; a 2xx HTML page
+ * (e.g. the site fallback shading a missing function) reads as
+ * unavailable. No claim is made about the graph backend: the health
+ * endpoint in M1 does not probe FalkorDB.
  */
-export default function ServiceStatusChip({ className }: { className?: string }) {
+export function useServiceStatus(): Status {
   const [status, setStatus] = useState<Status>('checking');
-  const acRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const ac = new AbortController();
-    acRef.current = ac;
     fetch('/.netlify/functions/health', { signal: ac.signal, headers: { Accept: 'application/json' } })
       .then((res) => {
         // "Online" requires a JSON answer. A 2xx HTML page (e.g. the site
@@ -33,8 +34,26 @@ export default function ServiceStatusChip({ className }: { className?: string })
     return () => ac.abort();
   }, []);
 
-  const label =
-    status === 'checking' ? 'API: checking…' : status === 'online' ? 'API: online' : 'API: unavailable';
+  return status;
+}
+
+const LABELS: Record<Status, string> = {
+  checking: 'API: checking…',
+  online: 'API: online',
+  unavailable: 'API: unavailable',
+};
+
+/**
+ * Truthful service-status chip. Queries the real Netlify function and
+ * reports exactly what it observed — never a derived or simulated state.
+ * The only labels used are "online" and "unavailable" (plus an honest
+ * transient "checking…"). No claim is made about the graph backend here:
+ * the health endpoint in M1 does not probe FalkorDB.
+ */
+export default function ServiceStatusChip({ className }: { className?: string }) {
+  const status = useServiceStatus();
+
+  const label = LABELS[status];
 
   const tone =
     status === 'online'

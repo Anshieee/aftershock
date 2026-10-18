@@ -24,10 +24,14 @@ These hex values are **proposed consolidated brand colours**, not a verified ext
 
 ## Typography
 
-- **Primary display / wordmark:** Indieground **Advercase**, or an appropriately licensed, similarly expressive retro-editorial serif. Check the exact font's logo/commercial licensing before use.
-- **Alternative display font:** **Fraunces**, for an expressive serif wordmark.
+- **Wordmark (implemented):** **Bodoni Moda** — a high-contrast editorial serif with a Bodoni character. Used at weight 900 (weights 800 and 900 are loaded; normal style only), with about **-0.02em letter-spacing** and a subtle horizontal compression of **scaleX(0.965)** so the silhouette reads as a single mark; the final period is kept optically visible (left transform origin, small right padding). Licensed under the **SIL Open Font License 1.1** and loaded from Google Fonts (latin subset, `display=swap`, preconnected), alongside the self-hosted OFL interface fonts.
+- **Wordmark usage scope:** the Bodoni Moda treatment applies to exactly two spots — the **sidebar/header brand mark** and the **landing-page hero masthead** ("Aftershock."). Page headings, body text, buttons, and all other UI stay in the existing display/sans stacks (Source Serif 4 Variable for display/headings, Inter Variable for interface text).
 - **Supporting interface font:** **Inter**, for navigation, metadata, captions, graph labels, controls, and body text.
-- Use display serif for the wordmark and select large headings; preserve readability for small text.
+- Use display serif for headings; preserve readability for small text.
+
+## Service status display policy
+
+Service health is **discreet diagnostics, not a header badge**: the truthful status ("API: online / unavailable / checking…", JSON-only classification — an HTML-shaded 2xx reads as unavailable) lives as a quiet `text-xs` muted line at the bottom of the sidebar (end of the header block on mobile) and as an optional quiet inline line on the Overview page. No prominent pill/border treatment in a header row, and no status element may claim graph-backend state — the health endpoint does not probe FalkorDB, so "online" never implies a connected data layer.
 
 ## Recommended logo concept
 
@@ -68,7 +72,7 @@ Design a distinctive, premium visual identity for **Aftershock**, a research-int
 
 **Visual direction:** Retro-academic editorial design inspired by Indieground's Advercase typeface, combined with precise scientific visual language. The identity should be scholarly, memorable, approachable, and sophisticated rather than corporate or futuristic.
 
-**Typography:** Use an expressive, high-character editorial serif similar to Advercase for the **Aftershock.** wordmark. Fraunces is an alternative. Supporting interface typography is Inter.
+**Typography:** Use a high-contrast editorial serif with a Bodoni character for the **Aftershock.** wordmark — implemented as **Bodoni Moda 900** (SIL OFL 1.1). Supporting interface typography is Inter; display headings use Source Serif 4 Variable.
 
 **Primary colours:** Warm Paper `#F7F3EA`; Dark Ink `#27283B`; Muted Indigo `#665C91`; Soft Lavender `#DED6FA`.
 
@@ -86,4 +90,4 @@ The identity must work on a warm cream website, a dark ink background, academic 
 
 ## Final recommendation
 
-Start with an Advercase-inspired **Aftershock.** wordmark in dark ink and a minimal indigo evidence-chain symbol. Keep amber, red, and sage primarily for application status communication rather than the brand mark.
+The implemented wordmark is **Aftershock.** (with the period) set in **Bodoni Moda 900**, slightly tracked and compressed, in dark ink or brand indigo on paper. Keep amber, red, and sage primarily for application status communication rather than the brand mark, and keep service health as quiet diagnostics rather than a header badge.
