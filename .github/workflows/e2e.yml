@@ -1,0 +1,30 @@
+# Hosted acceptance E2E: runs Playwright against the deployed Netlify
+# production site — no local server, no credentials, read-only usage.
+name: e2e
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    name: Playwright hosted acceptance
+    runs-on: ubuntu-latest
+    env:
+      AFTERSHOCK_BASE_URL: ${{ vars.AFTERSHOCK_BASE_URL || 'https://aftershock-demo.netlify.app' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
