@@ -21,6 +21,7 @@
  */
 
 import {
+  clientIpOf,
   createGraphLayer,
   createRateLimiter,
   demoGraphName,
@@ -49,6 +50,23 @@ export function createReviewRevisionHandler(deps = {}) {
     const graphName = demoGraphName(env);
     const url = new URL(request.url);
     const caseId = url.searchParams.get('caseId') ?? '';
+    const ip = clientIpOf(request);
+
+    // Per-IP rate limit (demo-scope, in-memory; the platform edge is the real
+    // control). Checked before consuming the request body so IP flooding is
+    // stopped before any parsing or graph work.
+    const ipGate = limiter.check(`ip:${ip}`);
+    if (!ipGate.allowed) {
+      const retryAfterSeconds = Math.max(1, Math.ceil(ipGate.retryAfterMs / 1000));
+      return jsonResponse(
+        429,
+        {
+          error: 'rate-limited',
+          message: 'Too many review requests from this IP. Wait and try again; nothing was recorded by this request.',
+        },
+        { 'retry-after': String(retryAfterSeconds) },
+      );
+    }
 
     // Parse the JSON body; unreadable/malformed → 400 before consuming the rate budget.
     let input = {};

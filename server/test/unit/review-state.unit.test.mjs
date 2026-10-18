@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  assertParameterized,
   ConnectionError,
   GraphQueryError,
 } from '../../graphClient.mjs';
@@ -19,9 +20,11 @@ import {
 import { createReviewRevisionHandler } from '../../../netlify/functions/review-revision.mjs';
 
 import {
-  recordReviewDecision,
   createRevisionProposal,
   getReviewDecisionsForCase,
+  recordReviewDecision,
+  validateReviewDecisionInput,
+  validateRevisionProposalInput,
   REVIEW_OUTCOMES,
   ReviewValidationError,
   ReviewConflictError,
@@ -45,6 +48,7 @@ const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
  */
 function buildFakeSession({ caseNode, fail = false } = {}) {
   const writes = [];
+  const reads = [];
   const decisions = [];
   const proposals = [];
   let state = caseNode
@@ -60,6 +64,7 @@ function buildFakeSession({ caseNode, fail = false } = {}) {
   const session = {
     graphName: GRAPH_NAME,
     async roQuery(cypher, params) {
+      reads.push({ cypher, params });
       if (fail) throw new ConnectionError('graph is down');
       // getReviewDecisionsForCase
       if (cypher.includes('ReviewDecision') && cypher.includes('WHERE d.caseId')) {
@@ -122,7 +127,7 @@ function buildFakeSession({ caseNode, fail = false } = {}) {
     async close() {},
   };
 
-  return { session, writes, decisions, proposals, getState: () => state };
+  return { session, writes, reads, decisions, proposals, getState: () => state };
 }
 
 function buildFakeLayer(session) {
@@ -331,6 +336,120 @@ describe('getReviewDecisionsForCase — op', () => {
 });
 
 /* ------------------------------------------------------------------ *
+ * Validation guards (max-length + caseId format) — 400 before graph I/O
+ * ------------------------------------------------------------------ */
+
+describe('validateReviewDecisionInput — input bounds', () => {
+  it('rejects an oversized explanation (> 5000)', () => {
+    expect(() =>
+      validateReviewDecisionInput({ caseId: CASE_ID, outcome: 'not_affected', explanation: 'x'.repeat(5001) }),
+    ).toThrow(ReviewValidationError);
+  });
+
+  it('rejects an oversized reviewer (> 200)', () => {
+    expect(() =>
+      validateReviewDecisionInput({ caseId: CASE_ID, outcome: 'not_affected', explanation: 'e', reviewer: 'x'.repeat(201) }),
+    ).toThrow(ReviewValidationError);
+  });
+
+  it('rejects an oversized caseId (> 100)', () => {
+    expect(() =>
+      validateReviewDecisionInput({ caseId: 'x'.repeat(101), outcome: 'not_affected', explanation: 'e' }),
+    ).toThrow(ReviewValidationError);
+  });
+
+  it('accepts caseId at exactly 100 chars and explanation at exactly 5000 chars', () => {
+    expect(() =>
+      validateReviewDecisionInput({
+        caseId: 'x'.repeat(100),
+        outcome: 'not_affected',
+        explanation: 'x'.repeat(5000),
+        reviewer: 'x'.repeat(200),
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('validateRevisionProposalInput — input bounds', () => {
+  it('rejects an oversized proposedText (> 5000)', () => {
+    expect(() =>
+      validateRevisionProposalInput({ caseId: CASE_ID, proposedText: 'x'.repeat(5001) }),
+    ).toThrow(ReviewValidationError);
+  });
+
+  it('rejects an oversized rationale (> 1000)', () => {
+    expect(() =>
+      validateRevisionProposalInput({ caseId: CASE_ID, proposedText: 'p', rationale: 'x'.repeat(1001) }),
+    ).toThrow(ReviewValidationError);
+  });
+
+  it('rejects an oversized caseId (> 100)', () => {
+    expect(() =>
+      validateRevisionProposalInput({ caseId: 'x'.repeat(101), proposedText: 'p' }),
+    ).toThrow(ReviewValidationError);
+  });
+
+  it('accepts proposedText at exactly 5000 chars and rationale at exactly 1000 chars', () => {
+    expect(() =>
+      validateRevisionProposalInput({ caseId: CASE_ID, proposedText: 'x'.repeat(5000), rationale: 'x'.repeat(1000) }),
+    ).not.toThrow();
+  });
+});
+
+describe('caseId format constraint', () => {
+  it.each(['case id with spaces!', '../../etc', 'x;y', 'a"b', 'case/id', 'case.id'])(
+    'rejects an unsafe caseId: %s',
+    (badCaseId) => {
+      expect(() =>
+        validateReviewDecisionInput({ caseId: badCaseId, outcome: 'not_affected', explanation: 'e' }),
+      ).toThrow(ReviewValidationError);
+      expect(() =>
+        validateRevisionProposalInput({ caseId: badCaseId, proposedText: 'p' }),
+      ).toThrow(ReviewValidationError);
+    },
+  );
+
+  it('accepts alphanumeric, underscore and hyphen caseIds', () => {
+    expect(() =>
+      validateReviewDecisionInput({ caseId: 'claim-A_2', outcome: 'not_affected', explanation: 'e' }),
+    ).not.toThrow();
+    expect(() =>
+      validateRevisionProposalInput({ caseId: 'claim-A_2', proposedText: 'p' }),
+    ).not.toThrow();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * assertParameterized self-defense — every Cypher string passed to the
+ * session is explicitly guarded (no inline literals).
+ * ------------------------------------------------------------------ */
+
+describe('Cypher parameterization guard', () => {
+  it('explicitly assertParameterizes every write and the decisions read', async () => {
+    const { session, writes, reads } = buildFakeSession({
+      caseNode: { id: CASE_ID, text: 'Original claim text.', kind: 'Claim' },
+    });
+
+    await recordReviewDecision(session, { caseId: CASE_ID, outcome: 'not_affected', explanation: 'Needs review.', reviewer: 'R1' });
+    await createRevisionProposal(session, { caseId: CASE_ID, proposedText: 'Revised text.', rationale: 'More precise.' });
+    await getReviewDecisionsForCase(session, CASE_ID);
+
+    // 2 writes for the decision (node + edge/case-update), 1 write for the
+    // proposal; reads are readCaseState (twice) + getReviewDecisionsForCase.
+    expect(writes.length).toBe(3);
+    expect(reads.length).toBe(3);
+
+    const all = [...writes, ...reads];
+    for (const { cypher, params } of all) {
+      // No inline string literals anywhere in the query text.
+      expect(cypher).not.toMatch(/['"]/);
+      // The explicit guard must accept the query text + params bag.
+      expect(() => assertParameterized(cypher, params ?? {})).not.toThrow();
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ *
  * Handlers (HTTP layer, fake layer + scripted ops)
  * ------------------------------------------------------------------ */
 
@@ -425,6 +544,33 @@ describe('createReviewDecideHandler — HTTP', () => {
       body: '{not json',
     }));
     expect(res.status).toBe(400);
+  });
+
+  it('returns 429 + Retry-After when the per-IP bucket is exhausted', async () => {
+    const fakeLimiter = {
+      check(key) {
+        if (key === 'ip:203.0.113.10') return { allowed: false, retryAfterMs: 15_000 };
+        return { allowed: true, retryAfterMs: 0 };
+      },
+    };
+    const handler = createReviewDecideHandler({
+      env: envWithGraph(),
+      layer: buildFakeLayer(buildFakeSession().session),
+      decide: recordReviewDecision,
+      limiter: fakeLimiter,
+    });
+
+    const res = await handler(new Request(`${base}/review-decide?caseId=${CASE_ID}`, {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '203.0.113.10', 'content-type': 'application/json' },
+      body: JSON.stringify({ outcome: 'not_affected', explanation: 'e' }),
+    }));
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe(String(Math.max(1, Math.ceil(15_000 / 1000))));
+    const body = await res.json();
+    expect(body.error).toBe('rate-limited');
+    expect(body.message).toContain('nothing was recorded');
   });
 });
 

@@ -20,6 +20,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { assertParameterized } from './graphClient.mjs';
 import { SEED_ANALYSIS_VERSION, SEED_EDGE_REVIEW_STATE } from './contract.mjs';
 
 /* ------------------------------------------------------------------ *
@@ -109,6 +110,20 @@ export class ReviewConflictError extends ReviewRequestError {
  * Input validation
  * ------------------------------------------------------------------ */
 
+/** caseId safe charset: letters, digits, underscore, hyphen only. Rejects
+ *  enumeration probes (../, spaces, shell metacharacters) before any graph I/O. */
+const CASE_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+/** Max lengths (chars) for user-supplied review inputs. Oversized payloads are
+ *  rejected with 400 before any graph I/O. */
+const MAX_INPUT_LEN = Object.freeze({
+  caseId: 100,
+  reviewer: 200,
+  explanation: 5000,
+  proposedText: 5000,
+  rationale: 1000,
+});
+
 /**
  * Validate + normalize a review-decision input. Throws ReviewValidationError
  * (400) on any problem; returns a normalized input object otherwise.
@@ -123,6 +138,10 @@ export function validateReviewDecisionInput(input) {
   if (typeof caseId !== 'string' || caseId.trim() === '') {
     throw new ReviewValidationError('caseId is required (non-empty string).');
   }
+  const normalizedCaseId = caseId.trim();
+  if (!CASE_ID_RE.test(normalizedCaseId)) {
+    throw new ReviewValidationError('caseId may only contain letters, digits, underscores, and hyphens.');
+  }
   if (!REVIEW_OUTCOMES.includes(outcome)) {
     throw new ReviewValidationError(`outcome must be one of ${REVIEW_OUTCOMES.join(', ')}.`);
   }
@@ -132,8 +151,17 @@ export function validateReviewDecisionInput(input) {
   if (reviewer !== undefined && reviewer !== null && typeof reviewer !== 'string') {
     throw new ReviewValidationError('reviewer must be a string when provided.');
   }
+  if (normalizedCaseId.length > MAX_INPUT_LEN.caseId) {
+    throw new ReviewValidationError(`caseId must be ${MAX_INPUT_LEN.caseId} characters or fewer.`);
+  }
+  if (explanation.trim().length > MAX_INPUT_LEN.explanation) {
+    throw new ReviewValidationError(`explanation must be ${MAX_INPUT_LEN.explanation} characters or fewer.`);
+  }
+  if (typeof reviewer === 'string' && reviewer.trim().length > MAX_INPUT_LEN.reviewer) {
+    throw new ReviewValidationError(`reviewer must be ${MAX_INPUT_LEN.reviewer} characters or fewer.`);
+  }
   return {
-    caseId: caseId.trim(),
+    caseId: normalizedCaseId,
     outcome,
     explanation: explanation.trim(),
     reviewer: typeof reviewer === 'string' ? reviewer.trim() : undefined,
@@ -154,14 +182,27 @@ export function validateRevisionProposalInput(input) {
   if (typeof caseId !== 'string' || caseId.trim() === '') {
     throw new ReviewValidationError('caseId is required (non-empty string).');
   }
+  const normalizedCaseId = caseId.trim();
+  if (!CASE_ID_RE.test(normalizedCaseId)) {
+    throw new ReviewValidationError('caseId may only contain letters, digits, underscores, and hyphens.');
+  }
   if (typeof proposedText !== 'string' || proposedText.trim() === '') {
     throw new ReviewValidationError('proposedText is required (non-empty string).');
   }
   if (rationale !== undefined && rationale !== null && typeof rationale !== 'string') {
     throw new ReviewValidationError('rationale must be a string when provided.');
   }
+  if (normalizedCaseId.length > MAX_INPUT_LEN.caseId) {
+    throw new ReviewValidationError(`caseId must be ${MAX_INPUT_LEN.caseId} characters or fewer.`);
+  }
+  if (proposedText.trim().length > MAX_INPUT_LEN.proposedText) {
+    throw new ReviewValidationError(`proposedText must be ${MAX_INPUT_LEN.proposedText} characters or fewer.`);
+  }
+  if (typeof rationale === 'string' && rationale.trim().length > MAX_INPUT_LEN.rationale) {
+    throw new ReviewValidationError(`rationale must be ${MAX_INPUT_LEN.rationale} characters or fewer.`);
+  }
   return {
-    caseId: caseId.trim(),
+    caseId: normalizedCaseId,
     proposedText: proposedText.trim(),
     rationale: typeof rationale === 'string' ? rationale.trim() : undefined,
   };
@@ -261,43 +302,43 @@ export async function recordReviewDecision(session, input) {
   const decisionId = randomUUID();
 
   // 1) Create the ReviewDecision node.
-  await session.writeQuery(
-    'CREATE (d:ReviewDecision) SET d.id = $id, d.caseId = $caseId, d.outcome = $outcome, d.explanation = $explanation, d.reviewer = $reviewer, d.decidedAt = $decidedAt, d.beforeState = $beforeState, d.afterState = $afterState, d.provenanceKind = $prov, d.analysisVersion = $av, d.createdAt = $ts, d.updatedAt = $ts, d.seeded = $seeded',
-    {
-      id: decisionId,
-      caseId,
-      outcome,
-      explanation,
-      reviewer: reviewer ?? '',
-      decidedAt,
-      beforeState: JSON.stringify(beforeState),
-      afterState: JSON.stringify(afterState),
-      prov: 'human_confirmed',
-      av: SEED_ANALYSIS_VERSION,
-      ts: decidedAt,
-      seeded: true,
-    },
-  );
+  const decisionCypher = 'CREATE (d:ReviewDecision) SET d.id = $id, d.caseId = $caseId, d.outcome = $outcome, d.explanation = $explanation, d.reviewer = $reviewer, d.decidedAt = $decidedAt, d.beforeState = $beforeState, d.afterState = $afterState, d.provenanceKind = $prov, d.analysisVersion = $av, d.createdAt = $ts, d.updatedAt = $ts, d.seeded = $seeded';
+  const decisionParams = {
+    id: decisionId,
+    caseId,
+    outcome,
+    explanation,
+    reviewer: reviewer ?? '',
+    decidedAt,
+    beforeState: JSON.stringify(beforeState),
+    afterState: JSON.stringify(afterState),
+    prov: 'human_confirmed',
+    av: SEED_ANALYSIS_VERSION,
+    ts: decidedAt,
+    seeded: true,
+  };
+  assertParameterized(decisionCypher, decisionParams);
+  await session.writeQuery(decisionCypher, decisionParams);
 
   // 2) Link case → decision and update the case node's orthogonal review state.
   const edgeId = randomUUID();
-  await session.writeQuery(
-    `MATCH (c) WHERE c.id = $caseId MATCH (d:ReviewDecision) WHERE d.id = $decisionId CREATE (c)-[r:${REVIEW_DECISION_EDGE_TYPE}]->(d) SET r.id = $edgeId, r.caseId = $caseId, r.provenanceKind = $prov, r.rationale = $rationale, r.sourcePointer = $sourcePointer, r.createdAt = $ts, r.analysisVersion = $av, r.reviewState = $seedState, r.seeded = $seeded SET c.reviewState = $primaryState, c.reviewFlags = $flags, c.updatedAt = $ts`,
-    {
-      caseId,
-      decisionId,
-      edgeId,
-      prov: 'human_confirmed',
-      rationale: 'Human review decision recorded for this case.',
-      sourcePointer: 'function://review-decide',
-      ts: decidedAt,
-      av: SEED_ANALYSIS_VERSION,
-      seedState: SEED_EDGE_REVIEW_STATE,
-      seeded: true,
-      primaryState: afterState.reviewState,
-      flags: afterState.flags,
-    },
-  );
+  const edgeCypher = `MATCH (c) WHERE c.id = $caseId MATCH (d:ReviewDecision) WHERE d.id = $decisionId CREATE (c)-[r:${REVIEW_DECISION_EDGE_TYPE}]->(d) SET r.id = $edgeId, r.caseId = $caseId, r.provenanceKind = $prov, r.rationale = $rationale, r.sourcePointer = $sourcePointer, r.createdAt = $ts, r.analysisVersion = $av, r.reviewState = $seedState, r.seeded = $seeded SET c.reviewState = $primaryState, c.reviewFlags = $flags, c.updatedAt = $ts`;
+  const edgeParams = {
+    caseId,
+    decisionId,
+    edgeId,
+    prov: 'human_confirmed',
+    rationale: 'Human review decision recorded for this case.',
+    sourcePointer: 'function://review-decide',
+    ts: decidedAt,
+    av: SEED_ANALYSIS_VERSION,
+    seedState: SEED_EDGE_REVIEW_STATE,
+    seeded: true,
+    primaryState: afterState.reviewState,
+    flags: afterState.flags,
+  };
+  assertParameterized(edgeCypher, edgeParams);
+  await session.writeQuery(edgeCypher, edgeParams);
 
   return {
     decisionId,
@@ -333,21 +374,21 @@ export async function createRevisionProposal(session, input) {
   const createdAt = nowIso();
   const proposalId = randomUUID();
 
-  await session.writeQuery(
-    'CREATE (p:RevisionProposal) SET p.id = $id, p.caseId = $caseId, p.originalText = $originalText, p.proposedText = $proposedText, p.rationale = $rationale, p.status = $status, p.createdAt = $ts, p.updatedAt = $ts, p.provenanceKind = $prov, p.analysisVersion = $av, p.seeded = $seeded',
-    {
-      id: proposalId,
-      caseId,
-      originalText: current.text,
-      proposedText,
-      rationale: rationale ?? '',
-      status: 'draft',
-      ts: createdAt,
-      prov: 'human_confirmed',
-      av: SEED_ANALYSIS_VERSION,
-      seeded: true,
-    },
-  );
+  const proposalCypher = 'CREATE (p:RevisionProposal) SET p.id = $id, p.caseId = $caseId, p.originalText = $originalText, p.proposedText = $proposedText, p.rationale = $rationale, p.status = $status, p.createdAt = $ts, p.updatedAt = $ts, p.provenanceKind = $prov, p.analysisVersion = $av, p.seeded = $seeded';
+  const proposalParams = {
+    id: proposalId,
+    caseId,
+    originalText: current.text,
+    proposedText,
+    rationale: rationale ?? '',
+    status: 'draft',
+    ts: createdAt,
+    prov: 'human_confirmed',
+    av: SEED_ANALYSIS_VERSION,
+    seeded: true,
+  };
+  assertParameterized(proposalCypher, proposalParams);
+  await session.writeQuery(proposalCypher, proposalParams);
 
   return {
     proposalId,
@@ -371,10 +412,9 @@ export async function getReviewDecisionsForCase(session, caseId) {
   if (typeof caseId !== 'string' || caseId.trim() === '') {
     throw new ReviewValidationError('caseId is required (non-empty string).');
   }
-  const res = await session.roQuery(
-    'MATCH (d:ReviewDecision) WHERE d.caseId = $caseId RETURN d.id AS id, d.caseId AS caseId, d.outcome AS outcome, d.explanation AS explanation, d.reviewer AS reviewer, d.decidedAt AS decidedAt, d.beforeState AS beforeState, d.afterState AS afterState, d.provenanceKind AS provenanceKind, d.analysisVersion AS analysisVersion, d.createdAt AS createdAt, d.updatedAt AS updatedAt ORDER BY d.decidedAt ASC',
-    { caseId },
-  );
+  const decisionsCypher = 'MATCH (d:ReviewDecision) WHERE d.caseId = $caseId RETURN d.id AS id, d.caseId AS caseId, d.outcome AS outcome, d.explanation AS explanation, d.reviewer AS reviewer, d.decidedAt AS decidedAt, d.beforeState AS beforeState, d.afterState AS afterState, d.provenanceKind AS provenanceKind, d.analysisVersion AS analysisVersion, d.createdAt AS createdAt, d.updatedAt AS updatedAt ORDER BY d.decidedAt ASC';
+  assertParameterized(decisionsCypher, { caseId });
+  const res = await session.roQuery(decisionsCypher, { caseId });
   return (res.data ?? []).map((row) => ({
     id: row.id,
     caseId: row.caseId,
