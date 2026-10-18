@@ -17,7 +17,7 @@ const statusGet = (query = '?runId=run-1') => new Request(`${BASE}${query}`);
 
 const RUN_ROW = {
   id: 'run-1',
-  stage: 'completed',
+  stage: 'results',
   findingsCount: 2,
   startedAt: '2026-10-18T00:00:00.000Z',
   completedAt: '2026-10-18T00:00:01.000Z',
@@ -60,7 +60,7 @@ describe('analyze-status handler — real lookups', () => {
     expect(res.status).toBe(200);
     expect(await readJson(res)).toEqual({
       runId: 'run-1',
-      stage: 'completed',
+      stage: 'results',
       findingsCount: 2,
       startedAt: '2026-10-18T00:00:00.000Z',
       completedAt: '2026-10-18T00:00:01.000Z',

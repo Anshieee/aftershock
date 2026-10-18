@@ -306,7 +306,7 @@ live(`M3 live function wiring on ${SMOKE_GRAPH}`, () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.runId).toBe(demoRunId);
-      expect(body.stage).toBe('completed');
+      expect(body.stage).toBe('results');
       expect(body.findingsCount).toBe(2); // claim-A direct + conclusion-C indirect (real derivation)
       expect(typeof body.startedAt).toBe('string');
       expect(typeof body.completedAt).toBe('string');

@@ -13,6 +13,7 @@
  */
 
 const BODY = {
+  error: 'not-implemented',
   reason: 'not-implemented',
   message: 'This API surface is not implemented yet (M4/M5 scope). Nothing ran; no data was read or written.',
 };

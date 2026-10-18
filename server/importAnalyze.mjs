@@ -248,7 +248,7 @@ export async function runAnalysis(session, { documentVersionId, now = new Date()
       id: runId,
       documentVersionId: id,
       status: 'completed',
-      stage: 'completed',
+      stage: 'results',
       startedAt,
       completedAt,
       findingsCount,
