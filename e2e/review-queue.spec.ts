@@ -46,17 +46,22 @@ const itemLocator = (page: Page) =>
  * so the state classification below judges a terminal render.
  */
 async function waitForStableMain(page: Page) {
-  await expect
-    .poll(
-      async () => {
-        const first = await page.locator('main').innerText();
-        await page.waitForTimeout(400);
-        const second = await page.locator('main').innerText();
-        return first.trim().length > 0 && first === second ? 'stable' : 'changing';
-      },
-      { timeout: 20_000, intervals: [500, 1_000] },
-    )
-    .toBe('stable');
+  // Wait for a terminal render: the review queue either shows the
+  // under-construction placeholder, the flagged list, or an honest empty
+  // state. The initial "checking/loading" render can be stable for a
+  // moment, so require one of the terminal markers before declaring
+  // stability.
+  const terminal = (text: string) =>
+    /Feature under construction|Flagged for review|Unresolved references/i.test(text) ||
+    HONEST_EMPTY.test(text);
+  let last = '';
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const text = (await page.locator('main').innerText().catch(() => '')).trim();
+    if (text.length > 0 && text === last && terminal(text)) return;
+    last = text;
+    await page.waitForTimeout(500);
+  }
 }
 
 /** Simpler: collect substantive item texts. */

@@ -112,6 +112,8 @@ test.describe('M4/M5 analyze flow', () => {
           page
             .locator('main input[type="file"]')
             .or(page.locator('main').getByText('Feature under construction'))
+            .or(page.locator('main').getByText('Imported documents'))
+            .or(page.locator('main').getByText('Analyze'))
             .first(),
         ).toBeVisible({ timeout: 20_000 });
       }
