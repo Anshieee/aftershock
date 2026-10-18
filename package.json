@@ -16,8 +16,10 @@
   "dependencies": {
     "@fontsource-variable/inter": "^5.1.0",
     "@fontsource-variable/source-serif-4": "^5.1.0",
+    "docx": "^9.12.0",
     "dotenv": "^17.2.3",
     "falkordb": "^6.2.7",
+    "pdfkit": "^0.20.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0"
