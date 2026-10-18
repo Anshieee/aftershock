@@ -51,6 +51,11 @@ export const apiRoutes = {
   analyze: '/analyze',
   analysisStatus: '/analyze-status',
   documentDetail: '/document-detail',
+  // M5 — human review decisions + revision proposals (fixed contract, §5).
+  // Each route carries its dynamic `caseId` as a query param; the caller
+  // appends encodeURIComponent(caseId) to the leading `?caseId=` prefix.
+  reviewDecide: (_caseId: string) => '/review-decide?caseId=',
+  reviewRevision: (_caseId: string) => '/review-revision?caseId=',
 } as const;
 
 /**
@@ -898,4 +903,163 @@ export async function getDocumentDetail(
       disclosure: stringField(element.disclosure),
     };
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * M5 — human review decisions + revision proposals (fixed contract).
+ * These endpoints are part of the fixed M5 server contract (§5), so a
+ * non-OK status is a typed error — never a fabricated decision or proposal.
+ * ------------------------------------------------------------------ */
+
+export type ReviewOutcome =
+  | 'revision_needed'
+  | 'more_evidence_needed'
+  | 'not_affected'
+  | 'evidence_updated';
+
+export interface ReviewDecisionRequest {
+  outcome: ReviewOutcome;
+  /** Human-visible rationale for the decision; required before submit. */
+  explanation: string;
+  /** Optional human name attributed to the decision. */
+  reviewer?: string;
+}
+
+export interface ReviewDecisionResult {
+  decisionId: string;
+  caseId: string;
+  outcome: ReviewOutcome;
+  explanation: string;
+  reviewer?: string;
+  decidedAt: string;
+  beforeState: string;
+  afterState: string;
+}
+
+function parseReviewDecisionResult(payload: unknown): ReviewDecisionResult {
+  if (!payload || typeof payload !== 'object') {
+    throw new ApiClientError('Review decision endpoint returned an unexpected payload');
+  }
+  const body = payload as Record<string, unknown>;
+  const decisionId = stringField(body.decisionId);
+  const caseId = stringField(body.caseId);
+  const outcome = body.outcome;
+  const explanation = stringField(body.explanation);
+  const reviewer = stringField(body.reviewer);
+  const decidedAt = stringField(body.decidedAt);
+  const beforeState = stringField(body.beforeState);
+  const afterState = stringField(body.afterState);
+  if (
+    !decisionId ||
+    !caseId ||
+    !explanation ||
+    decidedAt === undefined ||
+    beforeState === undefined ||
+    afterState === undefined
+  ) {
+    throw new ApiClientError('Review decision response is missing required fields');
+  }
+  if (
+    outcome !== 'revision_needed' &&
+    outcome !== 'more_evidence_needed' &&
+    outcome !== 'not_affected' &&
+    outcome !== 'evidence_updated'
+  ) {
+    throw new ApiClientError('Review decision response has an invalid outcome');
+  }
+  return {
+    decisionId,
+    caseId,
+    outcome,
+    explanation,
+    reviewer,
+    decidedAt,
+    beforeState,
+    afterState,
+  };
+}
+
+/**
+ * POST /review-decide?caseId= — record a human review decision.
+ * 200 → the recorded decision. 400/409/503 → typed HTTP error. Never simulates
+ * a decision on failure.
+ */
+export async function reviewDecide(
+  caseId: string,
+  payload: ReviewDecisionRequest,
+  options?: RequestOptions,
+): Promise<ReviewDecisionResult> {
+  const data = await request({
+    path: `${apiRoutes.reviewDecide(caseId)}${encodeURIComponent(caseId)}`,
+    init: {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    options,
+  });
+  return parseReviewDecisionResult(data);
+}
+
+export interface RevisionProposalRequest {
+  /** Suggested replacement text (the original is immutable and sent separately by the server). */
+  proposedText: string;
+  rationale?: string;
+}
+
+export interface RevisionProposalResult {
+  proposalId: string;
+  caseId: string;
+  originalText: string;
+  proposedText: string;
+  rationale?: string;
+  status: 'draft';
+  createdAt: string;
+}
+
+function parseRevisionProposalResult(payload: unknown): RevisionProposalResult {
+  if (!payload || typeof payload !== 'object') {
+    throw new ApiClientError('Review revision endpoint returned an unexpected payload');
+  }
+  const body = payload as Record<string, unknown>;
+  const proposalId = stringField(body.proposalId);
+  const caseId = stringField(body.caseId);
+  const originalText = stringField(body.originalText);
+  const proposedText = stringField(body.proposedText);
+  const status = stringField(body.status);
+  const createdAt = stringField(body.createdAt);
+  if (!proposalId || !caseId || !originalText || !proposedText || status !== 'draft' || !createdAt) {
+    throw new ApiClientError('Review revision response is missing required fields');
+  }
+  return {
+    proposalId,
+    caseId,
+    originalText,
+    proposedText,
+    rationale: stringField(body.rationale),
+    status: 'draft',
+    createdAt,
+  };
+}
+
+/**
+ * POST /review-revision?caseId= — create a revision proposal (status: draft).
+ * 200 → the draft proposal. 400/503 → typed HTTP error. A draft is a proposal
+ * only; it is not applied and not validated until a human accepts it.
+ */
+export async function reviewRevision(
+  caseId: string,
+  payload: RevisionProposalRequest,
+  options?: RequestOptions,
+): Promise<RevisionProposalResult> {
+  const data = await request({
+    path: `${apiRoutes.reviewRevision(caseId)}${encodeURIComponent(caseId)}`,
+    init: {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    options,
+  });
+  return parseRevisionProposalResult(data);
 }

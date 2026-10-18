@@ -8,8 +8,11 @@ import {
   getGraphOverview,
   type GraphEdge,
   type GraphOverview,
+  type ReviewDecisionResult,
 } from '../lib/api';
 import { deriveDemoImpact, type AffectedItem, type DemoImpact } from '../lib/demoImpact';
+import ReviewDecisionDialog from '../components/ReviewDecisionDialog';
+import RevisionProposalPanel from '../components/RevisionProposalPanel';
 
 type QueueLoad =
   | { phase: 'loading' }
@@ -17,7 +20,7 @@ type QueueLoad =
   | { phase: 'missing'; reason: 'endpoint-missing' | 'not-implemented' }
   | { phase: 'failure'; message: string };
 
-interface ReviewItem {
+export interface ReviewItem {
   id: string;
   kind: 'claim' | 'conclusion';
   reviewKind: 'direct_evidence_review' | 'indirect_evidence_review';
@@ -71,6 +74,10 @@ export function deriveReviewItems(overview: GraphOverview): ReviewItem[] {
 export default function ReviewQueuePage() {
   const [state, setState] = useState<QueueLoad>({ phase: 'loading' });
   const controllerRef = useRef<AbortController | null>(null);
+  /** Human decisions recorded this session, keyed by case/item id. */
+  const [decisions, setDecisions] = useState<Record<string, ReviewDecisionResult>>({});
+  const [openDialogId, setOpenDialogId] = useState<string | null>(null);
+  const [openRevisionId, setOpenRevisionId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     controllerRef.current?.abort();
@@ -110,6 +117,17 @@ export default function ReviewQueuePage() {
   }, [load]);
 
   const items = state.phase === 'ready' ? deriveReviewItems(state.overview) : [];
+
+  function itemReview(item: ReviewItem) {
+    const decision = decisions[item.id];
+    const reviewed = item.reviewed || Boolean(decision);
+    return {
+      decision,
+      reviewed,
+      /** revision_needed means reviewed + an open revision obligation. */
+      revisionPending: decision?.outcome === 'revision_needed',
+    };
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -185,10 +203,11 @@ export default function ReviewQueuePage() {
             className="rounded-lg border border-uncertain-border bg-uncertain-surface px-4 py-3 text-base text-uncertain-text"
           >
             A review flag means <strong>evidence review is needed</strong> — never a verdict
-            of truth or falsity. No human review decisions exist in the returned graph yet
-            (seeded records carry reviewState “unreviewed”); sage “reviewed” styling appears
-            only once a real human decision is recorded, and this page never pre-marks
-            anything as reviewed.
+            of truth or falsity. Sage “reviewed” styling appears only once a real human
+            decision is recorded through the decision dialog (seeded records carry
+            reviewState “unreviewed”); this page never pre-marks anything as reviewed. When
+            the outcome is “revision needed”, sage “reviewed” and amber “revision pending”
+            show together until a human accepts the revision.
           </p>
 
           <section aria-labelledby="review-flagged-heading" className="rounded-lg border border-ink-border bg-paper-raised p-6">
@@ -204,7 +223,7 @@ export default function ReviewQueuePage() {
             ) : (
               <ul className="mt-3 space-y-4">
                 {items.map((item) => {
-                  const reviewed = item.reviewed;
+                  const { decision, reviewed, revisionPending } = itemReview(item);
                   return (
                     <li
                       key={item.id}
@@ -212,7 +231,7 @@ export default function ReviewQueuePage() {
                       data-review-state={reviewed ? 'reviewed' : 'needs-review'}
                       className={
                         reviewed
-                          ? 'rounded-lg border border-reviewed bg-reviewed-surface p-4 text-base'
+                          ? 'rounded-lg border border-reviewed bg-reviewed-surface p-4 text-base text-reviewed-text'
                           : 'rounded-lg border border-review-border bg-review-surface p-4 text-base'
                       }
                     >
@@ -237,6 +256,14 @@ export default function ReviewQueuePage() {
                         >
                           {reviewed ? 'Reviewed' : 'Needs review'}
                         </span>
+                        {reviewed && revisionPending && (
+                          <span
+                            className="inline-flex shrink-0 items-center rounded border border-[#E9B867] bg-[#E9B867] px-2 py-0.5 text-xs font-medium text-[#302405]"
+                            data-testid={`review-item-${item.id}-revision-pending`}
+                          >
+                            Revision pending
+                          </span>
+                        )}
                       </header>
 
                       {item.text && (
@@ -285,25 +312,61 @@ export default function ReviewQueuePage() {
                         )}
                       </div>
 
-                      {/* Honest decision affordance: visible, disabled, truthful. */}
+                      {/* Decision affordance — wired to the real review-decide API. */}
                       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-border pt-3">
                         <button
                           type="button"
-                          disabled
-                          title="Decision recording is not wired in this build — nothing is saved or sent."
+                          onClick={() => setOpenDialogId(item.id)}
                           data-testid={`review-decide-${item.id}`}
-                          className="cursor-not-allowed rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink-muted opacity-60"
+                          className="rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
                         >
                           Record decision
                         </button>
-                        <span className="text-xs text-ink-muted">
-                          Decision actions arrive with the review backend — not available yet; this
-                          build records nothing.
-                        </span>
-                        <span className="text-xs text-ink-muted">
-                          Decisions require the review backend and an audit trail (M5 proper).
-                        </span>
+                        {decision && (
+                          <p
+                            className="text-xs text-ink-muted"
+                            data-testid={`review-item-${item.id}-decision`}
+                          >
+                            Decision recorded: {decision.outcome}{' · '}
+                            {decision.decidedAt}{decision.reviewer ? ` by ${decision.reviewer}` : ''}.
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setOpenRevisionId(item.id)}
+                          data-testid={`review-revise-${item.id}`}
+                          disabled={!reviewed}
+                          className={
+                            'rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep disabled:opacity-60 disabled:cursor-not-allowed'
+                          }
+                        >
+                          {openRevisionId === item.id ? 'Hide proposal' : 'Propose revision'}
+                        </button>
                       </div>
+
+                      {openDialogId === item.id && (
+                        <ReviewDecisionDialog
+                          item={item}
+                          open
+                          onClose={() => setOpenDialogId(null)}
+                          onDecisionRecorded={(decided) => {
+                            setDecisions((prev) => ({ ...prev, [item.id]: decided }));
+                            // The confirmation panel stays visible until the user closes it;
+                            // we never auto-navigate away after a decision.
+                          }}
+                        />
+                      )}
+                      {openRevisionId === item.id && (
+                        <RevisionProposalPanel
+                          caseId={item.id}
+                          originalText={item.text ?? ''}
+                          kindLabel={item.kind === 'claim' ? 'claim' : 'conclusion'}
+                          onAccepted={() => {
+                            // Acceptance is user-reported, not scientific validation.
+                            setOpenRevisionId(null);
+                          }}
+                        />
+                      )}
                     </li>
                   );
                 })}
