@@ -67,18 +67,28 @@ test('guided example runs the real guarded seed flow and shows no fabricated res
   await expect(guided.getByText(/FICTIONAL \/ GUIDED DEMO/i)).toBeVisible();
   await expect(guided.getByText(/synthetic demo data only/i)).toBeVisible();
 
-  // Because the backend is not wired yet, clicking the button must END in an
-  // honest failure state ([api-error|rejected|unavailable|cooldown|not-wired])
-  // and MUST NOT navigate to fabricated results.
+  // The backend is LIVE (dash-path handlers): clicking either seeds the real
+  // demo graph and navigates to real results, or ends in an honest failure
+  // state. Both are acceptable; fabricated content never is.
   await guided.getByTestId('guided-seed-button').click();
-  await page.waitForLoadState('load');
-  await expect(page, 'no navigation without a successful seed').not.toHaveURL(/\/results/);
-  const state = page.getByTestId('guided-seed-state');
-  await expect(state.locator('p')).toHaveCount(
-    1,
-    { timeout: 12_000 },
-  );
-  await expect(
-    state.getByText(/api error|no simulated success|unavailable|cooldown|not wired|seed/i),
-  ).toBeVisible();
+  await page.waitForURL(/\/results/, { timeout: 15_000 }).catch(() => {});
+  if (page.url().match(/\/results/)) {
+    // SUCCESS path — results must be REAL graph-derived content: the
+    // affected-claims card with the fixture's provenance, never lorem/fake.
+    await expect(
+      page.getByTestId('results-affected'),
+      'real affected-claims results after a successful seed',
+    ).toBeVisible({ timeout: 15_000 });
+    const body = await page.locator('body').textContent();
+    expect(body).toContain('FICTIONAL / GUIDED DEMO');
+    expect(body?.toLowerCase()).not.toMatch(/lorem ipsum|placeholder|coming soon/i);
+  } else {
+    // HONEST-FAILURE path — API down / cooldown / not wired: a truthful
+    // state message and NO fabricated results.
+    const state = page.getByTestId('guided-seed-state');
+    await expect(state.locator('p')).toHaveCount(1, { timeout: 12_000 });
+    await expect(
+      state.getByText(/api error|no simulated success|unavailable|cooldown|not wired|seed/i),
+    ).toBeVisible();
+  }
 });
