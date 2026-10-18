@@ -1,0 +1,19 @@
+{
+  "name": "@aftershock/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FalkorDB graph library + idempotent synthetic fixture seeding for Aftershock (M2). Server-side only; imported by Netlify functions.",
+  "scripts": {
+    "test": "vitest run --config vitest.unit.config.js",
+    "test:integration": "vitest run --config vitest.integration.config.js"
+  },
+  "dependencies": {
+    "falkordb": "^6.2.7"
+  },
+  "//security-todo": "TODO(dev-deps): tinypool@1.1.1 resolved via vitest@3 is affected by the critical prototype-pollution→RCE GHSAs GHSA-5gmw-xhrv-c9v3 (CVE-2026-104848) and GHSA-85c8-ppgw-ccpr (CVE-2026-104849), plus vitest's moderate mocker path-traversal GHSA-82fw-gwwq-j7x9 (CVE-2026-84373) — all dev-only, never shipped to the browser. Deliberately NOT bumping vitest for M2/M3 (breaking); schedule the vitest@5 bump as a separate change (it drops tinypool and fixes @vitest/mocker ≥4.1.11).",
+  "devDependencies": {
+    "dotenv": "^17.2.3",
+    "vitest": "^3.2.4"
+  }
+}
