@@ -69,9 +69,10 @@ date distinction, and the related-but-never-merged Expression of Concern.
 
 - `impactPathFromSupportedClaims` — verified notice → publication →
   `role='supporting'` citation use (with `CITATION_USE_SUPPORTS_CLAIM`) →
-  claim → dependent conclusion (optional). Rows carry review flags
-  (`direct_evidence_review` / `indirect_evidence_review` — always "needs
-  review", never a verdict).
+  claim → dependent conclusion (optional). Each claim row is flagged
+  `direct_evidence_review`; when a conclusion depends on it, the conclusion
+  carries its own `indirect_evidence_review` — always "needs review", never
+  a verdict.
 - `historicalSafetyCheck` — proves historical-discussion claims (role=
   `historical`, `MENTIONS_HISTORICALLY`) never leak into the flagged path,
   and no historical-role citation use also claims SUPPORT.

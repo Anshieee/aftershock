@@ -13,7 +13,7 @@
 
 These fields were verified against Crossref, PubMed, PMC and doi.org on
 2026-10-18 (four independent authoritative systems agree). Retracted-state
-records carry a liturgical `RETRACTED:` title prefix in Crossref/PubMed — the
+records carry a literal `RETRACTED:` title prefix in Crossref/PubMed — the
 fixture stores the clean article title plus the `retracted` state flag,
 separately (the UI must never merge them). The *NEJM* Mehra paper
 (`10.1056/NEJMoa2007621`) is a different work; its title is explicitly excluded

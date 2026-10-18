@@ -439,7 +439,7 @@
       "toId": "notice-mehra-retraction-2020-06-04",
       "createdAt": "2026-10-18T00:00:00.000Z",
       "provenanceKind": "source_verified",
-      "rationale": "The retraction is a real, public journal notice for this publication (contract §6 pins verified=true); the exact published date discrepancy is disclosed in the fixture and must be reconciled by M3.",
+      "rationale": "The retraction is a real, public journal notice for this publication (contract §6 pins verified=true). Per the date-distinction contract: publishedDate=2020-06-04 is the announcement date and noticeRecordedDate=2020-06-05 is the record date — by-contract distinct timestamps, never merged and never treated as a discrepancy.",
       "sourcePointer": "https://doi.org/10.1016/S0140-6736(20)31324-6",
       "analysisVersion": "seed-1",
       "reviewState": "unreviewed"
