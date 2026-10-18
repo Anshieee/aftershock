@@ -25,7 +25,7 @@ test('status reports API online against the live endpoint', async ({ page }) => 
   // The status resolves after the real fetch round-trip.
   const status = statusIn(page);
   await expect(status).toContainText('API:', { timeout: 15_000 });
-  await expect(status).toContainText('API: online');
+  await expect(status).toContainText('API: online', { timeout: 15_000 });
   // No claim here about the graph backend (M1 health does not probe it).
   await expect(status).not.toContainText(/graph.*online/i);
 });
