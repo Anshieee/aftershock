@@ -37,6 +37,16 @@ Three deliverables: **Evidence Impact Report** (default PDF; executive summary p
 Five timestamps remain distinct and user-visible: source notice's **actual publication date** · **first detected** by Aftershock · **last verified/checked** against source · **human decision date** · **export generated date** (data-model mapping: `docs/DATA_PROVENANCE.md`). Activity is a human-readable timeline; click-through inspects the original source/passage/review/graph path; routine metadata refresh does not pollute it. **Impact Replay** compares recorded knowledge/decision/graph snapshots — or an explicitly labeled reconstruction — never a fabricated past (no 2020 workspace snapshots claimed for a 2026 import). Later material notices can create follow-up reviews non-destructively while earlier decisions remain intact and inspectable.
 
 ## Design language & accessibility (§2)
+
+**Update (2026-10-18, user-approved):** official wordmark is **`Aftershock.`** (with period) —
+bold, slightly horizontally compressed high-contrast editorial serif (Bodoni Moda, OFL; weight 900,
+tight tracking, ~0.965 horizontal scale) applied to the wordmark and large hero heading ONLY; normal
+UI text keeps the existing display/sans stacks. Health/status indicators are NOT prominent header
+badges — they live in discreet diagnostics locations (quiet sidebar/footer status line, quiet inline
+status on Overview) with unchanged truthful semantics (never fake online; endpoint-missing ≠ unseeded).
+The hackathon MVP has **no authentication and no user profiles** — the guided experience is explorable
+anonymously; nothing in the product may require sign-in. Core screens must not visibly break on
+phone-sized viewports (360–430px): no horizontal overflow, reachable nav, usable CTAs.
 Editorial, retro-academic aesthetic: warm paper/cream background, charcoal/dark-ink text, restrained purple/indigo for navigation/brand/focus, amber for review work, muted red for verified formal source notices, subtle muted blue for uncertainty, **sage green `#658C79`** for human-reviewed states (never implying a claim was verified true or a change applied). Expressive licensed serif for brand/display/headings, readable modern sans-serif for body/controls/graph labels — implemented with self-hosted OFL 1.1 fonts (Inter Variable, Source Serif 4 Variable; see README). High contrast, careful hierarchy, light-mode first; optional dark theme only if it displaces nothing critical. WCAG 2.2 AA aims: clear labels, 16–18px reading text, keyboard + screen-reader support, visible focus, generous targets, no hover-only functionality, motion reduction, accessible alternatives to graph and PDFs, truthful PDF coordinates with disclosed extraction limits. **Never create an age-based "simple mode"** — progressive disclosure, optional compact density, keyboard shortcuts. Responsive: one focused claim by default on laptop; compare view and inspector collapse as options; narrow screens get accessible tabbed/stacked reading.
 
 ## Scope split (§15)

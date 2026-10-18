@@ -1,6 +1,6 @@
 # Aftershock — Build Status
 
-Last updated: 2026-10-18 (post M2-UI merge)
+Last updated: 2026-10-18 (PR5 merged; brand wave + backend resume running)
 
 ## Environment (verified 2026-10-18)
 - Repo: /home/ansh/Projects/aftershock → GitHub `Anshieee/aftershock` (main), synced.
@@ -18,6 +18,7 @@ Last updated: 2026-10-18 (post M2-UI merge)
 | M3 Source verification & impact | **Done (records verified)** | `docs/research/mehra-notice-verification.md` merged; corrected bibliographic fields live in contract §6 + fixture |
 | M2 UI (part of M2/M4) | **Merged + deployed** | PR #4 `feat/m2-connected-ui` approved (sage-reservation MODERATE fixed pre-merge) → deployed; E2E suite updated to M2 flow (38/38 green live) |
 | Test harness | **Merged** | PR #3 approved → merged; reviewer suggestions applied (html reporter + concurrency); 38/38 green after deploy |
+| Brand/UX wave | **In flight** | `feat/brand-wordmark-ux`: wordmark `Aftershock.` (Bodoni Moda 900, compressed), header badge → discreet status, Overview refinement, mobile-resilience specs; user-approved 2026-10-18 |
 | M4–M8 | **Wave 3 running** | PR #2 MERGED (`634f871`, delta re-review approved — SeedMeta fix verified: unit 50/50, integration 6/6); backend API wiring (`feat/m3-backend-api`; §5 routes: probe/demo-seed/seed-guarded/graph-edges/documents + netlify.toml rewrites) and UI polish batch (`feat/m3-ui-polish`) in flight |
 
 ## Deployed URLs
