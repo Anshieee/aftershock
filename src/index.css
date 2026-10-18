@@ -12,6 +12,26 @@
   }
 
   /*
+   * Brand wordmark — "Aftershock." with the final period. High-contrast
+   * editorial serif (Bodoni Moda), heavy weight, slightly tracked in, and
+   * subtly compressed horizontally so the silhouette reads as one mark.
+   * The scaleX is a static transform (no motion, so reduced-motion is
+   * unaffected); origin left keeps the mark flush with surrounding text,
+   * and the small right padding keeps the final period optically present
+   * instead of clipped against the container edge.
+   */
+  .wordmark {
+    display: inline-block;
+    font-family: theme(fontFamily.wordmark);
+    font-weight: 900;
+    font-style: normal;
+    letter-spacing: -0.02em;
+    transform: scaleX(0.965);
+    transform-origin: left center;
+    padding-right: 0.05em;
+  }
+
+  /*
    * WCAG 2.2 AA: every interactive element gets a visible, offset focus ring.
    * Same hue as brand navigation; the tofu-inset outline keeps it legible
    * on cream and on white surfaces alike.

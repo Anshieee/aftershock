@@ -43,6 +43,9 @@ export default {
       fontFamily: {
         display: ['"Source Serif 4 Variable"', 'Georgia', 'serif'],
         sans: ['"Inter Variable"', 'system-ui', 'Avenir', 'Helvetica', 'sans-serif'],
+        // Brand wordmark only ("Aftershock." in the header and the landing
+        // hero) — never page headings, body text, or controls.
+        wordmark: ['"Bodoni Moda"', '"Source Serif 4 Variable"', 'Georgia', 'serif'],
       },
     },
   },

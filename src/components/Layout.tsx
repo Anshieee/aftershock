@@ -42,9 +42,9 @@ export default function Layout() {
         <div className="flex items-baseline justify-between p-4 md:block md:p-0">
           <NavLink
             to="/"
-            className="font-display text-2xl text-brand-deep no-underline focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="wordmark text-2xl leading-none text-brand-deep no-underline focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Aftershock
+            Aftershock.
           </NavLink>
           <p className="text-xs text-ink-muted md:mt-1 md:font-medium md:uppercase md:tracking-wide">
             Evidence integrity workspace
