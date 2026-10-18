@@ -133,7 +133,7 @@ export default function LandingPage() {
       </section>
 
       {/* Workflow shortcuts — three real destinations, quiet hover only. */}
-      <nav aria-label="Workspace areas" className="mt-10">
+      <nav aria-label="Workspace areas" className="mt-12">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Your workspace
         </h2>
@@ -175,7 +175,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Featured investigation — one real, publicly verified record. */}
-      <section aria-labelledby="featured-heading" className="mt-8">
+      <section aria-labelledby="featured-heading" className="mt-10">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Featured investigation
         </h2>
@@ -197,7 +197,7 @@ export default function LandingPage() {
           </p>
           <Link
             to="/results"
-            className="mt-4 inline-block rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
+            className="mt-4 inline-block rounded border border-ink-border bg-paper px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-paper-deep"
           >
             Open the guided investigation
           </Link>
@@ -206,7 +206,7 @@ export default function LandingPage() {
 
       <section
         aria-labelledby="import-heading"
-        className="mt-8 rounded-lg border border-ink-border bg-paper-raised p-6 md:p-8"
+        className="mt-10 rounded-lg border border-ink-border bg-paper-raised p-6"
       >
         <h2 id="import-heading" className="text-lg font-semibold text-ink">
           Start with a document
@@ -234,7 +234,7 @@ export default function LandingPage() {
 
       <section
         aria-labelledby="guided-heading"
-        className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6"
+        className="mt-10 rounded-lg border border-ink-border bg-paper-raised p-6"
       >
         <h2 id="guided-heading" className="text-lg font-semibold text-ink">
           Try guided example
@@ -322,7 +322,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <p className="mt-6 text-sm text-ink-muted">
+      <p className="mt-8 text-sm text-ink-muted">
         Just exploring? The{' '}
         <Link to="/overview" className="text-brand-deep underline">
           Overview
