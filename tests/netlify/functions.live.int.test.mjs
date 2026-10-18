@@ -8,7 +8,8 @@
  *    `aftershock:demo-smoke`. The handlers' env is explicitly overridden to
  *    that graph name, so even a hostile ambient env cannot retarget the suite.
  *  - `test_hosting` and the managed `aftershock:demo` graph are never touched.
- *  - afterAll deletes the smoke graph and proves db.list() ≡ baseline.
+ *  - afterAll deletes the smoke graph and proves db.list() ≡ baseline with
+ *    every protected foreign graph (test_hosting) still intact.
  *
  * Skips gracefully when credentials are absent (CI). Locally run with:
  *   AFTERSHOCK_ENV=/path/to/main-checkout/.env npx vitest run tests/netlify/functions.live.int.test.mjs
@@ -25,15 +26,21 @@ dotenvConfig({
   quiet: true,
 });
 
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createManagedSeedHandler } from '../../netlify/functions/seed.mjs';
 import { createDemoSeedHandler } from '../../netlify/functions/demo-seed.mjs';
 import { createGraphProbeHandler } from '../../netlify/functions/graph-probe.mjs';
 import { createGraphEdgesHandler } from '../../netlify/functions/graph-edges.mjs';
 import { createDocumentsHandler } from '../../netlify/functions/documents.mjs';
+import { createImportDocumentHandler } from '../../netlify/functions/import-document.mjs';
+import { createAnalyzeHandler } from '../../netlify/functions/analyze.mjs';
+import { createAnalyzeStatusHandler } from '../../netlify/functions/analyze-status.mjs';
+import { createDocumentDetailHandler } from '../../netlify/functions/document-detail.mjs';
 import { createRateLimiter } from '../../server/demoApi.mjs';
 import { connectFromEnv, resolveCredentials } from '../../server/graphClient.mjs';
 import { DEMO_GRAPH_NAME, FIXTURE_IDS, PROTECTED_FOREIGN_GRAPHS } from '../../server/contract.mjs';
+import { METADATA_ONLY_DISCLOSURE } from '../../server/importAnalyze.mjs';
 import { defaultFixture } from '../../server/seed.mjs';
 
 const SMOKE_GRAPH = 'aftershock:demo-smoke';
@@ -72,12 +79,22 @@ function liveHandlers() {
     probe: createGraphProbeHandler({ env: LIVE_ENV }),
     edges: createGraphEdgesHandler({ env: LIVE_ENV }),
     documents: createDocumentsHandler({ env: LIVE_ENV }),
+    importDocument: createImportDocumentHandler({ env: LIVE_ENV, limiter: permissive() }),
+    analyze: createAnalyzeHandler({ env: LIVE_ENV, limiter: permissive() }),
+    analyzeStatus: createAnalyzeStatusHandler({ env: LIVE_ENV, limiter: permissive() }),
+    documentDetail: createDocumentDetailHandler({ env: LIVE_ENV, limiter: permissive() }),
   };
 }
 
 const base = 'http://localhost/.netlify/functions';
 const get = (path) => new Request(`${base}${path}`);
 const bodylessPost = (path, headers = {}) => new Request(`${base}${path}`, { method: 'POST', headers });
+const postJson = (path, payload) =>
+  new Request(`${base}${path}`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'content-type': 'application/json' },
+  });
 
 let /** @type {Awaited<ReturnType<typeof connectFromEnv>> | null} */ session = null;
 let /** @type {string[]} */ graphsBefore = [];
@@ -107,6 +124,10 @@ live(`M3 live function wiring on ${SMOKE_GRAPH}`, () => {
     }
     const graphsAfter = (await session.listGraphs()).slice();
     expect(graphsAfter).toEqual(graphsBefore);
+    // M4 safety pin: every protected foreign graph (test_hosting) survived —
+    // the smoke graph and every M4 import write lived only inside the smoke
+    // graph. The managed aftershock:demo graph, when present, is untouched.
+    expect(graphsAfter).toEqual(expect.arrayContaining(PROTECTED_FOREIGN_GRAPHS));
     await session.close();
   }, 240_000);
 
@@ -211,6 +232,128 @@ live(`M3 live function wiring on ${SMOKE_GRAPH}`, () => {
       const res = await handlers.seed(bodylessPost('/seed'));
       expect(res.status).toBe(401);
       expect((await res.json()).error).toBe('unauthorized');
+    },
+    240_000,
+  );
+
+  // -------------------------------------------------------------------
+  // M4: import (metadata-only) → detail → analyze (demo version) → status,
+  // plus the honest refusal rails. The imported bytes NEVER enter the graph
+  // (no-TLS free tier); every response below is verified against real reads.
+  // -------------------------------------------------------------------
+  let /** @type {{documentId: string, versionId: string} | null} */ imported = null;
+  let /** @type {string} */ demoRunId = '';
+  const UPLOAD_BYTES = 'demo upload bytes';
+  const sha256 = (text) => createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex');
+
+  it(
+    'M4: POST /import-document registers metadata-only; bytes never stored (contentStored:false + disclosure)',
+    async () => {
+      const res = await handlers.importDocument(
+        new Request(
+          `${base}/import-document?fileName=${encodeURIComponent('m4-smoke-upload.txt')}&format=txt`,
+          { method: 'POST', body: UPLOAD_BYTES },
+        ),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      imported = { documentId: body.documentId, versionId: body.versionId };
+      expect(typeof imported.documentId).toBe('string');
+      expect(typeof imported.versionId).toBe('string');
+      expect(body.contentStored).toBe(false);
+      expect(body.disclosure).toBe(METADATA_ONLY_DISCLOSURE);
+    },
+    240_000,
+  );
+
+  it(
+    'M4: GET /document-detail returns the imported document with its version + real sha256 sourceHash',
+    async () => {
+      const res = await handlers.documentDetail(get(`/document-detail?id=${imported.documentId}`));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.document.id).toBe(imported.documentId);
+      expect(body.document.fileName).toBe('m4-smoke-upload.txt');
+      expect(body.document.format).toBe('txt');
+      expect(body.document.contentStored).toBe(false);
+      expect(body.document.seeded).toBeUndefined(); // internal flag stays internal
+      expect(body.versions.length).toBe(1);
+      expect(body.versions[0].id).toBe(imported.versionId);
+      expect(body.versions[0].sourceHash).toBe(sha256(UPLOAD_BYTES));
+      expect(body.versions[0].contentStored).toBe(false);
+    },
+    240_000,
+  );
+
+  it(
+    'M4: POST /analyze on the seeded demo manuscript runs the REAL fixture-derived analysis',
+    async () => {
+      const res = await handlers.analyze(
+        postJson('/analyze', { documentVersionId: FIXTURE_IDS.documentVersion }),
+      );
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      demoRunId = body.runId;
+      expect(typeof demoRunId).toBe('string');
+    },
+    240_000,
+  );
+
+  it(
+    'M4: GET /analyze-status reports the real completed run (findingsCount = 1 direct + 1 indirect)',
+    async () => {
+      const res = await handlers.analyzeStatus(get(`/analyze-status?runId=${encodeURIComponent(demoRunId)}`));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.runId).toBe(demoRunId);
+      expect(body.stage).toBe('completed');
+      expect(body.findingsCount).toBe(2); // claim-A direct + conclusion-C indirect (real derivation)
+      expect(typeof body.startedAt).toBe('string');
+      expect(typeof body.completedAt).toBe('string');
+    },
+    240_000,
+  );
+
+  it(
+    'M4: POST /analyze honestly refuses the contentless imported version (422 content-not-stored)',
+    async () => {
+      const res = await handlers.analyze(
+        postJson('/analyze', { documentVersionId: imported.versionId }),
+      );
+      expect(res.status).toBe(422);
+      const body = await res.json();
+      expect(body.error).toBe('content-not-stored');
+      expect(body.disclosure).toBe(METADATA_ONLY_DISCLOSURE);
+      expect(body.runId).toBeUndefined();
+    },
+    240_000,
+  );
+
+  it(
+    'M4: guard rails — 415 bad format, 413 oversize, honest 404s for unknown ids',
+    async () => {
+      const badFormat = await handlers.importDocument(
+        new Request(`${base}/import-document?fileName=x.exe&format=exe`, { method: 'POST', body: 'x' }),
+      );
+      expect(badFormat.status).toBe(415);
+
+      const oversize = await handlers.importDocument(
+        new Request(`${base}/import-document?fileName=big.txt&format=txt`, {
+          method: 'POST',
+          body: new Uint8Array(10 * 1024 * 1024 + 1).fill(0x61),
+        }),
+      );
+      expect(oversize.status).toBe(413);
+
+      const unknownRun = await handlers.analyzeStatus(get('/analyze-status?runId=no-such-run'));
+      expect(unknownRun.status).toBe(404);
+      const unknownDoc = await handlers.documentDetail(get('/document-detail?id=no-such-doc'));
+      expect(unknownDoc.status).toBe(404);
+
+      const unknownVersion = await handlers.analyze(
+        postJson('/analyze', { documentVersionId: 'no-such-version' }),
+      );
+      expect(unknownVersion.status).toBe(404);
     },
     240_000,
   );
