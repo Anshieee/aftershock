@@ -305,13 +305,23 @@ test.describe('M4 import flow', () => {
         // documents listing. Fabricated rows/sizes are never accepted.
         //
         // The free-tier graph can take a moment to propagate the imported
-        // document to the /documents read surface. Poll for the row rather
-        // than a one-shot check so transient graph lag doesn't fail the test.
+        // document to the /documents read surface. Wait for the Library to
+        // leave its loading state, then poll for the row rather than a
+        // one-shot check so transient graph lag doesn't fail the test.
         await page.goto('/library');
+        // Wait for the Library to reach a terminal state (loaded/failed/unavailable),
+        // not just the initial loading render.
+        await page
+          .locator(
+            'main [data-testid="library-list"], main [data-testid="library-empty"], main [data-testid="library-failed"], main [data-testid="library-unavailable"]',
+          )
+          .first()
+          .waitFor({ state: 'visible', timeout: 15_000 });
+
         const rowLocator = page.locator('main').getByText(fileName).first();
         let rowVisible = false;
         try {
-          await rowLocator.waitFor({ state: 'visible', timeout: 10_000 });
+          await rowLocator.waitFor({ state: 'visible', timeout: 8_000 });
           rowVisible = true;
         } catch {
           // Row did not appear within the poll window — fall through to
