@@ -8,24 +8,7 @@ import {
   ApiUnavailableError,
   ensureDemoSeed,
 } from '../lib/api';
-
-interface SelectedFile {
-  name: string;
-  size: string;
-  type: string;
-}
-
-function describeSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${bytes} bytes`;
-}
-
-function describeType(file: File): string {
-  if (file.type) return file.type;
-  const extIndex = file.name.lastIndexOf('.');
-  if (extIndex === -1) return 'unknown format';
-  return `.${file.name.slice(extIndex + 1)}`;
-}
+import ImportPanel from '../components/ImportPanel';
 
 const disabledLater =
   'cursor-not-allowed rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink-muted';
@@ -47,24 +30,19 @@ const seedFlowMessages: Record<string, string> = {
 };
 
 /**
- * Import-first landing (M2 state).
+ * Import-first landing (M4 state).
  *
- * The document picker is real but selection is where it stops: no import
- * endpoint exists, so the UI discloses that. "Try guided example" is now the
- * one wired action — it calls the guarded POST demo-seed endpoint and either
- * navigates to real results or states exactly what went wrong.
+ * The document picker is now the REAL import flow (ImportPanel): client-side
+ * guards → POST /import-document → verbatim server disclosure → Analyze
+ * enabled only for the guided demo manuscript. "Try guided example" keeps
+ * calling the guarded POST demo-seed endpoint and either navigates to real
+ * results or states exactly what went wrong.
  */
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [showGuidedNote, setShowGuidedNote] = useState(false);
   const [seedFlow, setSeedFlow] = useState<SeedFlow>({ phase: 'idle' });
   const activeRef = useRef<AbortController | null>(null);
-
-  const onPicked = (file: File | null) => {
-    if (!file) return;
-    setSelectedFile({ name: file.name, size: describeSize(file.size), type: describeType(file) });
-  };
 
   const seedDemo = useCallback(() => {
     activeRef.current?.abort();
@@ -132,30 +110,9 @@ export default function LandingPage() {
           Start with a document
         </h2>
 
-        {/* Primary affordance: native file picker, keyboard + screen-reader reachable */}
-        <label
-          htmlFor="import-input"
-          className="mt-4 flex cursor-pointer items-center justify-center rounded-lg bg-brand px-6 py-3 text-center font-medium text-white hover:bg-brand-deep"
-        >
-          Choose a document
-        </label>
-        <input
-          id="import-input"
-          type="file"
-          className="sr-only"
-          accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-          data-testid="import-input"
-          onChange={(e) => onPicked(e.target.files?.[0] ?? null)}
-        />
-
-        <p className="mt-4 text-sm leading-6 text-ink-muted">
-          Accepted formats once wired: PDF, DOCX and TXT, with posted size
-          limits rather than overpromises. Drag-and-drop arrives with the
-          import flow. Once analysis exists, it starts automatically after a
-          real import and your source document is never modified. In this
-          build nothing is uploaded or transmitted — the import pipeline is
-          not implemented yet.
-        </p>
+        {/* The real M4 import flow: guards → registration → verbatim
+            disclosure → demo-manuscript-only analyze. */}
+        <ImportPanel />
 
         {/* Secondary affordances: visible, but not built yet */}
         <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-ink-border pt-4">
@@ -171,22 +128,6 @@ export default function LandingPage() {
             text is needed for that.
           </p>
         </div>
-
-        {selectedFile && (
-          <div
-            className="mt-6 rounded-lg border border-review-border bg-review-surface p-4"
-            role="status"
-            data-testid="selection-state"
-          >
-            <p className="font-medium text-review-text">
-              Selected: {selectedFile.name} — {selectedFile.size}, {selectedFile.type}
-            </p>
-            <p className="mt-1 text-sm text-ink">
-              Not wired yet — skeleton. This file has not been uploaded
-              anywhere; there is no import pipeline in this build.
-            </p>
-          </div>
-        )}
       </section>
 
       <section

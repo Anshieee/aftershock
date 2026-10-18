@@ -32,7 +32,21 @@ describe('LandingPage (import-first)', () => {
     expect(screen.getByRole('heading', { name: 'Try guided example' })).toBeTruthy();
   });
 
-  it('shows an honest not-wired-yet state after a file is chosen — no fake upload or analysis', () => {
+  it('registers a chosen file through the real import endpoint and shows the server disclosure — no fake upload', async () => {
+    const calls = stubFetchByRoute((url) =>
+      url.startsWith('/.netlify/functions/import-document')
+        ? {
+            status: 200,
+            body: {
+              documentId: 'doc-registered-1',
+              versionId: 'ver-registered-1',
+              contentStored: false,
+              disclosure:
+                'The document was registered; its text content is not stored in this demo build.',
+            },
+          }
+        : undefined,
+    );
     renderWithRoutes();
     const input = screen.getByTestId('import-input') as HTMLInputElement;
 
@@ -40,13 +54,22 @@ describe('LandingPage (import-first)', () => {
     Object.defineProperty(file, 'size', { value: 12345 });
     fireEvent.change(input, { target: { files: [file] } });
 
-    const state = screen.getByTestId('selection-state');
+    const state = await waitFor(() => screen.getByTestId('selection-state'));
     expect(state.textContent).toContain('field-notes.pdf');
-    expect(state.textContent).toContain('Not wired yet');
-    expect(state.textContent).toContain('has not been uploaded anywhere');
+    expect(state.textContent).toContain('contentStored: false');
+    expect(state.textContent).toContain('its text content is not stored in this demo build');
 
-    // Nothing pretends a pipeline exists.
-    expect(screen.queryByText(/uploading/i)).toBeNull();
+    // The real registration happened through the fixed import route.
+    const importCall = calls.find((call) =>
+      call.url.startsWith('/.netlify/functions/import-document'),
+    );
+    expect(importCall?.init?.method).toBe('POST');
+    expect(importCall?.url).toContain('fileName=field-notes.pdf');
+    expect(importCall?.url).toContain('format=pdf');
+
+    // Nothing pretends analysis ran, content got stored, or progress is known.
+    expect(screen.queryByTestId('analysis-runid')).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
     expect(screen.queryByText(/analysis complete/i)).toBeNull();
     expect(screen.queryByText(/parsed/i)).toBeNull();
   });
