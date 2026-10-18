@@ -50,13 +50,35 @@ test('secondary Bibliography / Single DOI are honestly gated, not faked', async 
   await expect(page.getByText(/cannot detect passage-level claim dependencies/i)).toBeVisible();
 });
 
-test('guided example is gated and does not show fabricated results', async ({ page }) => {
+test('guided example runs the real guarded seed flow and shows no fabricated results', async ({ page }) => {
   await page.goto('/');
   const guided = page.locator('section', { hasText: 'Try guided example' });
   await expect(guided.getByRole('heading', { name: 'Try guided example' })).toBeVisible();
-  // Honest gate: available only after the graph seed — no fake results shown.
-  await expect(guided.getByText(/available after graph seed/i)).toBeVisible();
-  const disclosure = guided.getByRole('button', { name: /Why isn’t it available\?/i });
+  // The guided example is an ACTIVE flow in M2: it calls the guarded,
+  // rate-limited demo-seed API through the real client. Its copy must be
+  // truthful about what runs and what is synthetic.
+  await expect(guided.getByTestId('guided-seed-button')).toBeVisible();
+  await expect(
+    guided.getByText(/guarded, rate-limited/i),
+    'discloses the guarded API path',
+  ).toBeVisible();
+  const disclosure = guided.getByRole('button', { name: /What does that involve\?/i });
   await disclosure.click();
-  await expect(guided.getByText(/nothing to show yet|not an option/i)).toBeVisible();
+  await expect(guided.getByText(/FICTIONAL \/ GUIDED DEMO/i)).toBeVisible();
+  await expect(guided.getByText(/synthetic demo data only/i)).toBeVisible();
+
+  // Because the backend is not wired yet, clicking the button must END in an
+  // honest failure state ([api-error|rejected|unavailable|cooldown|not-wired])
+  // and MUST NOT navigate to fabricated results.
+  await guided.getByTestId('guided-seed-button').click();
+  await page.waitForLoadState('load');
+  await expect(page, 'no navigation without a successful seed').not.toHaveURL(/\/results/);
+  const state = page.getByTestId('guided-seed-state');
+  await expect(state.locator('p')).toHaveCount(
+    1,
+    { timeout: 12_000 },
+  );
+  await expect(
+    state.getByText(/api error|no simulated success|unavailable|cooldown|not wired|seed/i),
+  ).toBeVisible();
 });
