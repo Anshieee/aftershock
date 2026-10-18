@@ -1,19 +1,30 @@
-import { describe, expect, it } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import LandingPage from './LandingPage';
+import DemoResultsPage from './DemoResultsPage';
+import { stubFetchByRoute } from '../test/mockFetch';
+import { buildDemoOverviewRecord } from '../test/graphFixtures';
+import { apiRoutes } from '../lib/api';
 
-function renderLanding() {
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function renderWithRoutes(initialPath = '/') {
   return render(
-    <MemoryRouter>
-      <LandingPage />
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/results" element={<DemoResultsPage />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
 
 describe('LandingPage (import-first)', () => {
   it('renders the primary document affordance and secondary DOI/bibliography affordances', () => {
-    renderLanding();
+    renderWithRoutes();
 
     expect(screen.getByLabelText('Choose a document')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Bibliography' })).toBeTruthy();
@@ -21,15 +32,8 @@ describe('LandingPage (import-first)', () => {
     expect(screen.getByRole('heading', { name: 'Try guided example' })).toBeTruthy();
   });
 
-  it('labels the guided example as available after graph seed', () => {
-    renderLanding();
-    expect(
-      screen.getByText(/available after graph seed/i),
-    ).toBeTruthy();
-  });
-
   it('shows an honest not-wired-yet state after a file is chosen — no fake upload or analysis', () => {
-    renderLanding();
+    renderWithRoutes();
     const input = screen.getByTestId('import-input') as HTMLInputElement;
 
     const file = new File(['%PDF-1.4 minimal'], 'field-notes.pdf', { type: 'application/pdf' });
@@ -38,7 +42,7 @@ describe('LandingPage (import-first)', () => {
 
     const state = screen.getByTestId('selection-state');
     expect(state.textContent).toContain('field-notes.pdf');
-    expect(state.textContent).toContain('Not wired yet — skeleton');
+    expect(state.textContent).toContain('Not wired yet');
     expect(state.textContent).toContain('has not been uploaded anywhere');
 
     // Nothing pretends a pipeline exists.
@@ -47,11 +51,106 @@ describe('LandingPage (import-first)', () => {
     expect(screen.queryByText(/parsed/i)).toBeNull();
   });
 
-  it('does not show results for the guided example — only an honest disclosure', () => {
-    renderLanding();
-    fireEvent.click(screen.getByRole('button', { name: /why isn’t it available/i }));
+  it('discloses what the guided seed does before running it', () => {
+    renderWithRoutes();
+    fireEvent.click(screen.getByRole('button', { name: /what does that involve/i }));
     const note = screen.getByRole('note');
-    expect(note.textContent).toContain('M2');
-    expect(note.textContent).not.toMatch(/retraction identified|1 affected claim|damage report/);
+    expect(note.textContent).toContain('FICTIONAL / GUIDED DEMO');
+    expect(note.textContent).toContain('idempotent');
+    expect(note.textContent).toContain('synthetic');
+  });
+});
+
+describe('guided example — the real seed flow', () => {
+  it('contacts the guarded seed endpoint and navigates to real results on success', async () => {
+    const calls = stubFetchByRoute((url) => {
+      if (url.endsWith(apiRoutes.demoSeed)) {
+        return { status: 200, body: { seeded: true, alreadySeeded: false, seedVersion: 'seed-1' } };
+      }
+      if (url.includes('graph/probe')) {
+        return { status: 200, body: { exists: true, seedVersion: 'seed-1', nodeCount: 17 } };
+      }
+      if (url.includes('graph/edges')) {
+        return { status: 200, body: buildDemoOverviewRecord() };
+      }
+      return undefined;
+    });
+
+    renderWithRoutes();
+    fireEvent.click(screen.getByTestId('guided-seed-button'));
+
+    // Success lands on the results view mapping the real graph payload.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /guided demo results/i })).toBeTruthy(),
+    );
+    expect(await screen.findByTestId('results-affected')).toBeTruthy();
+    const seedCall = calls.find((call) => call.url.endsWith(apiRoutes.demoSeed));
+    expect(seedCall?.init?.method).toBe('POST');
+    expect(seedCall?.init?.body).toBeUndefined();
+  });
+
+  it('shows the truthful in-flight state before the API answers', async () => {
+    stubFetchByRoute(() => undefined);
+    // Wrap handler: hold the seed call open so the in-flight copy is visible.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (input: unknown, init?: RequestInit) =>
+          new Promise<Response>(() => {
+            void input;
+            void init;
+            /* stays pending — like a slow API */
+          }),
+      ),
+    );
+
+    renderWithRoutes();
+    fireEvent.click(screen.getByTestId('guided-seed-button'));
+    expect(screen.getByTestId('guided-seed-state').textContent).toContain('Contacting the demo API');
+    expect((screen.getByTestId('guided-seed-button') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('API down → “API unavailable — nothing ran”; never a fabricated success', async () => {
+    stubFetchByRoute(() => undefined);
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('connection refused'))));
+
+    renderWithRoutes();
+    fireEvent.click(screen.getByTestId('guided-seed-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('guided-seed-copy').textContent).toMatch(
+        /API unavailable — nothing ran/,
+      ),
+    );
+    // User was not navigated: no results content appears.
+    expect(screen.queryByRole('heading', { name: /guided demo results/i })).toBeNull();
+  });
+
+  it('429 → honest cooldown message, no navigation', async () => {
+    stubFetchByRoute((url) =>
+      url.endsWith(apiRoutes.demoSeed)
+        ? { status: 429, body: { error: 'rate limited' } }
+        : undefined,
+    );
+
+    renderWithRoutes();
+    fireEvent.click(screen.getByTestId('guided-seed-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('guided-seed-copy').textContent).toMatch(/cooldown/i),
+    );
+    expect(screen.queryByRole('heading', { name: /guided demo results/i })).toBeNull();
+  });
+
+  it('404 → “not wired on this build yet — nothing ran”', async () => {
+    stubFetchByRoute(() => ({ status: 404 }));
+
+    renderWithRoutes();
+    fireEvent.click(screen.getByTestId('guided-seed-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('guided-seed-copy').textContent).toMatch(/not wired on this build yet/i),
+    );
+    expect(screen.queryByRole('heading', { name: /guided demo results/i })).toBeNull();
   });
 });

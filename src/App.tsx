@@ -7,12 +7,14 @@ import LibraryPage from './pages/LibraryPage';
 import ReviewQueuePage from './pages/ReviewQueuePage';
 import ActivityPage from './pages/ActivityPage';
 import KnowledgeGraphPage from './pages/KnowledgeGraphPage';
+import DemoResultsPage from './pages/DemoResultsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 /**
  * Route map mirrors the information architecture in the handoff §3:
  * five primary sidebar areas, one visible secondary destination
  * (Knowledge Graph), and the import-first landing state at `/`.
+ * `/results` shows the guided-demo story derived from live graph data.
  */
 export default function App() {
   return (
@@ -20,6 +22,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<LandingPage />} />
         <Route path="/overview" element={<OverviewPage />} />
+        <Route path="/results" element={<DemoResultsPage />} />
         <Route path="/investigations" element={<InvestigationsPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/review-queue" element={<ReviewQueuePage />} />
