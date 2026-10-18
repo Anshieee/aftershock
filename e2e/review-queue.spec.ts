@@ -78,8 +78,8 @@ type QueueState = 'placeholder' | 'list' | 'honest-empty';
 async function resolveQueueState(page: Page): Promise<QueueState> {
   await page.goto('/review-queue');
   await waitForStableMain(page);
-  const placeholder = page.locator('main').getByText('Feature under construction');
-  if (await placeholder.isVisible().catch(() => false)) return 'placeholder';
+  const loading = page.locator('[data-testid="review-loading"]');
+  if (await loading.isVisible().catch(() => false)) await loading.waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => {});
   const texts = await substantiveItemTexts(page);
   if (texts.length > 0) return 'list';
   const main = (await page.locator('main').innerText()) ?? '';

@@ -108,10 +108,16 @@ test.describe('M4/M5 analyze flow', () => {
       if (path === '/results') {
         await page.locator(RESULTS_TERMINAL).first().waitFor({ state: 'visible', timeout: 20_000 });
       } else {
+        // The real M4 Library: a real documents list (rows with Analyze
+        // affordances) or an honest empty/unavailable state — never a
+        // placeholder.
+        await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible({ timeout: 20_000 });
         await expect(
           page
-            .locator('main input[type="file"]')
-            .or(page.locator('main').getByText('Feature under construction'))
+            .locator('[data-testid^="library-doc-"]')
+            .or(page.locator('[data-testid="library-empty"]'))
+            .or(page.locator('[data-testid="library-unavailable"]'))
+            .or(page.locator('[data-testid="library-failed"]'))
             .first(),
         ).toBeVisible({ timeout: 20_000 });
       }
