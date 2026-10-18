@@ -7,6 +7,11 @@ interface ContextInspectorProps {
   /** All edges so connected ones can be listed with their provenance. */
   edges: GraphEdge[];
   onClose?: () => void;
+  /** Whether a focused dependency path is currently active. */
+  focusActive?: boolean;
+  focusedPath?: boolean;
+  focusedPathActive?: boolean;
+  isFocusedPath?: boolean;
 }
 
 /**
@@ -15,7 +20,8 @@ interface ContextInspectorProps {
  * state, synthetic-vs-real attribution and source pointer (handoff §3).
  * No interpretation beyond what the record itself states.
  */
-export default function ContextInspector({ node, edges, onClose }: ContextInspectorProps) {
+export default function ContextInspector({ node, edges, onClose, focusActive, focusedPath, focusedPathActive, isFocusedPath }: ContextInspectorProps) {
+  const pathActive = !!(focusActive || focusedPath || focusedPathActive || isFocusedPath);
   useEffect(() => {
     if (!onClose) return;
     const onKey = (event: KeyboardEvent) => {
@@ -55,6 +61,15 @@ export default function ContextInspector({ node, edges, onClose }: ContextInspec
           </button>
         )}
       </div>
+
+      {pathActive && (
+        <p
+          data-testid="inspector-focused-path"
+          className="mt-2 rounded border border-brand bg-brand-surface px-2 py-1 text-xs font-medium text-brand-deep"
+        >
+          Focused dependency path active
+        </p>
+      )}
 
       <dl className="mt-3 space-y-2 text-sm">
         <div>
