@@ -16,7 +16,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { connectFromEnv, resolveCredentials } from '../../graphClient.mjs';
-import { seedGraph } from '../../seed.mjs';
+import { readSeedMeta, seedGraph } from '../../seed.mjs';
 import {
   deferReferenceOccurrence,
   getSeedStatus,
@@ -30,6 +30,12 @@ import { DEMO_GRAPH_NAME, FIXTURE_IDS } from '../../contract.mjs';
 const SMOKE_GRAPH = 'aftershock:demo-smoke';
 if (SMOKE_GRAPH === DEMO_GRAPH_NAME) {
   throw new Error('integration suite misconfiguration: smoke graph must never be the managed demo graph');
+}
+
+/** @param {Awaited<ReturnType<typeof connectFromEnv>>} s */
+async function countSeedMeta(s) {
+  const res = await s.roQuery('MATCH (m:SeedMeta) RETURN count(m) AS c');
+  return Number(res.data?.[0]?.c ?? 0);
 }
 
 /** Credentials present? (integration tests skip without them) */
@@ -53,12 +59,18 @@ integration(`M2 integration invariants on ${SMOKE_GRAPH}`, () => {
       graphName: SMOKE_GRAPH,
       clientName: 'aftershock-vitest-integration',
     });
-    graphsBefore = (await session.listGraphs()).slice();
-    // The smoke graph must not pre-exist (it belongs to this suite alone);
-    // a leftover from an interrupted previous run gets deleted via seed/reseed.
-    if (graphsBefore.includes(SMOKE_GRAPH)) {
-      await seedGraph(session); // brings a corrupt leftover up to fixture state before assertions
+    // The smoke graph must not pre-exist (it belongs to this suite alone): a
+    // leftover from an interrupted previous run is deleted BEFORE the baseline
+    // snapshot, so every assertion below starts from a clean slate and the
+    // afterAll `graphsAfter ≡ graphsBefore` proof stays exact. (Healing a
+    // leftover via seedGraph here used to make the first test observe
+    // reseeded/noop instead of a fresh `seeded` and skewed the baseline.)
+    const graphsOnConnect = await session.listGraphs();
+    if (graphsOnConnect.includes(SMOKE_GRAPH)) {
+      console.warn(`[m2-integration] leftover ${SMOKE_GRAPH} from an interrupted run — deleting before baseline`);
+      await session.db.selectGraph(SMOKE_GRAPH).delete();
     }
+    graphsBefore = (await session.listGraphs()).slice();
   });
 
   afterAll(async () => {
@@ -80,6 +92,8 @@ integration(`M2 integration invariants on ${SMOKE_GRAPH}`, () => {
     expect(result.action).toBe('seeded');
     expect(result.seedVersion).toBe('seed-1');
     expect((await session.listGraphs())).toContain(SMOKE_GRAPH);
+    // Exactly one metadata node — the initial seed must not leave stale meta.
+    expect(await countSeedMeta(session)).toBe(1);
 
     const status = await getSeedStatus(session);
     expect(status.graphExists).toBe(true);
@@ -99,6 +113,8 @@ integration(`M2 integration invariants on ${SMOKE_GRAPH}`, () => {
     expect(after.nodesByLabel).toEqual(before.nodesByLabel);
     expect(after.edgesByType).toEqual(before.edgesByType);
     expect(after.seedVersion).toBe(before.seedVersion);
+    // A no-op run must not append another metadata node.
+    expect(await countSeedMeta(session)).toBe(1);
   });
 
   it('invariant §7.1 — verified retraction → supporting citation → Claim A → Conclusion C flags review', async () => {
@@ -118,8 +134,10 @@ integration(`M2 integration invariants on ${SMOKE_GRAPH}`, () => {
     expect(claimARow.notice.id).toBe(FIXTURE_IDS.notice);
     expect(claimARow.citationUse.id).toBe(FIXTURE_IDS.citationUseSupporting);
     expect(claimARow.citationUse.role).toBe('supporting');
-    expect(claimARow.claim.reviewFlag.kind).toBe('indirect_evidence_review');
+    expect(claimARow.claim.reviewFlag.kind).toBe('direct_evidence_review');
     expect(claimARow.conclusion?.id).toBe(FIXTURE_IDS.conclusion);
+    // The dependent conclusion separately carries the indirect flag.
+    expect(claimARow.conclusion?.reviewFlag?.kind).toBe('indirect_evidence_review');
     expect(claimARow.dependencyEdge?.provenanceKind).toBe('human_confirmed');
     expect(claimARow.path).toEqual([
       FIXTURE_IDS.notice,
@@ -196,6 +214,15 @@ integration(`M2 integration invariants on ${SMOKE_GRAPH}`, () => {
     expect(healed.upToDate).toBe(true);
     expect(healed.nodeCount).toBe(healed.expected.nodes);
     expect(healed.edgeCount).toBe(healed.expected.edges);
+
+    // The drift-reseed must NOT duplicate the metadata node (review fix: it
+    // previously grew 1→2 per reseed, leaving readSeedMeta ambiguous).
+    expect(await countSeedMeta(session)).toBe(1);
+    // Two successive meta reads return identical data — deterministic state.
+    const metaReadA = await readSeedMeta(session);
+    const metaReadB = await readSeedMeta(session);
+    expect(metaReadB).toEqual(metaReadA);
+    expect(metaReadA.seedVersion).toBe('seed-1');
 
     const keptForeign = await session.roQuery(
       'MATCH (n) WHERE n.id = $id RETURN count(n) AS c',

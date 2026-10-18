@@ -18,7 +18,7 @@
  */
 
 import { FIXTURE_IDS, RESOLUTION_STATES } from './contract.mjs';
-import { defaultFixture, expectedCountsFor, readSeedMeta } from './seed.mjs';
+import { defaultFixture, expectedCountsFor, readSeedMeta, resolveFixtureVersion } from './seed.mjs';
 
 /**
  * @typedef {Object} SeedStatus
@@ -91,7 +91,7 @@ export async function getSeedStatus(session, fixture = defaultFixture()) {
   const expected = expectedCountsFor(fixture);
   const seeded = nodeCount > 0 && Boolean(meta.seedVersion);
   const upToDate = seeded
-    && meta.seedVersion === fixture.fixtureVersion
+    && meta.seedVersion === resolveFixtureVersion(fixture)
     && nodeCount === expected.nodes
     && edgeCount === expected.edges;
 
@@ -173,8 +173,8 @@ export async function verifiedNotices(session) {
  * @property {{id: string, doi: string | null, isSynthetic: unknown}} publication
  * @property {{id: string, noticeType: string, publishedDate: string | null, sourceUrl: string | null}} notice
  * @property {{id: string, role: string, excerpt: string | null}} citationUse
- * @property {{id: string, status: string | null, text: string | null, reviewFlag: {kind: 'direct_evidence_review' | 'indirect_evidence_review', message: string}}} claim
- * @property {({id: string, text: string | null} | null)} conclusion
+ * @property {{id: string, status: string | null, text: string | null, reviewFlag: {kind: 'direct_evidence_review', message: string}}} claim
+ * @property {({id: string, text: string | null, reviewFlag: {kind: 'indirect_evidence_review', message: string}} | null)} conclusion
  * @property {({id: string, provenanceKind: string, rationale: string | null, analysisVersion: string | null, scope: string | null, confidence: unknown} | null)} dependencyEdge
  * @property {string[]} path provenance-link chosen for the report: publication → … → (claim → conclusion?)
  */
@@ -223,14 +223,24 @@ export async function impactPathFromSupportedClaims(session) {
         id: row.claimId,
         status: row.claimStatus ?? null,
         text: row.claimText ?? null,
+        // Invariant: a claim backed by retracted evidence is ALWAYS a direct
+        // evidence review; the dependent conclusion (if any) separately carries
+        // the indirect flag. Never a verdict — "needs review", nothing more.
         reviewFlag: {
-          kind: hasConclusion ? 'indirect_evidence_review' : 'direct_evidence_review',
-          message: hasConclusion
-            ? `Conclusion ${String(row.conclusionId)} depends on claim ${String(row.claimId)}, which is directly supported by the cited publication through a verified status notice; review required.`
-            : `Claim ${String(row.claimId)} is directly supported by the cited publication through a verified status notice; review required.`,
+          kind: 'direct_evidence_review',
+          message: `Claim ${String(row.claimId)} is directly supported by the cited publication through a verified status notice; review required.`,
         },
       },
-      conclusion: hasConclusion ? { id: row.conclusionId, text: row.conclusionText ?? null } : null,
+      conclusion: hasConclusion
+        ? {
+            id: row.conclusionId,
+            text: row.conclusionText ?? null,
+            reviewFlag: {
+              kind: 'indirect_evidence_review',
+              message: `Conclusion ${String(row.conclusionId)} depends on claim ${String(row.claimId)}, which is directly supported by the cited publication through a verified status notice; indirect review required.`,
+            },
+          }
+        : null,
       dependencyEdge: hasConclusion
         ? {
             id: row.dependencyId ?? null,
