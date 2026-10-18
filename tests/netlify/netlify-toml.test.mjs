@@ -84,6 +84,8 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
       'graphProbe',
       'health',
       'importDocument',
+      'reviewDecide',
+      'reviewRevision',
     ]);
   });
 
@@ -100,6 +102,8 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
     'analyze',
     'analyze-status',
     'document-detail',
+    'review-decide',
+    'review-revision',
   ]);
 
   for (const [key, { route, sourceLine }] of ROUTES) {
@@ -134,6 +138,14 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
             sourceLine,
             'dynamic params must be appended encodeURIComponent-encoded',
           ).toContain('encodeURIComponent(');
+        });
+      } else if (head === 'review-decide' || head === 'review-revision') {
+        // M5 review routes carry their caseId as a query param per §5; the
+        // caller appends encodeURIComponent(caseId) at the call site (in the
+        // reviewDecide/reviewRevision client functions), so the route table
+        // line itself contains no encodeURIComponent.
+        it('carries ?caseId= as its query prefix (caseId appended at call site)', () => {
+          expect(route.endsWith('?caseId='), `route ${key} should end with ?caseId=`).toBe(true);
         });
       } else {
         it('is a static function-file path (no appended value concatenation)', () => {
