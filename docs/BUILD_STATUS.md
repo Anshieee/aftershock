@@ -1,6 +1,6 @@
 # Aftershock — Build Status
 
-Last updated: 2026-10-18 (PR5 brand wave merged; M3 backend wiring code-complete on `feat/m3-backend-api`)
+Last updated: 2026-10-18 (M4 backend import/analyze code-complete on `feat/m4-import-analyze`; metadata-only tier, tests green)
 
 ## Environment (verified 2026-10-18)
 - Repo: /home/ansh/Projects/aftershock → GitHub `Anshieee/aftershock` (main), synced.
@@ -21,6 +21,7 @@ Last updated: 2026-10-18 (PR5 brand wave merged; M3 backend wiring code-complete
 | Test harness | **Merged** | PR #3 approved → merged; reviewer suggestions applied (html reporter + concurrency); 38/38 green after deploy |
 | Brand/UX wave | **In flight** | `feat/brand-wordmark-ux`: wordmark `Aftershock.` (Bodoni Moda 900, compressed), header badge → discreet status, Overview refinement, mobile-resilience specs; user-approved 2026-10-18 |
 | M4–M8 | **M2/M3 core merged** | PR #5 (UI polish + SPA-shade hardening) and PR #6 (backend §5 wiring: probe/demo-seed/guarded-seed/graph-edges/documents/stubs, rewrites above SPA; unit 152 passed + live 7/7) MERGED. Brand/UX wave (PR #7: wordmark `Aftershock.`, discreet status line, Overview refinement, mobile specs) in review. Next: deploy + production verification sweep |
+| M4 backend (import/analyze, metadata-only tier) | **Code complete — tests green** | Branch `feat/m4-import-analyze`: `POST /import-document` (metadata-only registration: sha256+size+format, `contentStored:false` + verbatim disclosure; bytes NEVER enter the no-TLS free graph; 415/400/413/429/503 rails), `POST /analyze` (real fixture-derived analysis via impact traversals for the seeded demo manuscript version → AnalysisRun `{runId}`; honest 422 `content-not-stored` for contentless versions), `GET /analyze-status?runId=` (real lookup, honest 404), `GET /document-detail?id=` (real doc + versions, seeded-filter-free so imports resolve). Ops in `server/importAnalyze.mjs`; handlers follow demo-seed limiter/guard patterns. 41 new handler unit tests; live integration extended (import→detail→analyze→status→422→415→413→404s on smoke graph; protected graphs intact). Limitation: content analysis requires persistent storage (M5); imported docs not shown in seeded-filter read surfaces (`/documents`, `/graph-edges`) this tier |
 
 ## Deployed URLs
 - Production: https://aftershock-demo.netlify.app (site id b1bb72a1-23de-46c4-8af8-ad4c5010f041)
