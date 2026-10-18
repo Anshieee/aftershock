@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import ServiceStatusLine from './ServiceStatusLine';
 
 /**
  * Primary navigation — exactly the five areas from the handoff §3.
@@ -38,7 +39,7 @@ export default function Layout() {
         Skip to main content
       </a>
 
-      <header className="shrink-0 border-b border-ink-border md:sticky md:top-0 md:h-screen md:w-60 md:border-b-0 md:border-r md:p-6">
+      <header className="shrink-0 border-b border-ink-border md:sticky md:top-0 md:flex md:h-screen md:w-60 md:flex-col md:border-b-0 md:border-r md:p-6">
         <div className="flex items-baseline justify-between p-4 md:block md:p-0">
           <NavLink
             to="/"
@@ -78,11 +79,17 @@ export default function Layout() {
           </ul>
         </nav>
 
-        <p className="hidden px-0 pb-6 text-xs leading-5 text-ink-muted md:block">
-          Guided-demo build. Areas marked “under construction” are not
-          implemented yet — nothing here is simulated. Graph areas read the
-          live demo API only.
-        </p>
+        <div className="mt-2 px-4 pb-4 md:mt-auto md:px-0 md:pb-0">
+          <p className="hidden text-xs leading-5 text-ink-muted md:block">
+            Guided-demo build. Areas marked “under construction” are not
+            implemented yet — nothing here is simulated. Graph areas read the
+            live demo API only.
+          </p>
+          {/* Discreet truthful status: same honest health classification as
+              the chip, demoted to quiet text diagnostics. Never claims graph
+              state — /health does not probe the graph backend. */}
+          <ServiceStatusLine className="mt-2 md:mt-4 md:pb-0" />
+        </div>
       </header>
 
       <main id="main-content" className="min-w-0 flex-1 px-4 py-8 md:px-10">
