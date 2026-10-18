@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGraphOverview } from './api';
+import { parseGraphOverview, type GraphEdge, type GraphNode, type GraphOverview } from './api';
 import { deriveDemoImpact } from './demoImpact';
 import { buildDemoOverviewRecord } from '../test/graphFixtures';
 
@@ -115,5 +115,125 @@ describe('deriveDemoImpact — real §7 invariants from graph data', () => {
     const affectedPublications = impact.affected.map((item) => item.viaPublicationId);
     expect(affectedPublications).toEqual(['pub-mehra-2020', 'pub-mehra-2020']);
     expect(affectedPublications).not.toContain('pub-lee-2020-candidate-b');
+  });
+});
+
+describe('deriveDemoImpact — dedupe by node id (results list keys on id)', () => {
+  /**
+   * Minimal in-memory graph payload in the parsed overview shape (exactly
+   * what the UI consumes from parseGraphOverview), mirroring the flat
+   * wire-record style of the §6 fixture. Smallest chains that exercise the
+   * multi-edge dedupe paths — no fixture constants, only returned records.
+   */
+  const record = (id: string, kind: string, properties: Record<string, unknown> = {}): GraphNode => ({
+    id,
+    kind,
+    properties,
+  });
+  const link = (type: string, fromId: string, toId: string): GraphEdge => ({ type, fromId, toId });
+
+  /** Verified notice → publication + two flagged claims (each via its own supporting citation use). */
+  function twoFlaggedClaimsGraph(): GraphOverview {
+    return {
+      seedVersion: 'seed-dedup',
+      nodes: [
+        record('pub-x', 'Publication'),
+        record('notice-x', 'SourceNotice', { verified: true, noticeType: 'retraction' }),
+        record('claim-1', 'Claim', { text: 'First flagged claim.' }),
+        record('claim-2', 'Claim', { text: 'Second flagged claim.' }),
+        record('cu-1', 'CitationUse', { role: 'supporting' }),
+        record('cu-2', 'CitationUse', { role: 'supporting' }),
+        record('conclusion-D', 'Conclusion', { text: 'Depends on both flagged claims.' }),
+        record('conclusion-E', 'Conclusion', { text: 'Depends on one flagged claim (duplicated edge).' }),
+      ],
+      edges: [
+        link('PUBLICATION_HAS_NOTICE', 'pub-x', 'notice-x'),
+        link('CITATION_USE_REFERENCES_PUBLICATION', 'cu-1', 'pub-x'),
+        link('CITATION_USE_REFERENCES_PUBLICATION', 'cu-2', 'pub-x'),
+        link('CITATION_USE_SUPPORTS_CLAIM', 'cu-1', 'claim-1'),
+        link('CITATION_USE_SUPPORTS_CLAIM', 'cu-2', 'claim-2'),
+        // Pre-review defect: a conclusion with TWO flagged-claim dependencies
+        // used to appear twice (duplicate React keys in the results list).
+        link('CONCLUSION_DEPENDS_ON_CLAIM', 'conclusion-D', 'claim-1'),
+        link('CONCLUSION_DEPENDS_ON_CLAIM', 'conclusion-D', 'claim-2'),
+        // And a conclusion with two dependency edges onto the SAME claim.
+        link('CONCLUSION_DEPENDS_ON_CLAIM', 'conclusion-E', 'claim-1'),
+        link('CONCLUSION_DEPENDS_ON_CLAIM', 'conclusion-E', 'claim-1'),
+      ],
+    };
+  }
+
+  it('a conclusion depending on two flagged claims surfaces exactly once', () => {
+    const impact = deriveDemoImpact(twoFlaggedClaimsGraph());
+    const ids = impact.affected.map((item) => item.id);
+    expect(ids).toEqual(['claim-1', 'claim-2', 'conclusion-D', 'conclusion-E']);
+    // No duplicate React keys in the results list (dedupe by node id).
+    expect(new Set(ids).size).toBe(ids.length);
+    const conclusionD = impact.affected.find((item) => item.id === 'conclusion-D');
+    expect(conclusionD).toBeDefined();
+    expect(conclusionD?.kind).toBe('conclusion');
+    expect(conclusionD?.reviewKind).toBe('indirect_evidence_review');
+    // First occurrence wins: the first flagged claim in edge order.
+    expect(conclusionD?.viaClaimId).toBe('claim-1');
+    expect(conclusionD?.viaPublicationId).toBe('pub-x');
+    expect(conclusionD?.text).toBe('Depends on both flagged claims.');
+  });
+
+  it('duplicate dependency edges onto the same flagged claim still surface the conclusion once', () => {
+    const impact = deriveDemoImpact(twoFlaggedClaimsGraph());
+    const entriesE = impact.affected.filter((item) => item.id === 'conclusion-E');
+    expect(entriesE).toHaveLength(1);
+    expect(entriesE[0]?.viaClaimId).toBe('claim-1');
+  });
+
+  it('a claim historically mentioned via two citation uses surfaces once in the historical list', () => {
+    const impact = deriveDemoImpact({
+      seedVersion: 'seed-dedup',
+      nodes: [
+        record('pub-x', 'Publication'),
+        record('notice-x', 'SourceNotice', { verified: true, noticeType: 'retraction' }),
+        record('claim-H', 'Claim', { text: 'Historical discussion claim.' }),
+        record('cu-h1', 'CitationUse', { role: 'historical' }),
+        record('cu-h2', 'CitationUse', { role: 'historical' }),
+      ],
+      edges: [
+        link('PUBLICATION_HAS_NOTICE', 'pub-x', 'notice-x'),
+        link('CITATION_USE_REFERENCES_PUBLICATION', 'cu-h1', 'pub-x'),
+        link('CITATION_USE_REFERENCES_PUBLICATION', 'cu-h2', 'pub-x'),
+        link('MENTIONS_HISTORICALLY', 'cu-h1', 'claim-H'),
+        link('MENTIONS_HISTORICALLY', 'cu-h2', 'claim-H'),
+      ],
+    });
+    const ids = impact.historical.map((item) => item.id);
+    expect(ids).toEqual(['claim-H']);
+    expect(new Set(ids).size).toBe(ids.length);
+    const historical = impact.historical[0];
+    expect(historical?.viaCitationUseId).toBe('cu-h1'); // first occurrence, deterministic order
+    expect(historical?.viaPublicationId).toBe('pub-x');
+    // And the claim is still not flagged — dedupe must not contaminate the set.
+    expect(impact.affected).toHaveLength(0);
+  });
+
+  it('a claim supported by two citation uses of the same publication still surfaces once', () => {
+    const impact = deriveDemoImpact({
+      seedVersion: 'seed-dedup',
+      nodes: [
+        record('pub-x', 'Publication'),
+        record('notice-x', 'SourceNotice', { verified: true, noticeType: 'retraction' }),
+        record('claim-A', 'Claim', { text: 'Directly flagged once.' }),
+        record('cu-1', 'CitationUse', { role: 'supporting' }),
+        record('cu-2', 'CitationUse', { role: 'supporting' }),
+      ],
+      edges: [
+        link('PUBLICATION_HAS_NOTICE', 'pub-x', 'notice-x'),
+        link('CITATION_USE_REFERENCES_PUBLICATION', 'cu-1', 'pub-x'),
+        link('CITATION_USE_REFERENCES_PUBLICATION', 'cu-2', 'pub-x'),
+        link('CITATION_USE_SUPPORTS_CLAIM', 'cu-1', 'claim-A'),
+        link('CITATION_USE_SUPPORTS_CLAIM', 'cu-2', 'claim-A'),
+      ],
+    });
+    const ids = impact.affected.map((item) => item.id);
+    expect(ids).toEqual(['claim-A']); // affectedClaimIds guard, unchanged behavior
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
