@@ -159,7 +159,7 @@ export default function OverviewPage() {
       {/* Secondary destination — deliberately quieter than the primary card. */}
       <section
         aria-labelledby="overview-graph"
-        className="mt-6 rounded-lg border border-ink-border bg-paper p-5"
+        className="mt-6 rounded-lg border border-ink-border bg-paper p-6"
         data-testid="overview-graph-card"
       >
         <h2 id="overview-graph" className="text-base font-semibold text-ink">
@@ -180,7 +180,7 @@ export default function OverviewPage() {
       </section>
 
       <div className="mt-10 border-t border-ink-border pt-4" data-testid="overview-status-footnote">
-        <p className="max-w-prose text-base text-ink-muted">
+        <p className="max-w-prose text-sm text-ink-muted">
           The sidebar status line queries the platform’s real{' '}
           <code className="rounded bg-paper-deep px-1">/health</code> endpoint; the cards
           above reflect the real <code className="rounded bg-paper-deep px-1">/graph-probe</code>{' '}
