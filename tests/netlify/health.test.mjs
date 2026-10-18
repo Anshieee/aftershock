@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import handler from './health.mjs';
+import handler from '../../netlify/functions/health.mjs';
 
 /**
  * Unit test for the M1 /health Netlify function (Functions v2 style).
