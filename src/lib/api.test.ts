@@ -9,9 +9,14 @@ import {
   apiRoutes,
   ensureDemoSeed,
   getAnalysisRun,
+  getAnalysisStatus,
   getDemoDocuments,
+  getDocumentDetail,
   getGraphOverview,
   getSeedStatus,
+  importDocument,
+  startAnalysis,
+  MAX_IMPORT_BYTES,
 } from './api';
 import { buildDemoOverviewRecord } from '../test/graphFixtures';
 
@@ -315,5 +320,200 @@ describe('api client — 2xx non-JSON shading classifies as endpoint-missing', (
       contentType: 'text/plain',
     }));
     await expect(getSeedStatus()).resolves.toEqual({ exists: false });
+  });
+});
+
+describe('api client — import document (M4)', () => {
+  function makePdf(name = 'field-notes.pdf', size = 12345): File {
+    const file = new File(['%PDF-1.4 minimal'], name, { type: 'application/pdf' });
+    Object.defineProperty(file, 'size', { value: size });
+    return file;
+  }
+
+  it('POSTs the raw file to /import-document with fileName/format query params', async () => {
+    const calls = stubFetch(() => ({
+      status: 200,
+      body: {
+        documentId: 'doc-1',
+        versionId: 'ver-1',
+        contentStored: false,
+        disclosure: 'Registered without stored text content.',
+      },
+    }));
+    const file = makePdf();
+    const result = await importDocument(file);
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.data).toEqual({
+      documentId: 'doc-1',
+      versionId: 'ver-1',
+      contentStored: false,
+      disclosure: 'Registered without stored text content.',
+    });
+    const call = calls[0];
+    expect(call?.url).toBe(
+      '/.netlify/functions' + apiRoutes.importDocument + '?fileName=field-notes.pdf&format=pdf',
+    );
+    expect(call?.init?.method).toBe('POST');
+    expect(call?.init?.body).toBe(file);
+  });
+
+  it('rejects unsupported formats client-side without any fetch call (415-equivalent guard)', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: {} }));
+    const file = new File(['notes'], 'notes.md', { type: 'text/markdown' });
+    const error = await importDocument(file).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect((error as ApiClientError).message).toMatch(/Only PDF, DOCX and TXT/);
+    expect((error as ApiClientError).message).toMatch(/Nothing was uploaded/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rejects oversized files client-side without any fetch call (413-equivalent guard)', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: {} }));
+    const error = await importDocument(makePdf('huge.pdf', MAX_IMPORT_BYTES + 1)).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect((error as ApiClientError).message).toMatch(/10 MB/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('413/415/400 surface as typed ApiHttpError carrying the server status', async () => {
+    for (const status of [400, 413, 415]) {
+      stubFetch(() => ({ status, body: { error: 'rejected' } }));
+      const error = await importDocument(makePdf()).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiHttpError);
+      expect((error as ApiHttpError).status).toBe(status);
+    }
+  });
+
+  it('404/501 resolve to available:false — import not wired is not an error', async () => {
+    stubFetch(() => ({ status: 404 }));
+    await expect(importDocument(makePdf())).resolves.toEqual({
+      available: false,
+      reason: 'endpoint-missing',
+    });
+    stubFetch(() => ({ status: 501 }));
+    await expect(importDocument(makePdf())).resolves.toEqual({
+      available: false,
+      reason: 'not-implemented',
+    });
+  });
+
+  it('refuses to fabricate ids from an ambiguous success payload', async () => {
+    stubFetch(() => ({ status: 200, body: { note: 'registered?' } }));
+    await expect(importDocument(makePdf())).rejects.toBeInstanceOf(ApiClientError);
+  });
+});
+
+describe('api client — start analysis (M4)', () => {
+  it('POSTs {documentVersionId} as JSON to /analyze and returns the real runId', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: { runId: 'run-77' } }));
+    const result = await startAnalysis('ver-demo-manuscript-v1');
+    expect(result).toEqual({ started: true, runId: 'run-77' });
+    const call = calls[0];
+    expect(call?.url).toBe('/.netlify/functions' + apiRoutes.analyze);
+    expect(call?.init?.method).toBe('POST');
+    expect(call?.init?.body).toBe(
+      JSON.stringify({ documentVersionId: 'ver-demo-manuscript-v1' }),
+    );
+    expect((call?.init?.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+  });
+
+  it('422 content-not-stored parses into the distinct honest outcome — disclosure verbatim, not a generic error', async () => {
+    stubFetch(() => ({
+      status: 422,
+      body: { error: 'content-not-stored', disclosure: 'No stored text for this version.' },
+    }));
+    const result = await startAnalysis('ver-registered-only');
+    expect(result).toEqual({
+      started: false,
+      reason: 'content-not-stored',
+      disclosure: 'No stored text for this version.',
+    });
+  });
+
+  it('a 422 without the content-not-stored marker stays a typed HTTP error (no guessing)', async () => {
+    stubFetch(() => ({ status: 422, body: { error: 'something-else' } }));
+    const error = await startAnalysis('ver-1').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiHttpError);
+    expect((error as ApiHttpError).status).toBe(422);
+  });
+
+  it('5xx throws so the UI can say the analysis API is unavailable', async () => {
+    stubFetch(() => ({ status: 503, body: { error: 'down' } }));
+    const error = await startAnalysis('ver-1').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiHttpError);
+    expect((error as ApiHttpError).status).toBe(503);
+  });
+
+  it('a 2xx without runId refuses to fabricate one', async () => {
+    stubFetch(() => ({ status: 200, body: { started: 'sure' } }));
+    await expect(startAnalysis('ver-1')).rejects.toBeInstanceOf(ApiClientError);
+  });
+});
+
+describe('api client — analysis status + document detail (M4 routes)', () => {
+  it('getAnalysisStatus GETs /analyze-status?runId= and parses status/stage', async () => {
+    const calls = stubFetch(() => ({
+      status: 200,
+      body: { runId: 'run-1', status: 'pending', stage: 'file_selected' },
+    }));
+    const result = await getAnalysisStatus('run-1');
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.data).toEqual({ runId: 'run-1', status: 'pending', stage: 'file_selected' });
+    }
+    expect(calls[0]?.url).toBe(
+      '/.netlify/functions' + apiRoutes.analysisStatus + '?runId=run-1',
+    );
+  });
+
+  it('getAnalysisStatus tolerates 404/501 as available:false', async () => {
+    stubFetch(() => ({ status: 404 }));
+    await expect(getAnalysisStatus('run-1')).resolves.toEqual({
+      available: false,
+      reason: 'endpoint-missing',
+    });
+    stubFetch(() => ({ status: 501 }));
+    await expect(getAnalysisStatus('run-1')).resolves.toEqual({
+      available: false,
+      reason: 'not-implemented',
+    });
+  });
+
+  it('getDocumentDetail GETs /document-detail?id= and parses detail fields', async () => {
+    const calls = stubFetch(() => ({
+      status: 200,
+      body: {
+        id: 'doc-demo-manuscript',
+        title: 'Guided demo manuscript',
+        format: 'pdf',
+        versionId: 'ver-demo-manuscript-v1',
+        isSynthetic: true,
+        syntheticLabel: 'FICTIONAL / GUIDED DEMO',
+        contentStored: true,
+        sourceHash: 'hash-1',
+      },
+    }));
+    const result = await getDocumentDetail('doc-demo-manuscript');
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.data.isSynthetic).toBe(true);
+      expect(result.data.syntheticLabel).toBe('FICTIONAL / GUIDED DEMO');
+      expect(result.data.contentStored).toBe(true);
+      expect(result.data.sourceHash).toBe('hash-1');
+    }
+    expect(calls[0]?.url).toBe(
+      '/.netlify/functions' + apiRoutes.documentDetail + '?id=doc-demo-manuscript',
+    );
+  });
+
+  it('getDocumentDetail 404 resolves available:false (endpoint-missing)', async () => {
+    stubFetch(() => ({ status: 404 }));
+    await expect(getDocumentDetail('doc-x')).resolves.toEqual({
+      available: false,
+      reason: 'endpoint-missing',
+    });
   });
 });
