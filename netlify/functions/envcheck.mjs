@@ -1,16 +1,16 @@
 /**
  * Temporary diagnostic: GET /.netlify/functions/envcheck
- * Reports ONLY the NAMES of relevant env vars present in the function runtime.
- * Never returns values. Removed/reduced once backend wiring (M2) lands.
+ * Names/count only — never values. Reports total env key count and a few pagination-safe signs
+ * so we can distinguish "no runtime injection at all" from "scope semantics".
  */
-const KEYS = ['FALKORDB_HOST', 'FALKORDB_PORT', 'FALKORDB_USER', 'FALKORDB_PASSWORD', 'FALKORDB_GRAPH_NAME', 'SEED_SECRET', 'NODE_VERSION'];
+const SIGNIFICANT = ['NODE_VERSION', 'AWS_LAMBDA_FUNCTION_NAME', 'NETLIFY', 'FALKORDB_HOST', 'FALKORDB_USER', 'SEED_SECRET'];
 
 export default async function handler() {
-  const present = KEYS.filter((k) => typeof process.env[k] === 'string' && process.env[k].length > 0);
+  const keys = Object.keys(process.env);
   return Response.json({
     ok: true,
     service: 'aftershock-demo',
-    envKeysPresent: present,
-    envKeysMissing: KEYS.filter((k) => !present.includes(k)),
+    envKeyCount: keys.length,
+    significant: SIGNIFICANT.reduce((acc, k) => ({ ...acc, [k]: keys.includes(k) }), {}),
   });
 }
