@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+  }
+
+  /*
+   * WCAG 2.2 AA: every interactive element gets a visible, offset focus ring.
+   * Same hue as brand navigation; the tofu-inset outline keeps it legible
+   * on cream and on white surfaces alike.
+   */
+  :focus-visible {
+    outline: 2px solid theme(colors.brand.DEFAULT);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+/* Reduced-motion: the shell barely animates, but never let it start. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
