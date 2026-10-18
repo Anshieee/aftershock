@@ -8,13 +8,19 @@
  * Response shape is contractual (docs/DATA_CONTRACTS.md §5): all JSON.
  */
 
-const version = '0.1.0';
+let version = '0.1.0';
+try {
+  // Single source of truth is package.json; fall back silently if unavailable.
+  const pkg = await import('../../package.json', { with: { type: 'json' } });
+  version = pkg.default.version ?? version;
+} catch {
+  /* keep fallback */
+}
 
 export default async function handler() {
   return Response.json({
     ok: true,
     service: 'aftershock-demo',
-    graph: 'not-configured',
-    version,
+    graph: 'not-configured',    version,
   });
 }
