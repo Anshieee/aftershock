@@ -155,6 +155,7 @@ export function deriveDemoImpact(overview: GraphOverview): DemoImpact {
 
   // §7.2: historical mentions of the same publication must NOT flag their claim.
   const historical: HistoricalItem[] = [];
+  const historicalClaimIds = new Set<string>(); // dedupe: one entry per claim node
   for (const edge of edges) {
     if (!isEdgeOfType(edge, 'MENTIONS_HISTORICALLY')) continue;
     const citationUse = nodeById.get(edge.fromId);
@@ -164,6 +165,11 @@ export function deriveDemoImpact(overview: GraphOverview): DemoImpact {
     if (affectedClaimIds.has(claim.id)) continue; // integrity guard
     const publicationId = referencesPublication.get(citationUse.id);
     if (!publicationId || !verifiedPublications.has(publicationId)) continue;
+    // Dedupe by claim node id (keep first occurrence, deterministic edge order):
+    // two historical citation uses may both hit the same claim, and the
+    // results list keys on this id — a duplicate would collide its React key.
+    if (historicalClaimIds.has(claim.id)) continue;
+    historicalClaimIds.add(claim.id);
     historical.push({
       id: claim.id,
       text: optionalText(claim, ['text', 'excerpt']),
@@ -174,12 +180,18 @@ export function deriveDemoImpact(overview: GraphOverview): DemoImpact {
 
   // §7.1 step 4: conclusions depending on a flagged claim inherit an
   // indirect review requirement — never automatic falsity.
+  const affectedConclusionIds = new Set<string>(); // dedupe: one entry per conclusion node
   for (const edge of edges) {
     if (!isEdgeOfType(edge, 'CONCLUSION_DEPENDS_ON_CLAIM')) continue;
     const conclusion = nodeById.get(edge.fromId);
     const claim = nodeById.get(edge.toId);
     if (!conclusion || conclusion.kind !== 'Conclusion') continue;
     if (!claim || !affectedClaimIds.has(claim.id)) continue;
+    // Dedupe by conclusion node id (keep first occurrence, deterministic edge
+    // order): a conclusion depending on two flagged claims must surface once,
+    // because the results list keys on this id.
+    if (affectedConclusionIds.has(conclusion.id)) continue;
+    affectedConclusionIds.add(conclusion.id);
     const publicationId =
       affected.find((item) => item.kind === 'claim' && item.id === claim.id)?.viaPublicationId ??
       '';

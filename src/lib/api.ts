@@ -74,6 +74,21 @@ export class ApiHttpError extends ApiClientError {
   }
 }
 
+/**
+ * A 2xx answer carrying a non-JSON document body (content-type other than
+ * `application/json`, e.g. the SPA fallback `/* → /index.html` shading a
+ * function that is not deployed). Endpoint-missing — NOT unseeded, NOT a
+ * failed probe with a derivable state: nothing about the workspace may be
+ * inferred from it, so callers either report "not available yet" or an
+ * unknown-status error, never a guessed status.
+ */
+export class ApiUnavailableError extends ApiClientError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'ApiUnavailableError';
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Outcomes for endpoints that may honestly not exist yet
  * (import/document/analyze graph routes land in later waves). Per the
@@ -188,11 +203,26 @@ async function request({ path, init, options, notAvailableStatuses = [] }: Fetch
     throw new ApiHttpError(response.status, `API responded with HTTP ${response.status}`);
   }
 
+  // 2xx: JSON is the only acceptable data shape. Classify non-JSON bodies by
+  // Content-Type: a non-JSON document (typically the SPA fallback shading an
+  // undeployed function) is "endpoint unavailable"; an unparseable body that
+  // at least claims to be JSON keeps the honest malformed-payload error.
+  const contentType = response.headers.get('content-type')?.trim().toLowerCase() ?? '';
+  const isJsonContentType = contentType.split(';')[0]?.trim() === 'application/json';
   const text = await response.text();
   let parsed: unknown;
+  let parseFailed = false;
   try {
     parsed = JSON.parse(text);
   } catch {
+    parseFailed = true;
+  }
+  if (parseFailed) {
+    if (!isJsonContentType) {
+      throw new ApiUnavailableError(
+        'The API answered 2xx with a non-JSON page (likely the site fallback) — the endpoint is not available here.',
+      );
+    }
     throw new ApiClientError('API returned a non-JSON body with a success status');
   }
   return parsed;
@@ -249,6 +279,14 @@ export async function getSeedStatus(options?: RequestOptions): Promise<SeedStatu
   try {
     data = await request({ path: apiRoutes.graphProbe, options });
   } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      // HTML-shaded 2xx (function not deployed): seed status is UNKNOWN.
+      // Never exists:false — endpoint-missing is not unseeded.
+      throw new ApiUnavailableError(
+        'Overview API is not available in this deployment (function missing) — seed status unknown.',
+        { cause: error },
+      );
+    }
     if (error instanceof ApiHttpError && error.status === 404) {
       return { exists: false };
     }
@@ -270,11 +308,24 @@ export interface DemoSeedResult {
 }
 
 export async function ensureDemoSeed(options?: RequestOptions): Promise<DemoSeedResult> {
-  const data = await request({
-    path: apiRoutes.demoSeed,
-    init: { method: 'POST' },
-    options,
-  });
+  let data: unknown;
+  try {
+    data = await request({
+      path: apiRoutes.demoSeed,
+      init: { method: 'POST' },
+      options,
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      // HTML-shaded 2xx on the POST path: classify as endpoint-missing —
+      // honest "nothing ran", never a seeded-looking success.
+      throw new ApiUnavailableError(
+        'Guided-demo seeding is not available in this deployment (function missing) — nothing ran.',
+        { cause: error },
+      );
+    }
+    throw error;
+  }
   if (!data || typeof data !== 'object') {
     throw new ApiClientError('Demo seed endpoint returned an unexpected payload');
   }
@@ -414,11 +465,21 @@ export async function getGraphOverview(
   if (params.depth !== undefined) search.set('depth', String(params.depth));
   const query = search.toString();
   const path = `${apiRoutes.graphEdges}${query ? `?${query}` : ''}`;
-  const data = await request({
-    path,
-    options,
-    notAvailableStatuses: [404, 501],
-  });
+  let data: unknown;
+  try {
+    data = await request({
+      path,
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      // SPA-shaded 2xx (function not deployed): same honest outcome as a
+      // missing endpoint — "not available yet", never an error, never data.
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
   return outcome(data, parseGraphOverview);
 }
 
@@ -460,11 +521,19 @@ function asObjectList(payload: unknown): Record<string, unknown>[] {
 }
 
 export async function getDemoDocuments(options?: RequestOptions): Promise<ApiOutcome<DocumentSummary[]>> {
-  const data = await request({
-    path: apiRoutes.documents,
-    options,
-    notAvailableStatuses: [404, 501],
-  });
+  let data: unknown;
+  try {
+    data = await request({
+      path: apiRoutes.documents,
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
   return outcome(data, (payload) =>
     asObjectList(payload).map((element, index) => ({
       id: stringField(element.id) ?? `document-${index}`,
@@ -493,11 +562,19 @@ export async function getAnalysisRun(
   runId: string,
   options?: RequestOptions,
 ): Promise<ApiOutcome<AnalysisRunInfo>> {
-  const data = await request({
-    path: apiRoutes.analysisRunStatus(runId),
-    options,
-    notAvailableStatuses: [404, 501],
-  });
+  let data: unknown;
+  try {
+    data = await request({
+      path: apiRoutes.analysisRunStatus(runId),
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
   return outcome(data, (payload) => {
     if (!payload || typeof payload !== 'object') {
       throw new ApiClientError('Analysis status endpoint returned an unexpected payload');

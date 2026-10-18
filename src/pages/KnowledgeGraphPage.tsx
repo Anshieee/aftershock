@@ -104,13 +104,14 @@ export default function KnowledgeGraphPage() {
           <h2 id="graph-missing-heading" className="font-display text-2xl text-ink">
             {state.reason === 'not-implemented'
               ? 'Graph queries are not implemented on this build yet'
-              : 'The demo graph is not seeded yet'}
+              : 'Graph queries are not available on this deployment yet'}
           </h2>
           <p className="mt-2 max-w-prose text-ink-muted">
             The knowledge-graph API did not return records, so there is nothing to draw.
             No placeholder nodes or decorative edges are shown — an empty graph reads as
-            an empty graph. Seed the guided demo from the landing page, or check the
-            service status in the sidebar/Overview.
+            an empty graph. The query function may be missing from this deployment, or
+            the demo graph is not seeded yet; seed it from the landing page, or check
+            the service status in the sidebar/Overview.
           </p>
           <Link
             to="/"
@@ -130,7 +131,7 @@ export default function KnowledgeGraphPage() {
           <h2 id="graph-failure-heading" className="text-lg font-semibold text-notice-text">
             Graph unavailable
           </h2>
-          <p className="mt-2 text-sm text-ink" data-testid="graph-failure-detail">
+          <p className="mt-2 text-base text-ink" data-testid="graph-failure-detail">
             {state.message} Nothing is rendered in place of real records.
           </p>
           <button
@@ -145,7 +146,7 @@ export default function KnowledgeGraphPage() {
 
       {state.phase === 'ready' && (
         <>
-          <p className="mt-2 max-w-prose text-sm text-ink-muted">
+          <p className="mt-2 max-w-prose text-base text-ink-muted">
             Every record below lives in the real graph store and is read live through the
             backend API (read-only from the browser). Fictional guided-demo records are
             labelled “FICTIONAL / GUIDED DEMO”; real bibliographic records are marked
@@ -153,7 +154,7 @@ export default function KnowledgeGraphPage() {
           </p>
 
           {nodes.length === 0 ? (
-            <p className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6 text-sm text-ink-muted" data-testid="graph-empty">
+            <p className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6 text-base text-ink-muted" data-testid="graph-empty">
               The graph API answered, but returned no records. An empty graph is shown as
               empty — nothing is illustrated with placeholder structure.
             </p>

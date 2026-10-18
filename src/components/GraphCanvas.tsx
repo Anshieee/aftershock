@@ -272,10 +272,9 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect }: Grap
       </svg>
 
       <p className="mt-2 text-xs text-ink-muted">
-        Arrows point from source to target record. Dashed outlines mark fictional/demo
-        entities (labelled “FICTIONAL / GUIDED DEMO” in the inspector); solid outlines mark
-        real bibliographic records. Nothing here is animated, and the layout always shows
-        exactly the records the server returned.
+        Arrows point from source to target record; node outlines carry the dashed/solid
+        encoding explained in the legend. Nothing here is animated, and the layout always
+        shows exactly the records the server returned.
       </p>
     </div>
   );
@@ -310,6 +309,42 @@ export function GraphLegend(): ReactNode {
             <line x1="1" y1="5" x2="27" y2="5" className="stroke-reviewed-default fill-none" strokeWidth="2" />
           </svg>
           Human-reviewed (reserved — none recorded in this build)
+        </li>
+      </ul>
+
+      {/* Node outline encodings — the legend alone explains every visual style. */}
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-ink">
+        Node outlines
+      </p>
+      <ul className="mt-1 grid gap-x-4 gap-y-1 sm:grid-cols-2">
+        <li className="flex items-center gap-2">
+          <svg aria-hidden="true" width="28" height="12" viewBox="0 0 28 12">
+            <rect
+              x="1"
+              y="1"
+              width="26"
+              height="10"
+              rx="3"
+              className="stroke-ink-muted fill-none"
+              strokeWidth="1.5"
+              strokeDasharray="4 3"
+            />
+          </svg>
+          Dashed outline — fictional / guided-demo entity (marked “FICTIONAL / GUIDED DEMO”)
+        </li>
+        <li className="flex items-center gap-2">
+          <svg aria-hidden="true" width="28" height="12" viewBox="0 0 28 12">
+            <rect
+              x="1"
+              y="1"
+              width="26"
+              height="10"
+              rx="3"
+              className="stroke-ink-muted fill-none"
+              strokeWidth="1.5"
+            />
+          </svg>
+          Solid outline — real bibliographic record
         </li>
       </ul>
       <p className="mt-1">

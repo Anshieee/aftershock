@@ -37,13 +37,20 @@ describe('KnowledgeGraphPage — renders exactly the records the API returned', 
     expect(screen.getByTestId('graph-node-claim-A')).toBeTruthy();
     expect(screen.getByTestId('graph-node-pub-mehra-2020')).toBeTruthy();
 
-    // Legend covers every relation family incl. the sage-reviewed reserve.
+    // Legend covers every relation family incl. the sage-reviewed reserve,
+    // plus the node outline encodings (dashed fictional vs solid real).
     const legend = screen.getByTestId('graph-legend').textContent ?? '';
     expect(legend).toContain('Direct support');
     expect(legend).toContain('Historical mention');
     expect(legend).toContain('Possible match — unverified');
     expect(legend).toContain('Verified status notice');
     expect(legend).toContain('Human-reviewed');
+    expect(legend).toContain('Node outlines');
+    expect(legend).toContain('Dashed outline');
+    expect(legend).toContain('fictional / guided-demo entity');
+    expect(legend).toContain('FICTIONAL / GUIDED DEMO');
+    expect(legend).toContain('Solid outline');
+    expect(legend).toContain('real bibliographic record');
 
     // Text-accurate records list is present (screen-reader equivalent).
     expect(screen.getByTestId('graph-edges-list').textContent).toContain(
@@ -66,6 +73,11 @@ describe('KnowledgeGraphPage — renders exactly the records the API returned', 
     expect(inspector.textContent).toMatch(/Type\s*Claim/);
     expect(inspector.textContent).toMatch(/Provenance\s*observed/);
     expect(inspector.textContent).toContain('FICTIONAL / GUIDED DEMO');
+    // Synthetic records use the neutral-uncertain annotation color — never
+    // the review-amber reserved for "needs human review" requests.
+    const syntheticNote = screen.getByTestId('inspector-synthetic');
+    expect(syntheticNote.className).toContain('text-uncertain-text');
+    expect(syntheticNote.className).not.toContain('text-review-');
     // Connected edges are shown with relation type + provenance.
     expect(inspector.textContent).toContain('CONCLUSION_DEPENDS_ON_CLAIM');
   });
@@ -76,7 +88,9 @@ describe('KnowledgeGraphPage — renders exactly the records the API returned', 
 
     await waitFor(() => expect(screen.getByTestId('graph-missing')).toBeTruthy());
     expect(screen.queryByTestId('graph-canvas')).toBeNull();
-    expect(screen.getByTestId('graph-missing').textContent).toMatch(/not seeded yet|not implemented/i);
+    expect(screen.getByTestId('graph-missing').textContent).toMatch(
+      /not seeded yet|not implemented|not available on this deployment/i,
+    );
     expect(screen.getByTestId('graph-missing').textContent).toMatch(
       /placeholder nodes or decorative edges/i,
     );

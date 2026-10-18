@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ApiClientError,
   ApiHttpError,
   ApiNetworkError,
   ApiTimeoutError,
+  ApiUnavailableError,
   getSeedStatus,
   type SeedStatus,
 } from '../lib/api';
@@ -14,7 +14,7 @@ type ProbeState =
   | { phase: 'checking' }
   | { phase: 'seeded'; status: SeedStatus }
   | { phase: 'empty'; status: SeedStatus }
-  | { phase: 'failure'; message: string };
+  | { phase: 'failure'; detail: string };
 
 /**
  * Overview — one attention card, not a KPI dashboard (handoff §5):
@@ -40,18 +40,20 @@ export default function OverviewPage() {
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        // 5xx / network / parse problems are distinct from "no seed".
-        const message =
-          error instanceof ApiTimeoutError
-            ? 'The seed status check timed out after 10 seconds.'
-            : error instanceof ApiHttpError
-              ? `The seed status check failed with HTTP ${error.status}.`
-              : error instanceof ApiNetworkError
-                ? 'The seed status check could not reach the API.'
-                : error instanceof ApiClientError
-                  ? error.message
-                  : 'The seed status check failed unexpectedly.';
-        setProbe({ phase: 'failure', message });
+        // 5xx / network / parse / availability problems each carry a typed,
+        // human-readable detail. Never credentials, URLs or raw jargon —
+        // and never a guessed workspace state instead of the failure.
+        const detail =
+          error instanceof ApiUnavailableError
+            ? 'Function missing in this deployment (received HTML instead of JSON).'
+            : error instanceof ApiTimeoutError
+              ? 'The seed status check timed out after 10 seconds.'
+              : error instanceof ApiHttpError
+                ? `API answered with HTTP ${error.status}.`
+                : error instanceof ApiNetworkError
+                  ? 'The seed status check could not reach the API.'
+                  : 'The response could not be read as graph state.';
+        setProbe({ phase: 'failure', detail });
       });
     return () => controller.abort();
   }, []);
@@ -106,12 +108,18 @@ export default function OverviewPage() {
         </p>
       ) : probe.phase === 'failure' ? (
         <p
-          className="mt-6 rounded border border-notice-border bg-notice-surface px-3 py-2 text-sm text-ink"
+          className="mt-6 rounded border border-notice-border bg-notice-surface px-3 py-2 text-base text-ink"
           role="note"
           data-testid="overview-probe-failure"
         >
-          {probe.message} The workspace cannot confirm seed status, so no
-          “continue your work” card is shown — status is never guessed.
+          <span className="block font-medium">
+            Seed status can’t be confirmed right now — the overview API didn’t respond.
+          </span>
+          <span className="mt-1 block text-sm text-ink-muted">{probe.detail}</span>
+          <span className="mt-1 block text-sm text-ink-muted">
+            The workspace cannot confirm seed status, so no “continue your work” card is
+            shown — status is never guessed.
+          </span>
         </p>
       ) : (
         <section
@@ -146,7 +154,7 @@ export default function OverviewPage() {
         </section>
       )}
 
-      <p className="mt-4 max-w-prose text-sm text-ink-muted">
+      <p className="mt-4 max-w-prose text-base text-ink-muted">
         The status chip above queries the platform’s real{' '}
         <code className="rounded bg-paper-deep px-1">/health</code> endpoint; the card
         above reflects the real <code className="rounded bg-paper-deep px-1">/graph/probe</code>{' '}

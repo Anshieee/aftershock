@@ -46,6 +46,22 @@ it('reports API: unavailable when the endpoint answers with an error status', as
   );
 });
 
+it('reports API: unavailable when a 2xx HTML page shades the endpoint — never online', async () => {
+  stubFetch(() =>
+    Promise.resolve(
+      new Response('<!doctype html><div id="root"></div>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    ),
+  );
+  render(<ServiceStatusChip />);
+  await waitFor(() =>
+    expect(screen.getByTestId('service-status').textContent).toMatch(/^API: unavailable$/),
+  );
+  expect(screen.getByTestId('service-status').textContent).not.toMatch(/online/);
+});
+
 it('only ever queries the real health endpoint', async () => {
   const mock = vi.fn((_url: unknown) =>
     Promise.resolve(new Response('{"ok":true}', { status: 200 })),

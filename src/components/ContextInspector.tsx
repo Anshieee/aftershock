@@ -77,7 +77,7 @@ export default function ContextInspector({ node, edges, onClose }: ContextInspec
           <dt className="font-medium text-ink-muted">Source</dt>
           <dd className="text-ink">
             {node.isSynthetic === true ? (
-              <span className="font-medium text-review-text" data-testid="inspector-synthetic">
+              <span className="font-medium text-uncertain-text" data-testid="inspector-synthetic">
                 FICTIONAL / GUIDED DEMO
               </span>
             ) : node.isSynthetic === false ? (
