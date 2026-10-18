@@ -60,6 +60,8 @@ export interface DemoImpact {
   nodeCount: number;
   edgeCount: number;
   seedVersion?: string;
+  /** Title of the manuscript under investigation, if recorded in the returned graph. */
+  manuscriptTitle?: string;
   verifiedNotices: VerifiedNoticeItem[];
   affected: AffectedItem[];
   historical: HistoricalItem[];
@@ -89,6 +91,10 @@ function optionalText(node: GraphNode, keys: string[]): string | undefined {
  */
 export function deriveDemoImpact(overview: GraphOverview): DemoImpact {
   const { nodes, edges } = overview;
+
+  const manuscriptNode = nodes.find((node) => node.kind === 'ResearchDocument');
+  const manuscriptTitle =
+    manuscriptNode ? optionalText(manuscriptNode, ['title']) : undefined;
 
   const nodeById = new Map<string, GraphNode>(nodes.map((node) => [node.id, node]));
 
@@ -248,6 +254,7 @@ export function deriveDemoImpact(overview: GraphOverview): DemoImpact {
     nodeCount: nodes.length,
     edgeCount: edges.length,
     seedVersion: overview.seedVersion,
+    manuscriptTitle,
     verifiedNotices,
     affected,
     historical,

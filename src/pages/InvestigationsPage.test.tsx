@@ -65,7 +65,7 @@ describe('InvestigationsPage — one real investigation card from real graph dat
     expect(screen.getByTestId('investigations-seed-info').textContent).toContain('seedVersion seed-1');
 
     // Detail link targets the real results route.
-    const resultsLink = screen.getByRole('link', { name: 'Open guided results' });
+    const resultsLink = screen.getByRole('link', { name: 'Open investigation' });
     expect(resultsLink.getAttribute('href')).toBe('/results');
     const queueLink = screen.getByRole('link', { name: 'Review Queue' });
     expect(queueLink.getAttribute('href')).toBe('/review-queue');
