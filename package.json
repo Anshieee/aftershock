@@ -1,0 +1,14 @@
+{
+  "name": "aftershock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "FalkorDB cloud-hosted backend powered by instance-ky5pnxl21 (ap-south-1)",
+  "scripts": {
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "falkordb": "^6.2.7"
+  }
+}
