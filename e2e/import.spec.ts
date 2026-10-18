@@ -303,13 +303,20 @@ test.describe('M4 import flow', () => {
         // the system of record; a 2xx upload must surface in it). Honest
         // alternatives: a typed error region, or an honestly unavailable
         // documents listing. Fabricated rows/sizes are never accepted.
+        //
+        // The free-tier graph can take a moment to propagate the imported
+        // document to the /documents read surface. Poll for the row rather
+        // than a one-shot check so transient graph lag doesn't fail the test.
         await page.goto('/library');
-        const rowVisible = await page
-          .locator('main')
-          .getByText(fileName)
-          .first()
-          .isVisible()
-          .catch(() => false);
+        const rowLocator = page.locator('main').getByText(fileName).first();
+        let rowVisible = false;
+        try {
+          await rowLocator.waitFor({ state: 'visible', timeout: 10_000 });
+          rowVisible = true;
+        } catch {
+          // Row did not appear within the poll window — fall through to
+          // the honest-state check below.
+        }
         if (rowVisible) {
           await assertSuccessRow(page, fileName, realBytes);
         } else {
