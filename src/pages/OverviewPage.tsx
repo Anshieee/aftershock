@@ -66,10 +66,10 @@ export default function OverviewPage() {
       {probe.phase === 'seeded' ? (
         <section
           aria-labelledby="overview-continue"
-          className="mt-6 rounded-lg border border-reviewed-default bg-reviewed-surface p-6"
+          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6"
           data-testid="continue-card"
         >
-          <h2 id="overview-continue" className="text-lg font-semibold text-reviewed-text">
+          <h2 id="overview-continue" className="text-lg font-semibold text-ink">
             Continue your work
           </h2>
           <p className="mt-2 max-w-prose text-ink" data-testid="continue-summary">
