@@ -39,6 +39,20 @@ const FABRICATED = /lorem ipsum|placeholder (content|results|data)|coming soon|s
 const fileInput = (page: Page) => page.locator('main input[type="file"]').first();
 
 /**
+ * Wave U1: the document picker lives in the collapsible document area on
+ * the landing page. Opens it before any interaction with `#import-input`.
+ * Idempotent by contract: if the area is already open
+ * (aria-expanded="true") it never toggles a second time.
+ */
+async function openDocumentPicker(page: Page) {
+  const toggle = page.locator('[data-testid="choose-document-toggle"]');
+  await expect(toggle).toBeAttached();
+  if ((await toggle.getAttribute('aria-expanded')) === 'true') return;
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+
+/**
  * Resolves which Library state production currently serves.
  * Returns 'panel' when a real upload surface is present, 'placeholder'
  * for the honest under-construction empty area.
@@ -189,8 +203,10 @@ test.describe('M4 import flow', () => {
   test('client-side format guard: a disallowed file type never triggers an upload request', async ({
     page,
   }) => {
-    // The ImportPanel lives on the landing page in the integrated build.
+    // The ImportPanel lives on the landing page in the integrated build —
+    // inside the collapsible document area (Wave U1).
     await page.goto('/');
+    await openDocumentPicker(page);
     const input = page.locator('[data-testid="import-input"]');
     await expect(input).toBeAttached();
 
@@ -228,8 +244,10 @@ test.describe('M4 import flow', () => {
   test('client-side size guard: an oversized file never triggers an upload request', async ({
     page,
   }) => {
-    // The ImportPanel lives on the landing page in the integrated build.
+    // The ImportPanel lives on the landing page in the integrated build —
+    // inside the collapsible document area (Wave U1).
     await page.goto('/');
+    await openDocumentPicker(page);
     const input = page.locator('[data-testid="import-input"]');
     await expect(input).toBeAttached();
 
@@ -270,8 +288,10 @@ test.describe('M4 import flow', () => {
     test(`${label} fixture: success row with real metadata, or typed honest error`, async ({
       page,
     }) => {
-      // The ImportPanel lives on the landing page in the integrated build.
+      // The ImportPanel lives on the landing page in the integrated build —
+      // inside the collapsible document area (Wave U1).
       await page.goto('/');
+      await openDocumentPicker(page);
       const input = page.locator('[data-testid="import-input"]');
       await expect(input).toBeAttached();
 
@@ -381,6 +401,7 @@ test.describe('M4 import flow', () => {
       });
 
       await page.goto('/');
+      await openDocumentPicker(page);
       const input = page.locator('[data-testid="import-input"]');
       await expect(input).toBeAttached();
 
@@ -431,6 +452,7 @@ test.describe('M4 import flow', () => {
       });
 
       await page.goto('/');
+      await openDocumentPicker(page);
       const input = page.locator('[data-testid="import-input"]');
       await expect(input).toBeAttached();
       await input.setInputFiles({
@@ -461,6 +483,7 @@ test.describe('M4 import flow', () => {
       });
 
       await page.goto('/');
+      await openDocumentPicker(page);
       const input = page.locator('[data-testid="import-input"]');
       await expect(input).toBeAttached();
       await input.setInputFiles({

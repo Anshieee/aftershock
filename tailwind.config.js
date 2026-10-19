@@ -3,31 +3,35 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // Frozen design-of-record palette
+      // (docs/design/2026-10-19-redesign-spec.md §1). Changed values from the
+      // 2026-10-19 audit are applied verbatim; reviewed.* and uncertain.*
+      // already match the brief and stay untouched.
       colors: {
         paper: {
-          DEFAULT: '#FBF7EF',
-          deep: '#F3ECDD',
+          DEFAULT: '#F7F3EA',
+          deep: '#F1EBDC',
           raised: '#FFFFFF',
         },
         ink: {
-          DEFAULT: '#2B2922',
-          muted: '#5B5748',
-          border: '#DAD2C0',
+          DEFAULT: '#27283B',
+          muted: '#5B5C6D',
+          border: '#DFD8C9',
         },
         brand: {
-          DEFAULT: '#52489C',
-          deep: '#40377B',
-          surface: '#EDEBF6',
+          DEFAULT: '#665C91',
+          deep: '#524A78',
+          surface: '#DED6FA',
         },
         review: {
           text: '#8A5A05',
-          surface: '#FBEFD4',
-          border: '#E1C98F',
+          surface: '#F9F0DC',
+          border: '#E9B867',
         },
         notice: {
-          text: '#8F3535',
-          surface: '#F6E4E3',
-          border: '#E3BBB8',
+          text: '#8F3B36',
+          surface: '#F7E7E4',
+          border: '#E5C0BB',
         },
         uncertain: {
           text: '#3D5C86',

@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
  * menu that could hide IA (or vanish entirely).
  */
 
-const PRIMARY_AREAS = ['Overview', 'Investigations', 'Library', 'Review Queue', 'Activity'];
+const PRIMARY_AREAS = ['Home', 'Investigations', 'Library', 'Review Queue', 'Activity'];
 
 test('exactly five primary sidebar areas', async ({ page }) => {
   await page.goto('/');

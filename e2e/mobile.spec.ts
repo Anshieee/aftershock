@@ -65,14 +65,17 @@ test('landing: no overflow, nav reachable by touch, primary action in viewport',
     await assertNoHorizontalOverflow(page);
     await assertNavReachable(page);
 
-    // The primary import affordance is reachable by vertical scrolling —
-    // no horizontal scrolling needed.
+    // The import affordance is inside the collapsible document area
+    // (Wave U1): expand the picker first, then it must be reachable by
+    // pure vertical scrolling — no horizontal scrolling needed.
+    await page.getByTestId('choose-document-toggle').click();
     const choose = page.getByTestId('import-panel').locator('label[for="import-input"]').first();
     await assertVerticallyReachable(page, choose);
 
-    // Touch usability: a nav link actually navigates on tap.
-    await page.locator('nav[aria-label="Primary"] a', { hasText: 'Overview' }).tap();
-    await expect(page).toHaveURL(/\/overview$/);
+    // Touch usability: a nav link actually navigates on tap. The sidebar
+    // entry was renamed Overview → Home (Wave U1); Home points at '/'.
+    await page.locator('nav[aria-label="Primary"] a', { hasText: 'Home' }).tap();
+    await expect(page).toHaveURL(/\/$/);
   }
 });
 
