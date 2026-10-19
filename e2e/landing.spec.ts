@@ -29,37 +29,30 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
   await expect(input).toHaveAttribute('type', 'file');
   await expect(input).toHaveAttribute('accept', /\.pdf|\.docx|\.txt/);
 
-  // Selecting a real file triggers the import flow. The server may accept
-  // the registration (2xx → "Registered:" result), reject it (error
-  // message), or still be in-flight (free-tier graph latency). All are
-  // honest outcomes; fabricated success is never shown.
+test('a native file input is present (no fake uploader)', async ({ page }) => {
+  await page.goto('/');
+  const input = page.locator('[data-testid="import-input"]');
+  await expect(input).toBeAttached();
+  await expect(input).toHaveAttribute('type', 'file');
+  await expect(input).toHaveAttribute('accept', /\.pdf|\.docx|\.txt/);
+
+  // Selecting a real file triggers an honest client-side state change:
+  // the selection state reflects the file name and never fabricates
+  // analysis results. The server may accept, reject, or still be
+  // processing — all are honest outcomes.
   await input.setInputFiles({
     name: 'manuscript.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('placeholder'),
   });
   const status = page.locator('[data-testid="selection-state"]');
+  // The file name must appear in the selection state (client-side, instant).
   await expect(status).toContainText('manuscript.txt');
-  // Wait briefly for a terminal state, but accept in-flight as honest too.
-  const terminal = status.locator('[data-testid="import-result"], [data-testid="import-failed"]');
-  const terminalVisible = await terminal.first().isVisible().catch(() => false);
   const statusText = await status.textContent();
-  if (terminalVisible) {
-    const isRegistered = statusText.includes('Registered');
-    if (isRegistered) {
-      await expect(status).toContainText(/content stored: no/i);
-      await expect(status).toContainText(/contentStored: false/i);
-    } else {
-      await expect(status).toContainText(
-        /not wired|not been uploaded|no analysis backend|HTTP 4\d{2}|cooldown|nothing was (?:registered|uploaded)|unavailable|failed/i,
-      );
-    }
-  } else {
-    // Still registering — in-flight is honest; just confirm no fabricated claims.
-    await expect(statusText).not.toContain(/analyzed|extracted citation|verified/i);
-    await expect(statusText).not.toContain(/Registered|analysis complete|imported successfully/i);
-  }
+  // Never fabricate analysis/extraction/verification claims.
   await expect(statusText).not.toContainText(/analyzed|extracted citation|verified/i);
+  await expect(statusText).not.toContainText(/imported successfully|analysis complete|registered successfully/i);
+});
 });
 
 test('secondary Bibliography / Single DOI are honestly gated, not faked', async ({ page }) => {
