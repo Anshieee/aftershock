@@ -51,6 +51,14 @@ describe('buildSeedPlan — batching', () => {
     expect(allBatchIds).not.toContain(FIXTURE_IDS.seedMeta);
   });
 
+  it('stores fixtureId as the plain fixture string, never display-quoted', () => {
+    // Regression: fixtureId previously went through the error-message display
+    // helper str(), which JSON-quotes strings — the graph received
+    // '"aftershock-demo-fixture"' (with literal quotes) instead of the value.
+    expect(plan.metaNode.fixtureId).toBe('aftershock-demo-fixture');
+    expect(plan.metaNode.fixtureId).not.toContain('"');
+  });
+
   it('serializes structural values into JSON strings (FalkorDB stores primitives/arrays only)', () => {
     const refRows = plan.nodesByLabel.get('ReferenceOccurrence') ?? [];
     expect(refRows).toHaveLength(1);

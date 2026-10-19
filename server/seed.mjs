@@ -134,7 +134,10 @@ export function buildSeedPlan(fixture, { now = new Date() } = {}) {
   const metaNode = {
     id: FIXTURE_IDS.seedMeta,
     seedVersion: fixtureVersion,
-    fixtureId: str(fixture['@fixture'] ?? fixture.fixtureId ?? 'aftershock-demo-fixture'),
+    // Plain-string slots must NOT go through the display str() helper, which
+    // JSON-quotes strings for error messages (a value like "x" would be stored
+    // with literal quote characters). Coerce data values honestly instead.
+    fixtureId: coercePlainString(fixture['@fixture'] ?? fixture.fixtureId ?? 'aftershock-demo-fixture'),
     createdAt: nowIso,
     updatedAt: nowIso,
     provenanceKind: 'human_confirmed',
@@ -477,6 +480,19 @@ function str(value) {
   } catch {
     return String(value);
   }
+}
+
+/**
+ * Plain-string coercion for STORED DATA VALUES (unlike {@link str}, which is a
+ * display helper for error messages and JSON-quotes strings). Strings pass
+ * through verbatim; other types fall back to the display form rather than
+ * lying about the content.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function coercePlainString(value) {
+  if (typeof value === 'string') return value;
+  return str(value);
 }
 
 /**
