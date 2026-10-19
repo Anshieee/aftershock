@@ -23,7 +23,7 @@ function renderWithRoutes(initialPath = '/') {
 }
 
 describe('LandingPage (V5 editorial-statement experiment)', () => {
-  it('renders the editorial opening statement as the single h1, with the question line as a secondary standfirst — no wordmark in the hero', () => {
+  it('renders the editorial opening statement as the single h1, with the question line as a secondary standfirst', () => {
     renderWithRoutes();
 
     // One h1 only: the two-line display statement.
@@ -36,8 +36,25 @@ describe('LandingPage (V5 editorial-statement experiment)', () => {
     // standfirst beneath the display statement (now plain text, not the h1).
     expect(screen.getByText('What would you like to investigate?')).toBeTruthy();
     expect(screen.getByText('Follow the evidence. Understand what changed.')).toBeTruthy();
-    // The Aftershock. wordmark stays in the sidebar, never in the hero.
-    expect(screen.queryByText(/Aftershock\./)).toBeNull();
+  });
+
+  it('carries the exact brand contract in the folio header rail: wordmark “Aftershock.” + tagline “Trace the evidence.” + folio micro-label', () => {
+    renderWithRoutes();
+
+    // The brand rail (top of the asymmetric grid) renders the exact wordmark
+    // and the exact tagline — terminal period, no folio prefix bleeding into
+    // either string. Two page-body marks by design: the lg+ rail mark and the
+    // ≤lg mobile-start mark under the display statement (the Layout header
+    // mark is the shell's, outside this component).
+    const rail = screen.getByTestId('v5-folio-rail');
+    expect(rail.textContent).toContain('Aftershock.');
+    expect(screen.getByText('Trace the evidence.')).toBeTruthy();
+    expect(screen.getByText('N° 01')).toBeTruthy();
+    const marks = screen.getAllByText('Aftershock.');
+    expect(marks).toHaveLength(2);
+    expect(screen.getByTestId('v5-mobile-wordmark').textContent).toBe('Aftershock.');
+    // The tagline is never rendered with the folio number attached to it.
+    expect(screen.queryByText(/N° 01 — Trace the evidence/)).toBeNull();
   });
 
   it('exposes ONE primary seed trigger in the launcher column (no duplicated CTAs, no fake extras)', () => {
@@ -143,6 +160,10 @@ describe('LandingPage (V5 editorial-statement experiment)', () => {
     expect(hrefs).toEqual(
       ['investigations', 'library', 'review-queue', 'graph'].map((p) => `/${p}`),
     );
+    // Labels match the shell sidebar IA verbatim — same words, same routes.
+    expect(
+      links.map((a) => (a.textContent ?? '').replace(/\d+/g, '').trim()),
+    ).toEqual(['Investigations', 'Library', 'Review Queue', 'Knowledge Graph']);
   });
 
   it('renders the collapsed document area with the honestly disabled Bibliography/DOI row behind the toggle', () => {

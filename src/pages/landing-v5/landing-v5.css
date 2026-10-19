@@ -104,13 +104,17 @@
 }
 
 /*
- * Amber focus visibility for this page's interactive elements, per the
- * experiment brief (WCAG 2.2 AA, offset 2px, small radius). Overrides the
- * shell's indigo default inside this page's scope only.
+ * Focus visibility for this page's interactive elements (WCAG 2.2 AA,
+ * offset 2px, small radius). The visible ring is 2px of deep indigo
+ * #524A78 — the shell's `brand-deep` — which samples ≈7.3:1 against the
+ * paper #F7F3EA (the amber it replaces sampled ≈1.66:1 and failed to read
+ * as a ring). The experiment's amber #E9B867 survives only as a subtle
+ * inner halo inside the offset gap, never carrying the contrast itself.
  */
 .v5-focus:focus-visible {
-  outline: 2px solid #e9b867;
+  outline: 2px solid #524a78;
   outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(233, 184, 103, 0.45);
   border-radius: 2px;
 }
 

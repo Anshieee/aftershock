@@ -100,12 +100,27 @@ export default function LandingPage() {
 
   return (
     <div className="v5-root flex min-h-[calc(100svh-4rem)] flex-col">
-      {/* 1 — Folio frame: magazine chrome, hairline top rule, two margin
-          micro-labels. No wordmark in the hero (it stays in the sidebar). */}
-      <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-ink-border pt-2.5">
-        <p className="v5-micro text-ink-muted">
-          N° 01 <span aria-hidden="true">—</span> Trace the evidence
-        </p>
+      {/* 1 — Folio frame / brand rail: magazine chrome under a hairline top
+          rule. Carries the two exact brand strings — the `Aftershock.` wordmark
+          (the shell's `.wordmark` treatment: Bodoni Moda 900, tracked in) and
+          the tagline `Trace the evidence.` (exact sentence case, terminal
+          period) — with `N° 01` kept as a separate adjacent folio micro-label.
+          The wordmark sits in this rail from lg up; ≤lg the mobile-start block
+          under the display statement carries it instead, so the page body shows
+          the mark once per breakpoint (the Layout header mark is the shell's). */}
+      <div
+        data-testid="v5-folio-rail"
+        className="mt-2 flex items-baseline justify-between gap-4 border-t border-ink-border pt-2.5"
+      >
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="wordmark hidden text-[1.375rem] leading-none text-brand-deep lg:inline-block">
+            Aftershock.
+          </span>
+          <span className="v5-micro text-ink-muted">N° 01</span>
+          <span className="text-[13px] font-medium tracking-[0.02em] text-ink-muted">
+            Trace the evidence.
+          </span>
+        </div>
         <p className="v5-micro hidden text-ink-muted sm:block">
           Evidence integrity workspace
         </p>
@@ -132,9 +147,21 @@ export default function LandingPage() {
 
       {/* 3 — Asymmetric editorial grid: disciplined body copy left
           (~62%), launcher + folio index in the narrow right margin
-          column. Collapse to one column below lg. */}
+          column. Collapse to one column below lg.
+
+          ≤lg the launcher is ORDERED FIRST so the page's single primary
+          action lands right after the display statement — above the fold on a
+          390×844 phone — instead of under the long lede. lg+ restores source
+          order (order: 0), so the desktop grid, DOM order and tab order stay
+          exactly as they were. The DOM still reads lede → launcher → index, so
+          assistive tech keeps the original narrative sequence; keyboard focus
+          follows the visual order at ≤lg and no focusable element is skipped
+          or jumped over, because the relocated About block has none. */}
       <div className="mt-10 grid grid-cols-1 gap-x-12 gap-y-12 lg:mt-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,3fr)] lg:gap-x-16">
-        <section aria-label="About the workspace" className="max-w-prose">
+        <section
+          aria-label="About the workspace"
+          className="order-2 max-w-prose lg:order-none"
+        >
           <p className="text-lg leading-8 text-ink md:text-xl md:leading-9">
             Follow the evidence. Understand what changed.
           </p>
@@ -152,11 +179,23 @@ export default function LandingPage() {
         <section
           aria-labelledby="launcher-heading"
           data-testid="investigation-launcher"
-          className="lg:pt-1 lg:border-l lg:border-ink-border lg:pl-8"
+          className="order-1 lg:order-none lg:border-l lg:border-ink-border lg:pl-8 lg:pt-1"
         >
           <h2 id="launcher-heading" className="sr-only">
             Start an investigation
           </h2>
+          {/* MOBILE-START block (≤lg only): a compact brand + primary-action
+              pair placed directly under the display statement, so the first
+              screen of a 390×844 phone ends on an actionable element rather
+              than mid-paragraph. Small `Aftershock.` wordmark, then the ONE
+              dominant indigo CTA below it — the same real seed button the
+              launcher owns (never a second copy). */}
+          <p
+            data-testid="v5-mobile-wordmark"
+            className="wordmark mb-3 text-[1.25rem] leading-none text-brand-deep lg:hidden"
+          >
+            Aftershock.
+          </p>
           <p className="v5-micro text-brand-deep">Start here</p>
 
           {/* Testid hook kept for the legacy hero contract: this wrapper
@@ -311,14 +350,20 @@ export default function LandingPage() {
 
         {/* 5 — Folio destination index: the workspace areas as a numbered
             magazine table of contents, plain text links (no cards). */}
-        <nav aria-label="Workspace areas" className="lg:col-start-2">
+        <nav
+          aria-label="Workspace areas"
+          className="order-3 lg:order-none lg:col-start-2"
+        >
           <p className="v5-micro text-ink-muted">Destinations</p>
           <ol className="mt-3 flex flex-col divide-y divide-ink-border border-y border-ink-border">
             {[
+              // Labels match the shell sidebar IA verbatim (Layout.tsx), so
+              // the folio index and the nav say the same words for the same
+              // routes.
               { to: '/investigations', label: 'Investigations' },
-              { to: '/library', label: 'My Library' },
-              { to: '/review-queue', label: 'Review Claims' },
-              { to: '/graph', label: 'Evidence Graph' },
+              { to: '/library', label: 'Library' },
+              { to: '/review-queue', label: 'Review Queue' },
+              { to: '/graph', label: 'Knowledge Graph' },
             ].map((item, index) => (
               <li key={item.to}>
                 <Link

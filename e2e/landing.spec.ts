@@ -95,6 +95,53 @@ test('secondary Bibliography / Single DOI are honestly gated, not faked', async 
   await expect(page.getByText(/cannot detect passage-level claim dependencies/i)).toBeVisible();
 });
 
+test('brand contract: folio rail carries the exact “Aftershock.” wordmark and “Trace the evidence.” tagline', async ({ page }, testInfo) => {
+  await page.goto('/');
+  const rail = page.getByTestId('v5-folio-rail');
+  // The tagline and the folio number render as separate, exact strings on
+  // every breakpoint (no “N° 01 — Trace the evidence” fused string).
+  await expect(rail.getByText('Trace the evidence.', { exact: true })).toBeVisible();
+  await expect(rail.getByText('N° 01', { exact: true })).toBeVisible();
+  await expect(page.getByText(/N° 01 — Trace the evidence/)).toHaveCount(0);
+  if (testInfo.project.name === 'desktop') {
+    // lg+: the wordmark sits in the folio rail itself.
+    await expect(rail.getByText('Aftershock.', { exact: true })).toBeVisible();
+  } else {
+    // ≤lg: the page-body mark moves to the mobile-start block directly under
+    // the display statement, next to the primary CTA.
+    const mark = page.getByTestId('v5-mobile-wordmark');
+    await expect(mark).toBeVisible();
+    await expect(mark).toHaveText('Aftershock.');
+  }
+});
+
+test('destination labels match the shell sidebar IA verbatim, on the same routes', async ({ page }) => {
+  await page.goto('/');
+  const links = page.getByRole('navigation', { name: 'Workspace areas' }).locator('a');
+  await expect(links).toHaveCount(4);
+  const labels = (await links.allTextContents()).map((t) => t.replace(/\d+/g, '').trim());
+  expect(labels).toEqual(['Investigations', 'Library', 'Review Queue', 'Knowledge Graph']);
+  const hrefs = (await links.evaluateAll((as) => as.map((a) => a.getAttribute('href')))).map((h) =>
+    (h ?? '').replace(/\/+$/, ''),
+  );
+  expect(hrefs).toEqual(['/investigations', '/library', '/review-queue', '/graph']);
+});
+
+test('mobile fold (390×844): the one primary action sits above the fold, wordmark-first', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'mobile-only fold check');
+  await page.goto('/', { waitUntil: 'load' });
+  const cta = page.getByTestId('guided-seed-button');
+  await expect(cta).toBeVisible();
+  await expect(page.getByTestId('v5-mobile-wordmark')).toBeVisible();
+  // Exactly ONE seed trigger in the whole document — the block reuses it,
+  // it never duplicates it.
+  await expect(page.getByTestId('guided-seed-button')).toHaveCount(1);
+  const box = await cta.boundingBox();
+  expect(box, 'CTA has a box').not.toBeNull();
+  // Success criterion: action top ≤ y790 on the 390×844 first screen.
+  expect(Math.round(box.y), 'primary action top within the fold').toBeLessThanOrEqual(790);
+});
+
 test('guided example runs the real guarded seed flow and shows no fabricated results', async ({ page }) => {
   await page.goto('/');
   // Wave U1: the launcher card (data-testid investigation-launcher) hosts
