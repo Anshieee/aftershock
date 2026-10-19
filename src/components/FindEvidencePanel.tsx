@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ApiClientError,
   ApiHttpError,
@@ -340,16 +341,18 @@ export default function FindEvidencePanel({
                   </a>
                 )}
                 {/* Same case exists in the review queue (claimId = caseId).
-                    Read-only navigation — implies no state change of any kind. */}
-                <a
-                  href="/review-queue"
+                    Read-only navigation — implies no state change of any kind.
+                    One transition: the Link closes the dialog and routes via
+                    the router (no page reload hop). */}
+                <Link
+                  to="/review-queue"
                   onClick={onClose}
                   data-testid="find-evidence-review-queue"
-                  aria-label={`Open review queue (case ${claimId}) — viewing only; this panel changed no review state, and neither will this link`}
+                  aria-label={`Open review queue for case ${claimId} (viewing only)`}
                   className="text-brand-deep underline hover:text-brand"
                 >
                   Open review queue
-                </a>
+                </Link>
               </div>
             )}
             <p className="mb-3 text-xs text-ink-muted">

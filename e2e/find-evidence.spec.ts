@@ -376,7 +376,10 @@ test.describe('M7 Priority B — Find Evidence opened from the results page (ori
     const queueLink = page.getByTestId('find-evidence-review-queue');
     await expect(queueLink).toHaveAttribute('href', '/review-queue');
     await expect(queueLink).toHaveText('Open review queue');
-    await expect(queueLink).toHaveAttribute('aria-label', /no review state/);
+    await expect(queueLink).toHaveAttribute(
+      'aria-label',
+      'Open review queue for case claim-A (viewing only)',
+    );
 
     // The honest core is unchanged by the origin context.
     await expect(page.getByTestId('find-evidence-footer-disclosure')).toContainText(

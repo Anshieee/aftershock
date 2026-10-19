@@ -186,7 +186,7 @@ describe('DemoResultsPage — Find evidence affordance (M7 Priority B)', () => {
     const queueLink = screen.getByTestId('find-evidence-review-queue') as HTMLAnchorElement;
     expect(queueLink.getAttribute('href')).toBe('/review-queue');
     expect(queueLink.textContent).toBe('Open review queue');
-    expect(queueLink.getAttribute('aria-label')).toMatch(/no review state/i);
+    expect(queueLink.getAttribute('aria-label')).toMatch(/viewing only/);
 
     // Closing discards the dialog; page rows are unchanged by the whole flow.
     fireEvent.click(screen.getByTestId('find-evidence-close'));

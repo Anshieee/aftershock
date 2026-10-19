@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import FindEvidencePanel, {
   EMPTY_PROVIDERS_COPY,
   FOOTER_DISCLOSURE,
@@ -421,13 +422,15 @@ describe('FindEvidencePanel — optional origin context (M7 Priority B)', () => 
   it('renders "From: <label>" when origin is provided, without a return link when backHref is absent', async () => {
     const impl = stagedImpl();
     render(
-      <FindEvidencePanel
-        claimId="claim-A"
-        open
-        onClose={vi.fn()}
-        findEvidence={impl}
-        origin={{ label: 'Results — affected claim claim-A' }}
-      />,
+      <MemoryRouter>
+        <FindEvidencePanel
+          claimId="claim-A"
+          open
+          onClose={vi.fn()}
+          findEvidence={impl}
+          origin={{ label: 'Results — affected claim claim-A' }}
+        />
+      </MemoryRouter>,
     );
     await waitFor(() => screen.getByTestId('find-evidence-search'));
 
@@ -444,13 +447,15 @@ describe('FindEvidencePanel — optional origin context (M7 Priority B)', () => 
     const impl = stagedImpl();
     const onClose = vi.fn();
     render(
-      <FindEvidencePanel
-        claimId="claim-A"
-        open
-        onClose={onClose}
-        findEvidence={impl}
-        origin={{ label: 'Results — affected claim claim-A', backHref: '/results' }}
-      />,
+      <MemoryRouter>
+        <FindEvidencePanel
+          claimId="claim-A"
+          open
+          onClose={onClose}
+          findEvidence={impl}
+          origin={{ label: 'Results — affected claim claim-A', backHref: '/results' }}
+        />
+      </MemoryRouter>,
     );
     await waitFor(() => screen.getByTestId('find-evidence-search'));
 
@@ -466,23 +471,25 @@ describe('FindEvidencePanel — optional origin context (M7 Priority B)', () => 
     const impl = stagedImpl();
     const onClose = vi.fn();
     render(
-      <FindEvidencePanel
-        claimId="claim-A"
-        open
-        onClose={onClose}
-        findEvidence={impl}
-        origin={{ label: 'Results — affected claim claim-A' }}
-      />,
+      <MemoryRouter>
+        <FindEvidencePanel
+          claimId="claim-A"
+          open
+          onClose={onClose}
+          findEvidence={impl}
+          origin={{ label: 'Results — affected claim claim-A' }}
+        />
+      </MemoryRouter>,
     );
     await waitFor(() => screen.getByTestId('find-evidence-search'));
 
     const queueLink = screen.getByTestId('find-evidence-review-queue') as HTMLAnchorElement;
     expect(queueLink.getAttribute('href')).toBe('/review-queue');
     expect(queueLink.textContent).toBe('Open review queue');
-    // It must NOT read as a state-changing action.
-    expect(queueLink.getAttribute('aria-label')).toMatch(/viewing only/i);
-    expect(queueLink.getAttribute('aria-label')).toMatch(/no review state/i);
-    expect(queueLink.getAttribute('aria-label')).toContain('case claim-A');
+    // It must NOT read as a state-changing action, and the label is exact.
+    expect(queueLink.getAttribute('aria-label')).toBe(
+      'Open review queue for case claim-A (viewing only)',
+    );
     fireEvent.click(queueLink);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
