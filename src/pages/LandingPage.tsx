@@ -242,7 +242,7 @@ export default function LandingPage() {
             aria-expanded={showDocumentArea}
             aria-controls="document-area"
             data-testid="choose-document-toggle"
-            className="text-[13px] text-ink-muted no-underline hover:text-brand-deep underline-offset-4 hover:underline"
+            className="inline-block rounded px-1 py-2 text-[13px] text-ink-muted no-underline hover:text-brand-deep underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-deep focus-visible:outline-offset-2"
           >
             Have a document?
           </button>
