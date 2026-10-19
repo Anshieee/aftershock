@@ -66,6 +66,11 @@ export const apiRoutes = {
   // real chronological event list; 404/501 → available:false ("not available
   // yet", never fabricated history).
   activity: '/activity',
+  // P4 — Find Evidence. POST /evidence-find?claimId= (deploy path = function
+  // filename `evidence-find`; the DATA_CONTRACTS §5 logical name is
+  // `POST /evidence/find` per the dash-path mapping convention, same as
+  // review-decide). Fixed contract with the parallel P4 server wave.
+  evidenceFind: '/evidence-find',
 } as const;
 
 /**
@@ -1342,4 +1347,279 @@ export async function exportAnnotatedManuscript(
     throw error;
   }
   return outcome(data, parseExportBlob);
+}
+
+/* ------------------------------------------------------------------ *
+ * P4 — Find Evidence (fixed contract with the parallel server wave;
+ * /tmp/opencode/p4-spec.md is the design of record).
+ *
+ * Honesty rules encoded here:
+ * - The endpoint has two modes on ONE route: an empty `{}` body asks for
+ *   the prepare read (claim + suggested query, NO external fetch); a body
+ *   `{ query }` asks for the provider search. The mode is decided by the
+ *   SERVER response (`mode` field), never guessed by the client.
+ * - Candidates are exploratory provider metadata only. They never modify
+ *   citations, review states, or the manuscript, and nothing is persisted.
+ * - Provider outages are NOT HTTP errors: a 200 with `providersStatus`
+ *   timeout/error and (possibly zero) candidates is the honest contract.
+ * - A non-OK status (400 invalid query / 404 claim-not-found / 429 rate
+ *   limit / 503 graph unreachable) throws a typed error. Never bluffed.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Client-side query bound — mirrors the server's 1..400 validation so the
+ * panel can disable Search BEFORE any request is sent.
+ */
+export const MAX_EVIDENCE_QUERY_CHARS = 400;
+
+/** How the prepared concern relates evidence to the claim (contract union). */
+export type EvidenceConcernDirection = 'direct' | 'indirect' | 'unknown';
+
+/** Per-provider run status (200-level search contract; NOT an HTTP status). */
+export type EvidenceProviderRunStatus = 'ok' | 'empty' | 'timeout' | 'error';
+
+/** Retraction status carried by the provider record itself, nothing more. */
+export type EvidenceRetractionStatus = 'unknown' | 'notice_present';
+
+export interface EvidenceProviderInfo {
+  id: string;
+  displayName: string;
+  scopeNote?: string;
+  landingUrl?: string;
+}
+
+export interface EvidenceConcern {
+  summary: string;
+  direction: EvidenceConcernDirection;
+}
+
+/** One provider's run status for a search — honest provider outage reporting. */
+export interface EvidenceProviderStatus {
+  id: string;
+  status: EvidenceProviderRunStatus;
+  /** Short honest note verbatim from the server, shown to the user. */
+  message?: string;
+  /** True when the handler already retried this provider once. */
+  retried?: boolean;
+}
+
+/**
+ * One external publication candidate. Bibliographic metadata ONLY — no
+ * abstracts, no findings, no effect sizes ever exist on this shape.
+ */
+export interface EvidenceCandidate {
+  candidateId: string;
+  /** Display-form DOI as the provider returned it (omitted when absent). */
+  doi?: string;
+  title: string;
+  authors: string[];
+  year?: number;
+  /** Journal/venue; omission means "not recorded", never guessed. */
+  container?: string;
+  /** Provider type value verbatim (e.g. journal-article). */
+  publicationType?: string;
+  publisher?: string;
+  /** Retrieved live records are real metadata (isSynthetic: false). */
+  isSynthetic?: boolean;
+  retractionStatus: EvidenceRetractionStatus;
+  /** Constants in v1 — relationship is `unverified`. */
+  evidenceRelationship?: string;
+  independence?: string;
+  fullTextAvailability?: string;
+  /** Honest provenance line of why this record was returned. */
+  relevanceBasis?: string;
+  urls?: { sourceUrl: string };
+}
+
+/** Prepare response — claim read + suggested query, NO external fetch. */
+export interface EvidenceFindPrepare {
+  mode: 'prepare';
+  claimId: string;
+  /** Verbatim text of the claim node from the graph (never client-supplied). */
+  claimText: string;
+  label: string;
+  manuscriptId?: string;
+  concern: EvidenceConcern;
+  /** Deterministic suggested query (trimmed, ≤300 chars) or absent. */
+  suggestedQuery?: string;
+  queryEditable?: boolean;
+  providers: EvidenceProviderInfo[];
+  caveats: string[];
+}
+
+/** Search response — all prepare fields PLUS the search extras. */
+export interface EvidenceFindSearch extends Omit<EvidenceFindPrepare, 'mode' | 'suggestedQuery'> {
+  mode: 'search';
+  /** The query actually used (the `query` from the request body, trimmed). */
+  query: string;
+  candidates: EvidenceCandidate[];
+  providersStatus: EvidenceProviderStatus[];
+  searchedAt?: string;
+}
+
+export type EvidenceFindResult = EvidenceFindPrepare | EvidenceFindSearch;
+
+function isEvidenceDirection(value: unknown): value is EvidenceConcernDirection {
+  return value === 'direct' || value === 'indirect' || value === 'unknown';
+}
+
+function isProviderRunStatus(value: unknown): value is EvidenceProviderRunStatus {
+  return value === 'ok' || value === 'empty' || value === 'timeout' || value === 'error';
+}
+
+function parseEvidenceProviders(payload: unknown): EvidenceProviderInfo[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.flatMap((entry: unknown) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const source = entry as Record<string, unknown>;
+    const id = stringField(source.id);
+    const displayName = stringField(source.displayName);
+    if (!id || !displayName) return [];
+    return [
+      {
+        id,
+        displayName,
+        scopeNote: stringField(source.scopeNote),
+        landingUrl: stringField(source.landingUrl),
+      },
+    ];
+  });
+}
+
+function parseEvidenceCaveats(payload: unknown): string[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+}
+
+function parseEvidenceCandidate(payload: unknown, index: number): EvidenceCandidate | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const source = payload as Record<string, unknown>;
+  const title = stringField(source.title);
+  // A provider record without a usable title is not displayable; filtering
+  // it beats rendering a guessed heading. Never invents a substitute.
+  if (!title) return null;
+  const retractionStatus =
+    source.retractionStatus === 'notice_present' ? 'notice_present' : 'unknown';
+  const urlsRaw =
+    source.urls && typeof source.urls === 'object' ? (source.urls as Record<string, unknown>) : null;
+  const sourceUrl = urlsRaw ? stringField(urlsRaw.sourceUrl) : undefined;
+  return {
+    candidateId: stringField(source.candidateId) ?? `candidate-${index}`,
+    doi: stringField(source.doi),
+    title,
+    authors: Array.isArray(source.authors)
+      ? source.authors.filter((entry): entry is string => typeof entry === 'string')
+      : [],
+    year: typeof source.year === 'number' ? source.year : undefined,
+    container: stringField(source.container),
+    publicationType: stringField(source.publicationType),
+    publisher: stringField(source.publisher),
+    isSynthetic: typeof source.isSynthetic === 'boolean' ? source.isSynthetic : undefined,
+    retractionStatus,
+    evidenceRelationship: stringField(source.evidenceRelationship),
+    independence: stringField(source.independence),
+    fullTextAvailability: stringField(source.fullTextAvailability),
+    relevanceBasis: stringField(source.relevanceBasis),
+    urls: sourceUrl ? { sourceUrl } : undefined,
+  };
+}
+
+function parseEvidenceProviderStatus(payload: unknown): EvidenceProviderStatus | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const source = payload as Record<string, unknown>;
+  const id = stringField(source.id);
+  if (!id || !isProviderRunStatus(source.status)) return null;
+  return {
+    id,
+    status: source.status,
+    message: stringField(source.message),
+    retried: typeof source.retried === 'boolean' ? source.retried : undefined,
+  };
+}
+
+function parseEvidenceFindResult(payload: unknown, fallbackClaimId: string): EvidenceFindResult {
+  if (!payload || typeof payload !== 'object') {
+    throw new ApiClientError('Evidence-find endpoint returned an unexpected payload');
+  }
+  const body = payload as Record<string, unknown>;
+  if (body.mode !== 'prepare' && body.mode !== 'search') {
+    throw new ApiClientError('Evidence-find response is missing a known `mode`');
+  }
+  const usedQuery = stringField(body.query);
+  if (body.mode === 'search' && usedQuery === undefined) {
+    throw new ApiClientError('Evidence-find search response is missing the used `query`');
+  }
+  const claimText = stringField(body.claimText);
+  if (claimText === undefined) {
+    // The verbatim claim text is the core of both modes; without it nothing
+    // displayable or honest can be built.
+    throw new ApiClientError('Evidence-find response is missing `claimText`');
+  }
+  const concernRaw =
+    body.concern && typeof body.concern === 'object' ? (body.concern as Record<string, unknown>) : null;
+  const concern: EvidenceConcern = {
+    summary: concernRaw ? (stringField(concernRaw.summary) ?? '') : '',
+    direction: isEvidenceDirection(concernRaw?.direction) ? concernRaw.direction : 'unknown',
+  };
+
+  if (body.mode === 'search') {
+    return {
+      mode: 'search',
+      claimId: stringField(body.claimId) ?? fallbackClaimId,
+      claimText,
+      label: stringField(body.label) ?? 'Claim',
+      manuscriptId: stringField(body.manuscriptId),
+      concern,
+      query: usedQuery as string,
+      candidates: (Array.isArray(body.candidates) ? body.candidates : [])
+        .map((entry, index) => parseEvidenceCandidate(entry, index))
+        .filter((entry): entry is EvidenceCandidate => entry !== null),
+      providersStatus: (Array.isArray(body.providersStatus) ? body.providersStatus : [])
+        .map((entry) => parseEvidenceProviderStatus(entry))
+        .filter((entry): entry is EvidenceProviderStatus => entry !== null),
+      providers: parseEvidenceProviders(body.providers),
+      caveats: parseEvidenceCaveats(body.caveats),
+      searchedAt: stringField(body.searchedAt),
+    };
+  }
+  return {
+    mode: 'prepare',
+    claimId: stringField(body.claimId) ?? fallbackClaimId,
+    claimText,
+    label: stringField(body.label) ?? 'Claim',
+    manuscriptId: stringField(body.manuscriptId),
+    concern,
+    suggestedQuery: stringField(body.suggestedQuery),
+    queryEditable: typeof body.queryEditable === 'boolean' ? body.queryEditable : undefined,
+    providers: parseEvidenceProviders(body.providers),
+    caveats: parseEvidenceCaveats(body.caveats),
+  };
+}
+
+/**
+ * POST /evidence-find?claimId=<encoded> — one route, two modes.
+ *
+ * `opts.query` provided → search mode: JSON body `{ query }`.
+ * `opts.query` absent → prepare mode: JSON body `{}` (claim read only, the
+ * server performs no external fetch). The truth of BOTH modes is whatever
+ * the server actually returns (`mode` field) — this client never upgrades a
+ * prepare answer into a search result or vice versa.
+ *
+ * 400 (invalid query / claimId charset), 404 (claim-not-found), 429 (rate
+ * limited) and 503 (graph unreachable) arrive as typed ApiHttpError.
+ */
+export async function findEvidence(
+  claimId: string,
+  opts?: { query?: string; signal?: AbortSignal },
+): Promise<EvidenceFindResult> {
+  const data = await request({
+    path: `${apiRoutes.evidenceFind}?claimId=${encodeURIComponent(claimId)}`,
+    init: {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts && opts.query !== undefined ? { query: opts.query } : {}),
+    },
+    options: { signal: opts?.signal },
+  });
+  return parseEvidenceFindResult(data, claimId);
 }

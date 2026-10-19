@@ -838,3 +838,202 @@ describe('ReviewQueuePage — Review history honest states (real /activity feed)
   });
 });
 
+/* ------------------------------------------------------------------ *
+ * P4 — Find Evidence affordance (per-case dialog, read-only). The
+ * panel itself is covered in FindEvidencePanel.test.tsx; these tests
+ * verify the PAGE wiring: trigger, prepared-data rendering, close, and
+ * — the hard rule — case state is untouched by any search.
+ * ------------------------------------------------------------------ */
+
+const EVIDENCE_CLAIM_TEXT =
+  'Agent P-9 was selected on the strength of the registry analysis we cite (Mehra et al., 2020), which we read as establishing a drug-treatment mortality signal in the target cohort.';
+
+function evidencePreparePayload(claimId = 'claim-A') {
+  return {
+    mode: 'prepare' as const,
+    claimId,
+    claimText: EVIDENCE_CLAIM_TEXT,
+    label: 'Claim',
+    manuscriptId: 'doc-demo-manuscript',
+    concern: {
+      summary: 'The supporting citation use points at a publication with a verified retraction notice.',
+      direction: 'direct' as const,
+    },
+    suggestedQuery: 'registry analysis drug-treatment mortality cohort P-9',
+    queryEditable: true,
+    providers: [
+      {
+        id: 'crossref',
+        displayName: 'Crossref',
+        scopeNote: 'public bibliographic metadata',
+        landingUrl: 'https://www.crossref.org',
+      },
+    ],
+    caveats: [
+      'Candidates come from public bibliographic metadata (Crossref). Relevance ranking is the provider’s bibliographic relevance — not a statement that a paper supports the claim.',
+      'This search does not modify citations, review states, or the manuscript.',
+    ],
+  };
+}
+
+function evidenceSearchPayload(query: string, candidates: unknown[] = [], providersStatus: unknown[] = []) {
+  const prepare = evidencePreparePayload();
+  return {
+    mode: 'search' as const,
+    claimId: 'claim-A',
+    claimText: EVIDENCE_CLAIM_TEXT,
+    label: 'Claim',
+    manuscriptId: 'doc-demo-manuscript',
+    concern: prepare.concern,
+    query,
+    candidates,
+    providersStatus,
+    providers: prepare.providers,
+    caveats: prepare.caveats,
+    searchedAt: '2026-10-19T05:00:00.000Z',
+  };
+}
+
+const EVIDENCE_CANDIDATES = [
+  {
+    candidateId: 'doi:10.1016/s0140-6736(20)31180-6',
+    doi: '10.1016/S0140-6736(20)31180-6',
+    title:
+      'Hydroxychloroquine or chloroquine with or without a macrolide for treatment of COVID-19: a multinational registry analysis',
+    authors: ['Mehra M.R.'],
+    year: 2020,
+    container: 'The Lancet',
+    publicationType: 'journal-article',
+    publisher: 'Elsevier',
+    isSynthetic: false,
+    retractionStatus: 'notice_present',
+    evidenceRelationship: 'unverified',
+    independence: 'unknown',
+    fullTextAvailability: 'unknown',
+    relevanceBasis:
+      "Retrieved by Crossref bibliographic relevance for 'registry analysis' — a metadata match only; support/contrast relationships are unverified.",
+    urls: { sourceUrl: 'https://doi.org/10.1016/S0140-6736(20)31180-6' },
+  },
+];
+
+describe('ReviewQueuePage — P4 Find Evidence wiring (read-only, no case mutation)', () => {
+  /** Queue loads normally; /evidence-find answers by request mode (`failureStatus` fails only SEARCH). */
+  function stubQueueWithEvidenceFind(options: { failureStatus?: number } = {}) {
+    return stubFetchByRoute((url, init) => {
+      if (url.includes('graph-edges')) return { status: 200, body: buildDemoOverviewRecord() };
+      if (url.includes('/activity')) return { status: 200, body: [REVIEW_HISTORY_EVENT] };
+      if (url.includes('evidence-find')) {
+        const body = JSON.parse((init?.body as string) ?? '{}');
+        if (typeof body.query === 'string') {
+          if (options.failureStatus) return { status: options.failureStatus, body: { error: 'down' } };
+          return {
+            status: 200,
+            body: evidenceSearchPayload(body.query, EVIDENCE_CANDIDATES, [
+              { id: 'crossref', status: 'ok' },
+            ]),
+          };
+        }
+        return { status: 200, body: evidencePreparePayload() };
+      }
+      return undefined;
+    });
+  }
+
+  it('per-case Find Evidence affordance opens the dialog with the prepared claim data (prep auto-loaded, mode prepare body)', async () => {
+    const calls = stubQueueWithEvidenceFind();
+    renderQueue();
+    const item = await screen.findByTestId('review-item-claim-A');
+
+    const trigger = screen.getByTestId('find-evidence-claim-A');
+    expect(trigger.getAttribute('aria-label')).toBe('Find evidence for claim-A');
+    fireEvent.click(trigger);
+
+    const dialog = await screen.findByTestId('find-evidence-dialog');
+    expect(dialog.getAttribute('role')).toBe('dialog');
+
+    const evidenceCalls = calls.filter((call) => call.url.includes('evidence-find'));
+    expect(evidenceCalls).toHaveLength(1);
+    expect(evidenceCalls[0]!.init!.method).toBe('POST');
+    expect(evidenceCalls[0]!.url).toContain('/evidence-find?claimId=claim-A');
+    // OPEN fires exactly one prepare request: empty {} body, NO query.
+    expect(evidenceCalls[0]!.init!.body).toBe('{}');
+
+    await screen.findByTestId('find-evidence-caveats');
+    const claimText = screen.getByTestId('find-evidence-claim-text');
+    expect(claimText.textContent).toContain(EVIDENCE_CLAIM_TEXT);
+    expect(screen.getByTestId('find-evidence-concern-summary').textContent).toContain(
+      'verified retraction notice',
+    );
+    const query = screen.getByTestId('find-evidence-query') as HTMLTextAreaElement;
+    expect(query.value).toBe('registry analysis drug-treatment mortality cohort P-9');
+
+    // The queue itself is unchanged by opening the panel.
+    expect(item.getAttribute('data-review-state')).toBe('needs-review');
+    expect(screen.queryByTestId('review-item-claim-A-decision')).toBeNull();
+  });
+
+  it('search from the page runs the real POST with the edited query, shows candidate cards, and leaves case state untouched', async () => {
+    const calls = stubQueueWithEvidenceFind();
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    fireEvent.click(screen.getByTestId('find-evidence-claim-A'));
+    await screen.findByTestId('find-evidence-caveats');
+
+    fireEvent.change(screen.getByTestId('find-evidence-query'), {
+      target: { value: '  registry analysis  ' },
+    });
+    fireEvent.click(screen.getByTestId('find-evidence-search'));
+
+    const card = await screen.findByTestId('find-evidence-candidate-0');
+    expect(card.textContent).toContain('REAL METADATA');
+    expect(card.textContent).toContain('relationship unverified · independence unknown · full text unknown');
+    expect(screen.getByTestId('find-evidence-provider-crossref').textContent).toContain('ok');
+
+    const searchCalls = calls.filter(
+      (call) => call.url.includes('evidence-find') && typeof call.init?.body === 'string' && (call.init.body as string).includes('query'),
+    );
+    expect(searchCalls).toHaveLength(1);
+    expect(searchCalls[0]!.init!.body).toBe(JSON.stringify({ query: 'registry analysis' }));
+
+    // HARD RULE: the case is not mutated by any search — no decide/revision
+    // calls, no reviewed styling, no decision line, no invented state.
+    const allCalls = calls;
+    expect(allCalls.filter((call) => call.url.includes('review-decide'))).toHaveLength(0);
+    expect(allCalls.filter((call) => call.url.includes('review-revision'))).toHaveLength(0);
+    expect(screen.getByTestId('review-item-claim-A').getAttribute('data-review-state')).toBe('needs-review');
+    expect(document.querySelector('[data-review-state="reviewed"]')).toBeNull();
+    expect(screen.queryByTestId('review-item-claim-A-decision')).toBeNull();
+    // The panel carries no mutation affordance at all.
+    expect(screen.queryByTestId(/supported/)).toBeNull();
+  });
+
+  it('Escape closes the panel', async () => {
+    stubQueueWithEvidenceFind();
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    fireEvent.click(screen.getByTestId('find-evidence-claim-A'));
+    await screen.findByTestId('find-evidence-dialog');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('find-evidence-dialog')).toBeNull();
+  });
+
+  it('typed search/prepare failure (503) stays honest and case state remains untouched', async () => {
+    stubQueueWithEvidenceFind({ failureStatus: 503 });
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    fireEvent.click(screen.getByTestId('find-evidence-claim-A'));
+    // Prepare succeeds (status omitted → prepare answered normally).
+    await screen.findByTestId('find-evidence-caveats');
+    fireEvent.click(screen.getByTestId('find-evidence-search'));
+
+    const banner = await screen.findByTestId('find-evidence-error');
+    expect(banner.textContent).toContain('503');
+    expect(banner.textContent).toMatch(/graph/i);
+    expect(screen.queryByTestId(/find-evidence-candidate-\d+-status/)).toBeNull();
+    expect(screen.getByTestId('review-item-claim-A').getAttribute('data-review-state')).toBe('needs-review');
+  });
+});
+

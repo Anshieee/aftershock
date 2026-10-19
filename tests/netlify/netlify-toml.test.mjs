@@ -82,6 +82,7 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
       'documentDetail',
       'documents',
       'documentsImported',
+      'evidenceFind',
       'exportAnnotatedManuscript',
       'exportReport',
       'exportRevisionPack',
