@@ -6,10 +6,11 @@ import { expect, test } from '@playwright/test';
  * secondary affordances, and a guided example that is gated (not faked).
  */
 
-test('primary "Choose a document" is reachable via keyboard', async ({ page }) => {
+test('primary "Register a file" disclosure toggle is reachable via keyboard', async ({ page }) => {
   await page.goto('/');
   // Wave U1: the picker lives in the collapsible document area. Walk focus
-  // with Tab to the "Choose a document" toggle, press Enter to expand it,
+  // with Tab to the "Have a document?" disclosure toggle, press Enter to
+  // expand it,
   // and the next Tab must land on the native file input — still fully
   // reachable without a pointer.
   await page.locator('body').first().focus();
@@ -23,14 +24,16 @@ test('primary "Choose a document" is reachable via keyboard', async ({ page }) =
     );
     await handle.dispose();
   }
-  expect(reachedToggle, '"Choose a document" toggle reachable by keyboard Tab').toBe(true);
+  expect(reachedToggle, '"Register a file" toggle reachable by keyboard Tab').toBe(true);
   await page.keyboard.press('Enter');
   await page
-    .getByRole('button', { name: 'Choose a document' })
+    .getByRole('button', { name: 'Have a document? Register a file (metadata only)' })
     .first()
     .waitFor({ state: 'visible' });
   await expect(
-    page.getByRole('button', { name: 'Choose a document' }).first(),
+    page
+      .getByRole('button', { name: 'Have a document? Register a file (metadata only)' })
+      .first(),
   ).toHaveAttribute('aria-expanded', 'true');
   // After expanding, a short Tab walk (≤ the launcher's small focus set)
   // must land on the native file input — reachability preserved.
@@ -49,7 +52,10 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
   await page.goto('/');
   // Expand the document area first: the picker is honest progressive
   // disclosure, not removed.
-  await page.getByRole('button', { name: 'Choose a document' }).first().click();
+  await page
+    .getByRole('button', { name: 'Have a document? Register a file (metadata only)' })
+    .first()
+    .click();
   const input = page.locator('[data-testid="import-input"]');
   await expect(input).toBeAttached();
   await expect(input).toHaveAttribute('type', 'file');
@@ -78,7 +84,10 @@ test('secondary Bibliography / Single DOI are honestly gated, not faked', async 
   // Wave U1: the demoted affordances live inside the collapsed document
   // area — expand it first, then verify they are visible-disabled (honest
   // gating, never fake inputs).
-  await page.getByRole('button', { name: 'Choose a document' }).first().click();
+  await page
+    .getByRole('button', { name: 'Have a document? Register a file (metadata only)' })
+    .first()
+    .click();
   await expect(page.getByRole('button', { name: 'Bibliography' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Bibliography' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Single DOI' })).toBeDisabled();

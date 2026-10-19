@@ -1,0 +1,120 @@
+/*
+ * V5 — The Editorial Statement (landing-local styles only).
+ * Baseline variant experiment for `/` on branch
+ * experiment/home-v5-editorial. Palette is the frozen design-of-record
+ * set (paper #F7F3EA, ink #27283B, indigo #665C91 deep #524A78, lavender
+ * #DED6FA, amber #E9B867, sage #658C79, muted red #B85F59) — no gradients,
+ * no glassmorphism, no pure black/gray. Typography carries the identity:
+ * no WebGL, no scroll effects, no cursor gimmicks; the only motion is the
+ * reduced-motion-safe stagger (<600ms, transform/opacity only) and the
+ * small hover pulse on the indigo wave rule.
+ */
+
+.v5-root {
+  container-type: inline-size;
+}
+
+/*
+ * Folio micro-labels — the magazine chrome of the page (uppercase,
+ * wide-tracked, tabular numerals). Utilitarian by design: the scale
+ * contrast with the display line IS the composition.
+ */
+.v5-micro {
+  font-family: 'Inter Variable', system-ui, Helvetica, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/*
+ * The display statement — Bodoni Moda 900 (roman / true italic turn).
+ * Sizing is container-relative (cqi) so the two-line statement stays
+ * optically composed from 320px up to the 6xl shell cap without
+ * JavaScript; the vw fallback covers browsers without container units.
+ * Tight tracking (optical, per high-contrast serif convention), leading
+ * 0.94, hairline-tight vertical rhythm.
+ */
+.v5-display {
+  font-family: 'Bodoni Moda', 'Source Serif 4 Variable', Georgia, serif;
+  font-weight: 900;
+  font-size: clamp(2.5rem, 12cqi, 7.4rem);
+  line-height: 0.94;
+  letter-spacing: -0.03em;
+  color: #27283b;
+}
+
+@supports not (font-size: 12cqi) {
+  .v5-display {
+    font-size: clamp(2.5rem, 9.2vw, 7.4rem);
+  }
+}
+
+/* The indigo turn: the second line carries the brand dimension of the
+   identity typographically — roman ink line one, italic indigo line two. */
+.v5-turn {
+  color: #665c91;
+  font-style: italic;
+}
+
+/*
+ * Signature moment (kept subtle): a single staggered rise on load, ≤520ms
+ * total. Elements are fully visible when animation is absent (no static
+ * hidden state), so the shell's global prefers-reduced-motion rule
+ * (animation/transition: none !important) degrades to a static, complete
+ * composition.
+ */
+.v5-line {
+  display: block;
+  animation: v5-rise 0.4s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+}
+
+.v5-line--2 {
+  animation-delay: 0.08s;
+}
+
+.v5-line--3 {
+  animation-delay: 0.16s;
+}
+
+@keyframes v5-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * The indigo "wave" rule beneath the display line: a thin SVG sine path.
+ * It gives one small scaleX pulse when the primary CTA is hovered or
+ * focused (wired via a state class in LandingPage.tsx). Reduced-motion
+ * users get the static rule, still visible, no pulse motion.
+ */
+.v5-wave {
+  transform-origin: left center;
+  transition: transform 0.45s cubic-bezier(0.2, 0.6, 0.2, 1), opacity 0.45s ease;
+}
+
+.v5-wave--pulse {
+  transform: scaleX(1.06) translateY(-1px);
+}
+
+/*
+ * Amber focus visibility for this page's interactive elements, per the
+ * experiment brief (WCAG 2.2 AA, offset 2px, small radius). Overrides the
+ * shell's indigo default inside this page's scope only.
+ */
+.v5-focus:focus-visible {
+  outline: 2px solid #e9b867;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Folio numerals in the destination index align to a tabular column. */
+.v5-folio-numeral {
+  font-variant-numeric: tabular-nums;
+}

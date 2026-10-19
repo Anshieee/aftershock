@@ -22,25 +22,28 @@ function renderWithRoutes(initialPath = '/') {
   );
 }
 
-describe('LandingPage (Wave U1 entry experience)', () => {
-  it('renders the centered editorial hero with the exact research question and subtitle — no wordmark in the hero', () => {
+describe('LandingPage (V5 editorial-statement experiment)', () => {
+  it('renders the editorial opening statement as the single h1, with the question line as a secondary standfirst — no wordmark in the hero', () => {
     renderWithRoutes();
 
-    // One h1 only: the research question in display serif.
+    // One h1 only: the two-line display statement.
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
     expect(
-      screen.getByRole('heading', { name: 'What would you like to investigate?' }),
+      screen.getByRole('heading', { name: 'After the shock, the record.' }),
     ).toBeTruthy();
+    // The original research question stays on the page as the spoken
+    // standfirst beneath the display statement (now plain text, not the h1).
+    expect(screen.getByText('What would you like to investigate?')).toBeTruthy();
     expect(screen.getByText('Follow the evidence. Understand what changed.')).toBeTruthy();
     // The Aftershock. wordmark stays in the sidebar, never in the hero.
     expect(screen.queryByText(/Aftershock\./)).toBeNull();
   });
 
-  it('exposes ONE primary seed trigger in the launcher card (no duplicated CTAs, no fake extras)', () => {
+  it('exposes ONE primary seed trigger in the launcher column (no duplicated CTAs, no fake extras)', () => {
     renderWithRoutes();
 
-    // The single launcher card holds the primary flow (sr-only heading so
+    // The single launcher column holds the primary flow (sr-only heading so
     // no implementation-status copy surfaces in the hero zone).
     expect(screen.getByTestId('investigation-launcher')).toBeTruthy();
     expect(
@@ -51,11 +54,13 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     // Legacy hero contract: the hero-guided-action hook wraps the CTA.
     expect(screen.getAllByTestId('hero-guided-action')).toHaveLength(1);
     expect(screen.getByTestId('hero-guided-action').textContent).toContain(
-      'Explore guided investigation',
+      'Start the guided investigation',
     );
     // No fake chat box, no fake DOI search: exactly two real actions.
-    expect(screen.getAllByRole('button', { name: 'Explore guided investigation' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Choose a document' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Start the guided investigation' })).toHaveLength(1);
+    expect(
+      screen.getAllByRole('button', { name: 'Have a document? Register a file (metadata only)' }),
+    ).toHaveLength(1);
   });
 
   it('shows the quiet integrity line without expansion and keeps the document picker collapsed by default', () => {
@@ -69,7 +74,9 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     ).toBeTruthy();
     // The document picker starts collapsed: no import panel in the DOM.
     expect(screen.queryByTestId('import-panel')).toBeNull();
-    const toggle = screen.getByRole('button', { name: 'Choose a document' });
+    const toggle = screen.getByRole('button', {
+      name: 'Have a document? Register a file (metadata only)',
+    });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
 
     // Expanding reveals the real import flow untouched.
@@ -126,24 +133,31 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     expect(resultsLink.getAttribute('href')).toBe('/results');
   });
 
-  it('keeps exactly three quiet, real workspace shortcuts (no duplicated summaries)', () => {
+  it('keeps exactly four real, quiet workspace destinations in the folio index (no duplicated summaries)', () => {
     renderWithRoutes();
     const shortcuts = screen.getByRole('navigation', { name: 'Workspace areas' });
     const links = Array.from(shortcuts.querySelectorAll('a[href]'));
     const hrefs = links.map((a) => a.getAttribute('href'));
-    // Real destinations only; no /overview summary re-introduced here.
-    expect(hrefs).toEqual(['library', 'review-queue', 'graph'].map((p) => `/${p}`));
+    // Real destinations only (Investigations joins the folio index in V5);
+    // no /overview summary re-introduced here.
+    expect(hrefs).toEqual(
+      ['investigations', 'library', 'review-queue', 'graph'].map((p) => `/${p}`),
+    );
   });
 
   it('renders the collapsed document area with the honestly disabled Bibliography/DOI row behind the toggle', () => {
     renderWithRoutes();
 
     // Collapsed by default: the picker and the demoted affordances only
-    // exist after the outline toggle expands the document area.
+    // exist after the disclosure toggle expands the document area.
     expect(screen.queryByTestId('import-panel')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Bibliography' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Choose a document' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Have a document? Register a file (metadata only)',
+      }),
+    );
 
     expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('import-input')).toBeTruthy();
@@ -173,7 +187,11 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     );
     renderWithRoutes();
     // The picker lives in the collapsible document area — expand first.
-    fireEvent.click(screen.getByRole('button', { name: 'Choose a document' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Have a document? Register a file (metadata only)',
+      }),
+    );
     const input = screen.getByTestId('import-input') as HTMLInputElement;
 
     const file = new File(['%PDF-1.4 minimal'], 'field-notes.pdf', { type: 'application/pdf' });
