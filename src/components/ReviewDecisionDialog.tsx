@@ -4,6 +4,7 @@ import {
   ApiHttpError,
   ApiNetworkError,
   ApiTimeoutError,
+  ApiUnavailableError,
   reviewDecide,
   type ReviewDecisionRequest,
   type ReviewDecisionResult,
@@ -25,6 +26,8 @@ interface ReviewDecisionDialogProps {
     text?: string;
   };
   open: boolean;
+  /** True when a decision was already recorded (and shown) for this case. */
+  alreadyRecorded?: boolean;
   onClose: () => void;
   /** Fired when a real decision is recorded server-side. */
   onDecisionRecorded: (decision: ReviewDecisionResult) => void;
@@ -58,13 +61,17 @@ const OUTCOMES: Array<{
 ];
 
 function describeDecisionError(error: unknown): string {
-  if (
-    error instanceof ApiTimeoutError ||
-    error instanceof ApiNetworkError ||
-    error instanceof ApiClientError
-  ) {
-    return error.message;
+  if (error instanceof ApiTimeoutError) {
+    return 'The review API did not answer within 10 seconds (timeout) — nothing was recorded. Try again.';
   }
+  if (error instanceof ApiNetworkError) {
+    return 'Network error — the request did not reach the review API, nothing was recorded.';
+  }
+  if (error instanceof ApiUnavailableError) {
+    return `${error.message} The decision was not recorded.`;
+  }
+  // NOTE: ApiHttpError extends ApiClientError — the status-specific branches
+  // must be checked BEFORE the generic client-error fallback.
   if (error instanceof ApiHttpError) {
     if (error.status === 400) {
       return 'The decision was rejected as malformed (HTTP 400) — check the explanation and try again.';
@@ -72,10 +79,19 @@ function describeDecisionError(error: unknown): string {
     if (error.status === 409) {
       return 'A decision was already recorded for this case (HTTP 409) — nothing changed.';
     }
+    if (error.status === 429) {
+      // Per-IP rate limit on the review endpoint: do not retry in a tight
+      // loop. The Retry affordance exists, but the copy tells the user to
+      // wait the cooldown out first.
+      return 'Rate limited (HTTP 429) — the review endpoint allows only a few decisions per short interval. Wait for the cooldown to pass, then try again. Nothing was recorded.';
+    }
     if (error.status >= 500) {
       return 'The review API is unavailable (server error) — the decision was not recorded.';
     }
     return `The review API returned HTTP ${error.status} — the decision was not recorded.`;
+  }
+  if (error instanceof ApiClientError) {
+    return error.message;
   }
   return 'The decision could not be recorded — nothing was saved.';
 }
@@ -83,6 +99,7 @@ function describeDecisionError(error: unknown): string {
 export default function ReviewDecisionDialog({
   item,
   open,
+  alreadyRecorded = false,
   onClose,
   onDecisionRecorded,
 }: ReviewDecisionDialogProps) {
@@ -177,6 +194,7 @@ export default function ReviewDecisionDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="review-decision-dialog-title"
+        aria-busy={flow.phase === 'deciding'}
         tabIndex={-1}
         className="fixed left-[50%] top-[14%] -translate-x-1/2 z-50 w-full max-w-md rounded-lg border border-ink-border bg-paper-raised p-6 shadow-xl text-ink"
         data-testid="review-decision-dialog"
@@ -194,6 +212,14 @@ export default function ReviewDecisionDialog({
             Close
           </button>
         </div>
+
+        {(alreadyRecorded === true) && flow.phase === 'idle' && (
+          <p className="mb-4 rounded border border-ink-border bg-paper px-3 py-2 text-xs text-ink-muted">
+            A decision has already been recorded for this case in this session — you
+            can record another one; the server decides whether the case reopens or
+            rejects repeats (its exact response is shown here, never invented).
+          </p>
+        )}
 
         {/* Original text — immutable, read-only, never an editable field. */}
         <div className="mb-4">
@@ -223,10 +249,11 @@ export default function ReviewDecisionDialog({
                   type="button"
                   role="radio"
                   aria-checked={selected}
+                  disabled={flow.phase === 'deciding'}
                   onClick={() => selectOutcome(choice.value)}
                   data-testid={`review-decision-outcome-${choice.value}`}
                   className={
-                    'w-full flex flex-col items-start gap-1 rounded border px-3 py-2.5 text-sm text-left transition-colors' +
+                    'w-full flex flex-col items-start gap-1 rounded border px-3 py-2.5 text-sm text-left transition-colors disabled:opacity-60' +
                     (selected
                       ? ' border-brand bg-brand-surface text-brand font-medium'
                       : ' border-ink-border bg-paper text-ink hover:bg-paper-deep')
@@ -256,7 +283,13 @@ export default function ReviewDecisionDialog({
             aria-required="true"
           />
           {flow.phase === 'idle' && outcome !== null && explanation.trim().length === 0 ? (
-            <p className="mt-1 text-xs text-notice-text">An explanation is required before recording.</p>
+            <p
+              className="mt-1 text-xs text-notice-text"
+              data-testid="review-decision-rationale-error"
+            >
+              An explanation is required before recording — say, in your own words, why
+              this decision holds, so the audit trail carries a meaningful rationale.
+            </p>
           ) : null}
         </div>
 
@@ -343,8 +376,10 @@ export default function ReviewDecisionDialog({
               <span className="font-mono">{decided.afterState}</span>.
             </p>
             <p className="mt-2 text-xs text-reviewed-text">
-              The item is now marked reviewed (sage). Revisions still require a separate,
-              human acceptance step — a decision is not scientific validation.
+              This is the SERVER response — a recorded decision is a human
+              judgement, not scientific validation. The queue reflects the returned
+              record (sage styling derives from the server state, refreshed in the
+              background). Revisions still require a separate, human acceptance step.
             </p>
             <button
               type="button"
