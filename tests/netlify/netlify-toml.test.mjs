@@ -73,6 +73,7 @@ function splitRoute(route) {
 describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
   it('exposes the expected route keys (extend this guard when adding routes)', () => {
     expect([...ROUTES.keys()].sort()).toEqual([
+      'activity',
       'analysisRunStatus',
       'analysisStatus',
       'analyze',
@@ -101,6 +102,7 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
    * @type {Set<string>}
    */
   const PENDING_FUNCTION_FILES = new Set([
+    'activity',
     'import-document',
     'analyze',
     'analyze-status',

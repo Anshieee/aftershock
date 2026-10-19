@@ -61,6 +61,10 @@ export const apiRoutes = {
   exportReport: '/export-report',
   exportRevisionPack: '/export-revision-pack',
   exportAnnotatedManuscript: '/export-annotated-manuscript',
+  // M7 — activity timeline (contract §5, §11). GET /activity returns the
+  // real chronological event list; 404/501 → available:false ("not available
+  // yet", never fabricated history).
+  activity: '/activity',
 } as const;
 
 /**
@@ -926,6 +930,104 @@ export async function getDocumentDetail(
       disclosure: stringField(element.disclosure),
     };
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Activity event type (contract §5 GET /activity, §11).
+ * Timestamps are ISO-8601 UTC and must never be merged: a source_notice
+ * event's timestamp is the notice's actual publication date, an
+ * analysis_run event's is first detection, a review_decision's is the
+ * human decision date, and an export_generated's is the export date.
+ * ------------------------------------------------------------------ */
+
+export type ActivityEventType =
+  | 'review_decision'
+  | 'source_notice'
+  | 'analysis_run'
+  | 'export_generated';
+
+export interface ActivityEvent {
+  id: string;
+  type: ActivityEventType;
+  /** ISO-8601 UTC — the event time, distinct per type (see §11). */
+  timestamp: string;
+  actor?: string;
+  /** Human-visible verb phrase describing what happened. */
+  action: string;
+  description?: string;
+  /** Prior state (e.g. pre-decision review state). */
+  beforeState?: string;
+  /** Resulting state (e.g. post-decision review state). */
+  afterState?: string;
+  /** True when the event describes synthetic/demo content. */
+  isSynthetic?: boolean;
+  syntheticLabel?: string;
+}
+
+function isActivityEventType(value: unknown): value is ActivityEventType {
+  return (
+    value === 'review_decision' ||
+    value === 'source_notice' ||
+    value === 'analysis_run' ||
+    value === 'export_generated'
+  );
+}
+
+function parseActivityEvent(payload: unknown, index: number): ActivityEvent {
+  if (!payload || typeof payload !== 'object') {
+    // Never fabricate an event from an unparsable record.
+    return {
+      id: `activity-${index}`,
+      type: 'analysis_run',
+      timestamp: '',
+      actor: 'system',
+      action: 'Unparsable activity record',
+      description:
+        'The server returned an activity entry that could not be interpreted. It is not treated as a verified event.',
+    };
+  }
+  const source = payload as Record<string, unknown>;
+  return {
+    id: stringField(source.id) ?? `activity-${index}`,
+    type: isActivityEventType(source.type) ? source.type : 'analysis_run',
+    timestamp: stringField(source.timestamp) ?? '',
+    actor: stringField(source.actor),
+    action: stringField(source.action) ?? 'Activity recorded',
+    description: stringField(source.description),
+    beforeState: stringField(source.beforeState),
+    afterState: typeof source.afterState === 'string' ? source.afterState : undefined,
+    isSynthetic: typeof source.isSynthetic === 'boolean' ? source.isSynthetic : undefined,
+    syntheticLabel: stringField(source.syntheticLabel),
+  };
+}
+
+/**
+ * GET /activity — chronological timeline events.
+ * 404/501 (and a SPA-shaded 2xx) resolve to `available: false` — honest
+ * "not available yet", never a fabricated history. Any other non-OK status
+ * throws a typed error so the UI can report the failure honestly.
+ */
+export async function getActivity(
+  options?: RequestOptions,
+): Promise<ApiOutcome<ActivityEvent[]>> {
+  let data: unknown;
+  try {
+    data = await request({
+      path: apiRoutes.activity,
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
+  return outcome(
+    data,
+    (payload) =>
+      (Array.isArray(payload) ? payload : []).map((element, index) => parseActivityEvent(element, index)),
+  );
 }
 
 /* ------------------------------------------------------------------ *

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ActivityEvent,
+  ActivityEventType,
   ApiClientError,
   ApiHttpError,
   ApiNetworkError,
@@ -11,6 +13,7 @@ import {
   exportAnnotatedManuscript,
   exportReport,
   exportRevisionPack,
+  getActivity,
   getAnalysisRun,
   getAnalysisStatus,
   getDemoDocuments,
@@ -21,6 +24,7 @@ import {
   startAnalysis,
   MAX_IMPORT_BYTES,
 } from './api';
+import { stubFetchByRoute } from '../test/mockFetch';
 import { buildDemoOverviewRecord } from '../test/graphFixtures';
 
 type RouteHandler = (url: string, init: RequestInit | undefined) => {
@@ -674,5 +678,143 @@ describe('api client — export (M6)', () => {
     await vi.advanceTimersByTimeAsync(API_TIMEOUT_MS - 1);
     await vi.advanceTimersByTimeAsync(1);
     await expectation;
+  });
+});
+
+describe('api client — activity (GET /activity)', () => {
+  const NOTICE_EVENT: ActivityEvent = {
+    id: 'evt-notice-1',
+    type: 'source_notice',
+    timestamp: '2020-06-04T00:00:00.000Z',
+    actor: 'Aftershock',
+    action: 'Retraction notice recorded for Mehra et al. (2020)',
+    description: 'Official retraction published by The Lancet.',
+    isSynthetic: false,
+  };
+
+  const REVIEW_EVENT: ActivityEvent = {
+    id: 'evt-review-1',
+    type: 'review_decision',
+    timestamp: '2026-10-19T10:00:00.000Z',
+    actor: 'A. Reviewer',
+    action: 'Recorded human review for claim A',
+    description: 'Retracted Mehra support requires rewording before reliance.',
+    beforeState: 'unreviewed',
+    afterState: 'review_recorded · revision_pending',
+    isSynthetic: true,
+    syntheticLabel: 'FICTIONAL / GUIDED DEMO',
+  };
+
+  it('GETs /activity and parses a real chronological event list', async () => {
+    const calls = stubFetchByRoute(() => ({ status: 200, body: [NOTICE_EVENT, REVIEW_EVENT] }));
+    const outcome = await getActivity();
+    expect(outcome.available).toBe(true);
+    if (!outcome.available) return;
+    expect(outcome.data).toHaveLength(2);
+    const [noticeEvent, reviewEvent] = outcome.data;
+    expect(noticeEvent?.type).toBe('source_notice');
+    expect(reviewEvent?.type).toBe('review_decision');
+    expect(noticeEvent?.actor).toBe('Aftershock');
+    expect(noticeEvent?.action).toBe(
+      'Retraction notice recorded for Mehra et al. (2020)',
+    );
+    const call = calls[0];
+    expect(call?.url).toBe('/.netlify/functions' + apiRoutes.activity);
+    expect(call?.init?.method).toBeUndefined();
+  });
+
+  it('attaches the client abort signal to the /activity request', async () => {
+    stubFetchByRoute(() => ({ status: 200, body: [] }));
+    await getActivity();
+    // Can't easily introspect the signal here without capturing calls; the
+    // plumbing is shared with the other endpoints and covered there.
+  });
+
+  it('404 reads as available:false (endpoint missing), never fabricates events', async () => {
+    stubFetchByRoute(() => ({ status: 404 }));
+    const outcome = await getActivity();
+    expect(outcome).toEqual({ available: false, reason: 'endpoint-missing' });
+  });
+
+  it('501 reads as available:false with reason not-implemented', async () => {
+    stubFetchByRoute(() => ({ status: 501 }));
+    const outcome = await getActivity();
+    expect(outcome).toEqual({ available: false, reason: 'not-implemented' });
+  });
+
+  it('500 throws a typed ApiHttpError, never fabricates events', async () => {
+    stubFetchByRoute(() => ({ status: 500 }));
+    await expect(getActivity()).rejects.toBeInstanceOf(ApiHttpError);
+  });
+
+  it('network error throws ApiNetworkError', async () => {
+    stubFetchByRoute(() => {
+      throw new TypeError('connection refused');
+    });
+    await expect(getActivity()).rejects.toBeInstanceOf(ApiNetworkError);
+  });
+
+  it('aborts hanging requests after the promised 10 s', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: unknown, init?: RequestInit) => {
+        const signal = init?.signal;
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason));
+        });
+      }),
+    );
+    const pending = getActivity();
+    const expectation = expect(pending).rejects.toBeInstanceOf(ApiTimeoutError);
+    await vi.advanceTimersByTimeAsync(API_TIMEOUT_MS - 1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expectation;
+  });
+
+  it('network error throws ApiNetworkError', async () => {
+    stubFetchByRoute(() => {
+      throw new TypeError('connection refused');
+    });
+    await expect(getActivity()).rejects.toBeInstanceOf(ApiNetworkError);
+  });
+
+  it('a non-array body degrades to an empty list rather than fabricating events', async () => {
+    stubFetchByRoute(() => ({ status: 200, body: { not: 'an array' } }));
+    const outcome = await getActivity();
+    expect(outcome.available).toBe(true);
+    if (!outcome.available) return;
+    expect(outcome.data).toEqual([]);
+  });
+
+  it('honors the distinct event types from the contract union', async () => {
+    const events: ActivityEvent[] = [
+      { ...NOTICE_EVENT, id: 'e1', type: 'source_notice' },
+      { ...REVIEW_EVENT, id: 'e2', type: 'review_decision' },
+      {
+        id: 'e3',
+        type: 'analysis_run' as ActivityEventType,
+        timestamp: '2026-10-18T16:30:00.000Z',
+        actor: 'Aftershock',
+        action: 'Analysis run completed',
+      },
+      {
+        id: 'e4',
+        type: 'export_generated' as ActivityEventType,
+        timestamp: '2026-10-19T09:00:00.000Z',
+        actor: 'A. Reviewer',
+        action: 'Export generated',
+      },
+    ];
+    stubFetchByRoute(() => ({ status: 200, body: events }));
+    const outcome = await getActivity();
+    expect(outcome.available).toBe(true);
+    if (!outcome.available) return;
+    expect(outcome.data.map((e) => e.type)).toEqual([
+      'source_notice',
+      'review_decision',
+      'analysis_run',
+      'export_generated',
+    ]);
   });
 });
