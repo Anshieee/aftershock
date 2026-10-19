@@ -27,9 +27,13 @@ Two parallel tracks, strictly separated:
 |---|---|---|---|---|---|---|
 | v1 minimalist | experiment/home-v1-minimalist | aftershock-ui-v1 | glm-5.3-flash-free | **done+pushed** | (3 commits; thesis `09da0ac`) | pending alias deploy |
 | v2 research studio | experiment/home-v2-research-studio | aftershock-ui-v2 | longcat-2.5-preview-free | **done+pushed** | (thesis `b3da17f`) | pending alias deploy |
-| v3 evidence lens | experiment/home-v3-evidence-lens | aftershock-ui-v3 | glm-5.3-flash-free | in flight | — | — |
-| v4 investigator's desk | experiment/home-v4-investigators-desk | aftershock-ui-v4 | mimo-v2.6-flash-free | in flight | — | — |
-| v5 editorial | experiment/home-v5-editorial | aftershock-ui-v5 | — | queued | — | — |
+| v3 evidence lens | experiment/home-v3-evidence-lens | aftershock-ui-v3 | glm-5.3-flash-free | **done+pushed** | (thesis `b90b4d6`, impl+polish `b096083`/`191278a`) | pending alias deploy |
+| v4 investigator's desk | experiment/home-v4-investigators-desk | aftershock-ui-v4 | mimo-v2.6-flash-free | **done+pushed** | (thesis `0682c2d`, 3 commits) | pending alias deploy |
+| v5 editorial | experiment/home-v5-editorial | aftershock-ui-v5 | glm-5.3-flash-free | **done+pushed** | (thesis `5e818fd`, assets `4e926d7`) | pending alias deploy |
+
+## QA phase (independent reviewer — mimo)
+- Consolidated QA agent reviews all five variants: boundary compliance (diff name-status), seed-machine preservation, ImportPanel reuse, integrity copy, similarity check (any two too-alike → name weaker + fix), rubric scoring, per-variant fix lists.
+- After must-fix items resolved → 5 alias draft deploys (`aftershock-home-v1..v5`) + URL verification + comparison package + morning handoff.
 
 ## Next actions queue
 1. Design-research note (bounded) → create 5 worktrees/branches from baseline → dispatch variant agents in batches of 2.
