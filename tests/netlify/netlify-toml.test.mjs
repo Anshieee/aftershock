@@ -95,26 +95,13 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
   });
 
   /**
-   * M4 routes whose function files land with the parallel backend wave
-   * (fixed client↔server contract, same sprint): import-document, analyze,
-   * analyze-status, document-detail. The existence check tolerates EXACTLY
-   * these heads until the files are deployed — every other unknown segment
-   * still fails loudly. Remove entries once the functions land on main.
-   * @type {Set<string>}
+   * M4/M5/M6 routes whose function files landed on main with their waves
+   * (the historical PENDING_FUNCTION_FILES seam is retired — every listed
+   * file exists and is deployed, so the existence check is now STRICT:
+   * any new route must have its netlify/functions/<name>.mjs file in the
+   * same batch, no tolerated drift).
    */
-  const PENDING_FUNCTION_FILES = new Set([
-    'activity',
-    'documents-imported',
-    'import-document',
-    'analyze',
-    'analyze-status',
-    'document-detail',
-    'export-annotated-manuscript',
-    'export-report',
-    'export-revision-pack',
-    'review-decide',
-    'review-revision',
-  ]);
+  const PENDING_FUNCTION_FILES = new Set([]);
 
   for (const [key, { route, sourceLine }] of ROUTES) {
     describe(`route ${key} = ${route}`, () => {
@@ -123,9 +110,9 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
       it('first path segment names an existing netlify/functions/<name>.mjs file', () => {
         expect(
           FUNCTIONS.includes(head) || PENDING_FUNCTION_FILES.has(head),
-          `first segment "${head}" must be a function filename (deployed: ${FUNCTIONS.join(
+          `first segment "${head}" must be an existing function filename (deployed: ${FUNCTIONS.join(
             ', ',
-          )}) or an explicitly pending M4 route`,
+          )})`,
         ).toBe(true);
       });
 
