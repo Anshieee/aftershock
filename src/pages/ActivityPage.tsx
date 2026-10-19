@@ -90,7 +90,7 @@ function extraDateKindsOf(event: ActivityEvent): DateKind[] {
   if (event.type !== 'source_notice') return [];
   const kinds: DateKind[] = [];
   if (event.noticeRecordedDate) {
-    kinds.push({ label: 'PubMed/PMC record', kind: 'notice-recorded', timestamp: event.noticeRecordedDate });
+    kinds.push({ label: 'Indexing-system record (PubMed/PMC/Crossref)', kind: 'notice-recorded', timestamp: event.noticeRecordedDate });
   }
   // In the demo graph detectedAt equals the seed timestamp for every
   // recorded notice, so the label says so — never scanning/discovery.
@@ -396,6 +396,8 @@ export default function ActivityPage() {
         <div
           className="mt-2 flex flex-wrap items-center gap-2"
           data-testid="activity-case-filter"
+          role="group"
+          aria-label="Per-case activity view"
         >
           <span className="text-xs uppercase tracking-wide text-ink-muted">View</span>
           <button
@@ -420,7 +422,7 @@ export default function ActivityPage() {
                 ? 'rounded-full border border-reviewed bg-reviewed px-3 py-1 text-xs font-mono text-paper'
                 : 'rounded-full border border-reviewed bg-reviewed-surface px-3 py-1 font-mono text-xs text-reviewed-text hover:bg-review-surface'}
             >
-              This case: {caseId}
+              {selectedCaseId === caseId ? `This case: ${caseId}` : `Case ${caseId}`}
             </button>
           ))}
         </div>

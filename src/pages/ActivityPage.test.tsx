@@ -101,7 +101,7 @@ describe('ActivityPage — real chronological timeline from GET /activity', () =
     // detectedAt labels the demo seed honestly — never scanning/discovery.
     expect(
       screen.getByTestId('activity-event-evt-notice-1-date-kind-notice-recorded').textContent,
-    ).toMatch(/^PubMed\/PMC record .+/);
+    ).toMatch(/^Indexing-system record \(PubMed\/PMC\/Crossref\) .+/);
     expect(
       screen.getByTestId('activity-event-evt-notice-1-date-kind-detected').textContent,
     ).toMatch(/^First recorded by Aftershock \(demo seed\) .+/);
@@ -329,6 +329,12 @@ describe('ActivityPage — M7 per-case view (GET /activity?caseId=)', () => {
 
     // Candidates come only from events recorded against a case.
     expect(screen.queryByTestId('activity-filter-all')).toBeTruthy();
+    // Unselected chip names the case plainly; selecting it keeps the
+    // "This case:" context (plus aria-pressed, asserted below).
+    expect(screen.getByTestId('activity-filter-case-claim-A').textContent).toBe(
+      'Case claim-A',
+    );
+    fireEvent.click(screen.getByTestId('activity-filter-case-claim-A'));
     expect(screen.getByTestId('activity-filter-case-claim-A').textContent).toBe(
       'This case: claim-A',
     );

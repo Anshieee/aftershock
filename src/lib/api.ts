@@ -1154,7 +1154,7 @@ export interface ActivityEvent {
   /** Provenance kind verbatim from the graph record, when the server carries it. */
   provenanceKind?: string | null;
   /* source_notice only — the four distinct notice timestamps (§6): */
-  /** Official announcement date (PubMed/PMC/Crossref record of the notice). */
+  /** Indexing-system record date for the notice (PubMed/PMC/Crossref) — distinct from the published official-announcement date. */
   noticeRecordedDate?: string | null;
   /** When Aftershock FIRST recorded the notice. In the demo graph this is
    *  always the seed timestamp — it is labeled "First recorded by
