@@ -145,6 +145,22 @@
   color: var(--ink-muted);
 }
 
+/* Responsive preamble: a one-line summary on small screens, the full
+   three-line preamble from md+ upward. No honest wording is removed — it is
+   repositioned by breakpoint. */
+.landing-v4 .v4-hero-lede--short {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .landing-v4 .v4-hero-lede--full {
+    display: none;
+  }
+  .landing-v4 .v4-hero-lede--short {
+    display: block;
+  }
+}
+
 /* Rubber-stamp scope label: double outline, no fill, slight rotation.
    Ink-muted keeps AA (5.5:1 on paper) at 11px bold. */
 .landing-v4 .v4-stamp {
@@ -177,6 +193,29 @@
 }
 
 /* ------------------------------------------------------------- sheets -- */
+
+/* Collapsed intake sheet: a thin row that keeps 02 · INTAKE present in
+   the flow so numbering stays 01 → 02 → 03 → 04 even when closed. */
+.landing-v4 .v4-sheet--collapsed {
+  padding: 0.7rem 1.35rem;
+  margin-top: 1.5rem;
+}
+
+.landing-v4 .v4-intake-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  position: relative;
+}
+
+.landing-v4 .v4-toggle--intake {
+  width: auto;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.875rem;
+  text-align: center;
+}
 
 /* File-divider label sitting on a sheet's top rule. Quiet on every sheet —
    amber is spent only on the hero case tab. */
@@ -591,5 +630,68 @@
   .landing-v4 .v4-cta:active:not(:disabled),
   .landing-v4 .v4-index-link:hover {
     transform: none;
+  }
+}
+
+/* ------------------------------------------------- mobile fold (≤640px) -- */
+@media (max-width: 640px) {
+  .landing-v4 {
+    padding: 1rem 1rem 2rem;
+  }
+  .landing-v4 .v4-case-tab {
+    margin-bottom: 0.75rem;
+  }
+  .landing-v4 .v4-brand {
+    font-size: 1.5rem;
+  }
+  .landing-v4 .v4-tagline {
+    margin-top: 0.4rem;
+  }
+  .landing-v4 .v4-hero-title {
+    margin-top: 0.9rem;
+  }
+  .landing-v4 .v4-hero-lede {
+    margin-top: 0.7rem;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+  /* Shrink + tighten the GUIDED DEMO BUILD stamp on mobile. */
+  .landing-v4 .v4-stamp {
+    margin-top: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+  }
+  .landing-v4 .v4-card {
+    margin-top: 1.25rem;
+    padding: 1.1rem 1rem 1rem;
+  }
+  .landing-v4 .v4-card-head {
+    margin-top: 0.7rem;
+    padding-bottom: 0.6rem;
+  }
+  .landing-v4 .v4-actions {
+    margin-top: 0.9rem;
+    gap: 0.5rem;
+  }
+  .landing-v4 .v4-cta {
+    padding: 0.8rem 1.25rem;
+    font-size: 1rem;
+  }
+  .landing-v4 .v4-integrity {
+    margin-top: 0.9rem;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+  }
+  .landing-v4 .v4-sheet {
+    margin-top: 1.25rem;
+    padding: 1.2rem 1rem 1rem;
+  }
+  .landing-v4 .v4-sheet--collapsed {
+    margin-top: 1.25rem;
+    padding: 0.6rem 1rem;
+  }
+  .landing-v4 .v4-hero {
+    padding-bottom: 0.75rem;
   }
 }

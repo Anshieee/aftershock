@@ -143,10 +143,14 @@ export default function LandingPage() {
           <h1 id="hero-heading" className="v4-hero-title">
             What would you like to investigate?
           </h1>
-          <p className="v4-hero-lede">
+          <p className="v4-hero-lede v4-hero-lede--full">
             Three real paths on this desk: start the guided investigation,
             register a file (metadata only), or read a verified record from the
             public literature. Nothing here is staged.
+          </p>
+          <p className="v4-hero-lede v4-hero-lede--short">
+            Three real paths: guided investigation, file registration (metadata
+            only), verified record. Nothing here is staged.
           </p>
           <p className="v4-stamp">Guided demo build</p>
         </section>
@@ -184,19 +188,6 @@ export default function LandingPage() {
               className="v4-cta"
             >
               {seeding ? 'Contacting demo API…' : 'Start the guided investigation'}
-            </button>
-            {/* Secondary path: real document intake, never a second indigo
-                destination — it only discloses the untouched import flow. */}
-            <button
-              type="button"
-              onClick={() => setShowDocumentArea((open) => !open)}
-              aria-expanded={showDocumentArea}
-              aria-controls="document-area"
-              data-testid="choose-document-toggle"
-              className="v4-toggle"
-            >
-              <span className="v4-toggle-lead">Have a document?</span>{' '}
-              <span>Register a file (metadata only)</span>
             </button>
           </div>
 
@@ -276,41 +267,57 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* 02 · INTAKE — collapsed by default. Expanding reveals the real
-            import flow (ImportPanel rendered untouched: client-side guards →
-            POST /import-document → verbatim server disclosure → Analyze only
-            for the demo manuscript) plus the still-unbuilt Bibliography /
-            Single DOI affordances, honest and disabled. */}
-        {showDocumentArea && (
-          <section
-            id="document-area"
-            aria-labelledby="intake-heading"
-            className="v4-sheet"
-          >
+        {/* 02 · INTAKE — always present so numbering stays 01 → 02 → 03 →
+            04 even when collapsed. Collapsed: a thin header row carrying the
+            tab label and the existing intake toggle. Expanded: the real,
+            untouched <ImportPanel/> plus the honestly disabled Bibliography /
+            Single DOI affordances. */}
+        <section
+          id="document-area"
+          aria-labelledby="intake-heading"
+          className={`v4-sheet${showDocumentArea ? '' : ' v4-sheet--collapsed'}`}
+        >
+          <div className="v4-intake-head">
             <span className="v4-tab-label" aria-hidden="true">
               02 · Intake
             </span>
-            <h2 id="intake-heading" className="v4-h2">
-              Intake — register a file (metadata only)
-            </h2>
+            <button
+              type="button"
+              onClick={() => setShowDocumentArea((open) => !open)}
+              aria-expanded={showDocumentArea}
+              aria-controls="document-area"
+              data-testid="choose-document-toggle"
+              className="v4-toggle v4-toggle--intake"
+            >
+              <span className="v4-toggle-lead">Have a document?</span>{' '}
+              <span>Register a file (metadata only)</span>
+            </button>
+          </div>
 
-            <ImportPanel />
+          {showDocumentArea && (
+            <>
+              <h2 id="intake-heading" className="v4-h2">
+                Intake — register a file (metadata only)
+              </h2>
 
-            <div className="v4-disabled-row">
-              <button type="button" disabled className="v4-disabled-chip">
-                Bibliography
-              </button>
-              <button type="button" disabled className="v4-disabled-chip">
-                Single DOI
-              </button>
-              <span>
-                Bibliography and DOI imports arrive with the import flow — they
-                cannot detect passage-level claim dependencies; original research
-                text is needed for that.
-              </span>
-            </div>
-          </section>
-        )}
+              <ImportPanel />
+
+              <div className="v4-disabled-row">
+                <button type="button" disabled className="v4-disabled-chip">
+                  Bibliography
+                </button>
+                <button type="button" disabled className="v4-disabled-chip">
+                  Single DOI
+                </button>
+                <span>
+                  Bibliography and DOI imports arrive with the import flow — they
+                  cannot detect passage-level claim dependencies; original research
+                  text is needed for that.
+                </span>
+              </div>
+            </>
+          )}
+        </section>
 
         {/* 03 · RECORDS — one real, publicly verified record, clearly
             distinct from the fictional guided-demo manuscript, followed by

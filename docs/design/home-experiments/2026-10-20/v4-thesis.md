@@ -85,6 +85,7 @@ one red is used (the `FLAGGED — NEEDS HUMAN REVIEW` legend stamp).
 - **Motion:** none on load; a 150 ms hover lift on the CTA and a 150 ms
   translate on index links only, both removed under
   `prefers-reduced-motion`.
+  prefers-reduced-motion: hover transitions suppressed by shell rule; static-at-rest equals the initial frame (no separate meaningful capture).
 
 ## 4. Composition
 
