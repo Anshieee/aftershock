@@ -25,10 +25,10 @@ Two parallel tracks, strictly separated:
 ## Design experiment ledger (fill as variants land)
 | Variant | Branch | Worktree | Agent model | Status | Commit | Preview URL |
 |---|---|---|---|---|---|---|
-| v1 minimalist | experiment/home-v1-minimalist | aftershock-ui-v1 | — | queued | — | — |
-| v2 research studio | experiment/home-v2-research-studio | aftershock-ui-v2 | — | queued | — | — |
-| v3 evidence lens | experiment/home-v3-evidence-lens | aftershock-ui-v3 | — | queued | — | — |
-| v4 investigator's desk | experiment/home-v4-investigators-desk | aftershock-ui-v4 | — | queued | — | — |
+| v1 minimalist | experiment/home-v1-minimalist | aftershock-ui-v1 | glm-5.3-flash-free | **done+pushed** | (3 commits; thesis `09da0ac`) | pending alias deploy |
+| v2 research studio | experiment/home-v2-research-studio | aftershock-ui-v2 | longcat-2.5-preview-free | **done+pushed** | (thesis `b3da17f`) | pending alias deploy |
+| v3 evidence lens | experiment/home-v3-evidence-lens | aftershock-ui-v3 | glm-5.3-flash-free | in flight | — | — |
+| v4 investigator's desk | experiment/home-v4-investigators-desk | aftershock-ui-v4 | mimo-v2.6-flash-free | in flight | — | — |
 | v5 editorial | experiment/home-v5-editorial | aftershock-ui-v5 | — | queued | — | — |
 
 ## Next actions queue
