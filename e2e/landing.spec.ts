@@ -38,9 +38,14 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
     buffer: Buffer.from('placeholder'),
   });
   const status = page.locator('[data-testid="selection-state"]');
+  // Wait for the import to reach a terminal state (registered or failed),
+  // not just the in-flight "registering" state.
+  await status
+    .locator('[data-testid="import-result"], [data-testid="import-failed"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .catch(() => {});
   await expect(status).toContainText('manuscript.txt');
-  // Either a successful registration with honest contentStored: false
-  // disclosure, or an honest error — never a fabricated analysis claim.
   const statusText = await status.textContent();
   const isRegistered = statusText.includes('Registered');
   if (isRegistered) {
