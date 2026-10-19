@@ -6,12 +6,14 @@ import { expect, test } from '@playwright/test';
  * secondary affordances, and a guided example that is gated (not faked).
  */
 
-test('primary "Choose a document" is reachable via keyboard', async ({ page }) => {
+test('the intake toggle "Register a file (metadata only)" is reachable via keyboard', async ({ page }) => {
   await page.goto('/');
-  // Wave U1: the picker lives in the collapsible document area. Walk focus
-  // with Tab to the "Choose a document" toggle, press Enter to expand it,
-  // and the next Tab must land on the native file input — still fully
-  // reachable without a pointer.
+  // V4 desk: the intake disclosure is the card's secondary action
+  // ("Have a document? Register a file (metadata only)",
+  // data-testid choose-document-toggle) and reveals sheet 02 · INTAKE.
+  // Walk focus with Tab to that toggle, press Enter to expand it, and the
+  // next Tab must land on the native file input — still fully reachable
+  // without a pointer.
   await page.locator('body').first().focus();
   let reachedToggle = false;
   for (let i = 0; i < 40 && !reachedToggle; i++) {
@@ -23,15 +25,11 @@ test('primary "Choose a document" is reachable via keyboard', async ({ page }) =
     );
     await handle.dispose();
   }
-  expect(reachedToggle, '"Choose a document" toggle reachable by keyboard Tab').toBe(true);
+  expect(reachedToggle, 'intake toggle reachable by keyboard Tab').toBe(true);
   await page.keyboard.press('Enter');
-  await page
-    .getByRole('button', { name: 'Choose a document' })
-    .first()
-    .waitFor({ state: 'visible' });
-  await expect(
-    page.getByRole('button', { name: 'Choose a document' }).first(),
-  ).toHaveAttribute('aria-expanded', 'true');
+  const toggle = page.getByTestId('choose-document-toggle');
+  await toggle.waitFor({ state: 'visible' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   // After expanding, a short Tab walk (≤ the launcher's small focus set)
   // must land on the native file input — reachability preserved.
   let inputReached = false;
@@ -47,9 +45,9 @@ test('primary "Choose a document" is reachable via keyboard', async ({ page }) =
 
 test('a native file input is present (no fake uploader)', async ({ page }) => {
   await page.goto('/');
-  // Expand the document area first: the picker is honest progressive
+  // Expand the intake sheet first: the picker is honest progressive
   // disclosure, not removed.
-  await page.getByRole('button', { name: 'Choose a document' }).first().click();
+  await page.getByTestId('choose-document-toggle').click();
   const input = page.locator('[data-testid="import-input"]');
   await expect(input).toBeAttached();
   await expect(input).toHaveAttribute('type', 'file');
@@ -75,10 +73,10 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
 
 test('secondary Bibliography / Single DOI are honestly gated, not faked', async ({ page }) => {
   await page.goto('/');
-  // Wave U1: the demoted affordances live inside the collapsed document
-  // area — expand it first, then verify they are visible-disabled (honest
+  // The demoted affordances live inside the collapsed intake sheet —
+  // expand it first, then verify they are visible-disabled (honest
   // gating, never fake inputs).
-  await page.getByRole('button', { name: 'Choose a document' }).first().click();
+  await page.getByTestId('choose-document-toggle').click();
   await expect(page.getByRole('button', { name: 'Bibliography' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Bibliography' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Single DOI' })).toBeDisabled();
