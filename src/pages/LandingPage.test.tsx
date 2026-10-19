@@ -38,11 +38,26 @@ describe('LandingPage (V2 — the research studio)', () => {
     // sidebar-only U1 hero), over the small-caps eyebrow.
     expect(screen.getAllByText('Aftershock.')).toHaveLength(1);
     expect(screen.getByText('Trace the evidence.')).toBeTruthy();
+    // The full lede is rendered twice in the DOM — one md+ copy in the hero,
+    // one mobile-only copy below the fold — from a single shared string, so
+    // small screens keep every honest line while the hero stays compact.
+    // (Only one copy is ever visible per viewport; both share the exact
+    // wording the design of record requires.)
+    const fullLedeCopies = screen.getAllByText(
+      /Aftershock is an evidence-integrity workspace\. It follows a publication through the public record/,
+    );
+    expect(fullLedeCopies).toHaveLength(2);
+    for (const copy of fullLedeCopies) {
+      expect(copy.textContent).toContain('the corrections, the retractions');
+      expect(copy.textContent).toContain('what still deserves a careful human look');
+    }
+    // The mobile-only collapsed hero summary (2 lines at 390px) exists
+    // exactly once and keeps the same honest framing.
     expect(
-      screen.getByText(
-        /Aftershock is an evidence-integrity workspace\. It follows a publication through the public record/,
+      screen.getAllByText(
+        /An evidence-integrity workspace: it follows a publication through the public record/,
       ),
-    ).toBeTruthy();
+    ).toHaveLength(1);
   });
 
   it('exposes ONE primary seed trigger in the launcher (no duplicated CTAs, no fake extras)', () => {

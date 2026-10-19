@@ -28,6 +28,19 @@ const seedFlowMessages: Record<string, string> = {
 };
 
 /**
+ * The full journal lede, verbatim, in one place so the responsive copies
+ * cannot drift: md+ renders it in the hero; small screens lead the hero
+ * with a two-line summary (so the primary CTA stays in the first screen)
+ * and render this full paragraph below the fold. No honest line is ever
+ * removed from the page — the collapsed variant is an addition, not a cut.
+ */
+const fullLede =
+  'Aftershock is an evidence-integrity workspace. It follows a ' +
+  'publication through the public record — the corrections, the ' +
+  'retractions, and the papers that cite it — so you can see what ' +
+  'changed, what held, and what still deserves a careful human look.';
+
+/**
  * VARIANT 02 — THE RESEARCH STUDIO (design experiment, 2026-10-20).
  *
  * A SciSpace-inspired scholarly launcher on the journal of the record:
@@ -93,8 +106,13 @@ export default function LandingPage() {
     <div className="landing-v2">
       <div className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-2xl flex-col px-6">
         {/* 1 — Hero: wordmark, small-caps eyebrow, and the research question
-            the tool answers, in display serif. */}
-        <section aria-labelledby="hero-heading" className="pt-14 text-center md:pt-20">
+            the tool answers, in display serif. The section carries a local
+            class so landing-v2.css can tighten the rhythm on short laptop
+            viewports (see the compact-viewport rule). */}
+        <section
+          aria-labelledby="hero-heading"
+          className="v2-hero pt-10 text-center md:pt-20"
+        >
           <p className="wordmark text-[1.75rem] leading-none text-brand-deep">
             Aftershock.
           </p>
@@ -105,11 +123,20 @@ export default function LandingPage() {
           >
             What happened to this research after it was published?
           </h1>
-          <p className="lede mx-auto mt-9 max-w-prose text-left text-lg leading-8 text-ink">
-            Aftershock is an evidence-integrity workspace. It follows a
-            publication through the public record — the corrections, the
-            retractions, and the papers that cite it — so you can see what
-            changed, what held, and what still deserves a careful human look.
+          {/* Hero lede, two honest variants — same wording, different length:
+              md+ shows the full journal lede here; small screens show a
+              two-line summary so the primary CTA stays inside the first
+              screen (QA fold budget). The summary uses the full mobile
+              column and 15px type (the 65ch max-w-prose measure plus 16px
+              type would wrap to three lines). The full lede is NOT removed
+              on small screens — it renders below the fold, after the
+              launcher, from the same shared `fullLede` string. */}
+          <p className="mx-auto mt-6 w-full max-w-none text-left text-[0.9375rem] leading-7 text-ink md:hidden">
+            An evidence-integrity workspace: it follows a publication through
+            the public record.
+          </p>
+          <p className="lede mx-auto mt-6 hidden max-w-prose text-left text-lg leading-8 text-ink md:mt-9 md:block">
+            {fullLede}
           </p>
         </section>
 
@@ -120,7 +147,7 @@ export default function LandingPage() {
         <section
           aria-labelledby="launcher-heading"
           data-testid="investigation-launcher"
-          className="mt-14 border-t border-ink-border pt-10 md:mt-16"
+          className="v2-launcher mt-10 border-t border-ink-border pt-8 md:mt-16 md:pt-10"
         >
           <h2 id="launcher-heading" className="eyebrow text-center">
             Research launcher
@@ -131,7 +158,7 @@ export default function LandingPage() {
               unchanged). */}
           <div
             data-testid="hero-guided-action"
-            className="mt-8 flex justify-center"
+            className="v2-cta-row mt-7 flex justify-center md:mt-8"
           >
             <button
               type="button"
@@ -277,6 +304,18 @@ export default function LandingPage() {
             </li>
           </ul>
         </section>
+
+        {/* 2b — Mobile-only: the full lede returns below the fold. Small
+            screens lead with a two-line hero summary so the primary action
+            stays in the first screen; every honest line of the full intro
+            is still on the page, verbatim, right here. Hidden on md+ (the
+            hero lede carries it there) — same shared string, never a cut. */}
+        <div className="mt-10 border-t border-ink-border pt-6 md:hidden">
+          <p className="eyebrow text-center">The workspace, in full</p>
+          <p className="lede mx-auto mt-4 max-w-prose text-left text-lg leading-8 text-ink">
+            {fullLede}
+          </p>
+        </div>
 
         {/* 5 — Four real, quiet workspace shortcuts as one centered text
             row with hairline dividers (no icon tiles, no cards-in-cards). */}

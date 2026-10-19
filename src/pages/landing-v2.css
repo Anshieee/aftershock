@@ -56,10 +56,13 @@
   color: var(--ink-muted);
 }
 
-/* Display headline — Source Serif 4 via font-display, fluid clamp scale. */
+/* Display headline — Source Serif 4 via font-display, fluid clamp scale.
+   The 1.875rem floor keeps the research question to ≤3 lines on a 390px
+   phone (QA fold budget); md+ viewports are unaffected (5.4vw passes the
+   floor above ~555px), so laptop/desktop hero renders are unchanged. */
 .landing-v2 .hero-headline {
   font-family: 'Source Serif 4 Variable', Georgia, serif;
-  font-size: clamp(2.375rem, 5.4vw, 3.75rem);
+  font-size: clamp(1.875rem, 5.4vw, 3.75rem);
   line-height: 1.08;
   letter-spacing: -0.015em;
   text-wrap: balance;
@@ -75,6 +78,29 @@
   padding-right: 0.12em;
   padding-top: 0.06em;
   color: var(--ink);
+}
+
+/* Short desktop viewports (classic 1366×768 laptops): tighten the hero
+   rhythm so the primary CTA stays fully above the fold — measured target:
+   CTA top ≤ 700px at 768px height. Only applies below ~820px of viewport
+   height, so tall viewports (900px+, which the 1440×900 evidence shots
+   use) keep the generous journal spacing byte-for-byte unchanged.
+   Specificity (2 classes) beats the Tailwind md: spacing utilities it
+   overrides; the md breakpoint already matches this min-width. */
+@media (min-width: 48rem) and (max-height: 820px) {
+  .landing-v2 .v2-hero {
+    padding-top: 3.5rem; /* md:pt-20 → 3.5rem */
+  }
+  .landing-v2 .v2-hero .lede {
+    margin-top: 1.5rem; /* md:mt-9 → 1.5rem */
+  }
+  .landing-v2 .v2-launcher {
+    margin-top: 2.5rem; /* md:mt-16 → 2.5rem */
+    padding-top: 2rem; /* md:pt-10 → 2rem */
+  }
+  .landing-v2 .v2-cta-row {
+    margin-top: 1.75rem; /* md:mt-8 → 1.75rem */
+  }
 }
 
 /* The RESEARCH LAUNCHER — hairline rules instead of a heavy card. */

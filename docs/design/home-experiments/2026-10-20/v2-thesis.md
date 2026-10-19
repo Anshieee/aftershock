@@ -73,6 +73,15 @@ inside that area only, with their scope note.
   section labels — no icon tiles anywhere.
 - Fluid `clamp()` type scale for the headline and launcher CTA; Inter for
   UI/body, Source Serif 4 for display.
+- **Responsive fold budget (QA fix, 2026-10-20):** below 768px the hero leads
+  with a two-line summary lede (15px, full mobile column) and the headline's
+  clamp floor drops to `1.875rem`, so the primary CTA lands fully inside a
+  390×844 first screen (button top y≈705). The full lede is **not removed** on
+  small screens: it renders verbatim (same shared string) on md+ in the hero
+  and below the launcher on small screens. Short laptop viewports (≤820px of
+  viewport height, e.g. 1366×768) tighten the hero rhythm via a height-based
+  CSS rule so the CTA is fully above the fold (button top y≈657); tall
+  viewports keep the generous journal spacing unchanged.
 
 ## 5. Typography
 
@@ -81,7 +90,8 @@ inside that area only, with their scope note.
 - **Inter** (already self-hosted via `font-sans`): eyebrows, body, controls,
   integrity lines.
 - Eyebrow labels: uppercase, `tracking-[0.18em]`, `text-xs`, `text-ink-muted`.
-- Headline: `clamp(2.5rem, 6vw, 4rem)`, tight leading, balanced wrap.
+- Headline: `clamp(1.875rem, 5.4vw, 3.75rem)`, tight leading, balanced wrap
+  (the 1.875rem floor keeps the question to ≤3 lines at 390px wide).
 - Integrity lines: `text-sm`, `leading-7`, muted ink, separated by hairlines.
 - Motion: `150ms` ease micro-transitions on hover/focus only;
   `prefers-reduced-motion` disables all of it (global rule already covers us;
@@ -167,3 +177,37 @@ No purple gradients, no glassmorphism, no icon tiles.
   verbatim disclosure is shown untouched.
 - No fabricated studies, no fake graph, no fake metrics, no invented history.
   Every failure state says so.
+
+## 11. Evidence (screenshots)
+
+Captured against a real `npx vite dev --port 4272` build with the live
+backend (no response mocking). The only console message on every view is
+the pre-existing `/.netlify/functions/health` 404 (absent under `netlify
+dev`).
+
+- `01-desktop-1440x900.png` — full page at 1440×900.
+- `01b-desktop-1440x900-fold.png` — first screen at 1440×900.
+- `02-desktop-1366x768.png` — first screen at 1366×768; the primary CTA is
+  fully inside the fold (button top y=657, bottom y=717).
+- `03-mobile-390x844.png` — true viewport-clipped first screen at 390×844
+  (not a full-page capture); CTA top y=705, fully visible with its label;
+  horizontal overflow = 0.
+- `03b-mobile-390x844-fullpage.png` — the full mobile page (390×2274), kept
+  separately from the fold shot.
+- `04-doc-picker-expanded.png` — progressive disclosure of the real
+  `<ImportPanel/>` at 1440×900.
+- `05-keyboard-focus-ring.png` — keyboard focus ring on the primary CTA.
+- `07-honest-degraded-state.png` — the honest "not wired on this build yet —
+  nothing ran" failure state.
+
+Reduced motion: page defines no additional animation; expanded prefers-reduced-motion check equals the initial static frame — verified via the shell rule; therefore no separate capture is meaningful.
+
+The former `06-reduced-motion.png` was byte-identical to the 1440×900 fold
+capture (md5 `6f17e04…`), so it was **deleted rather than re-badged** as new
+evidence. Verified in code: the landing defines no `@keyframes` and no
+`animation:` property; its only motion is 150ms hover/focus/active
+transitions, which both the shell rule (`src/index.css` —
+`prefers-reduced-motion: reduce` → `animation: none !important`,
+`transition: none !important`) and the landing's own reduced-motion block
+(`src/pages/landing-v2.css`) disable. The seed flow's in-flight state has
+no animated element to capture either.
