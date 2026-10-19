@@ -36,6 +36,40 @@ test('Knowledge Graph page has no critical axe violations', async ({ page }) => 
   expect(critical, `critical violations: ${summarize(critical)}`).toEqual([]);
 });
 
+/**
+ * Wave 5 hardening: extend the critical-violation axe scan to the remaining
+ * primary workspace pages. Critical-only so the gate stays stable across
+ * honest data states (empty/loaded/failure each render their own copy).
+ * Each page is scanned after its h1 is visible so the scan never races the
+ * SPA mount.
+ */
+const PRIMARY_PAGES = [
+  { path: '/review-queue', label: 'review-queue' },
+  { path: '/library', label: 'library' },
+  { path: '/activity', label: 'activity' },
+  { path: '/investigations', label: 'investigations' },
+  { path: '/export', label: 'export' },
+] as const;
+
+test('remaining primary pages have no critical axe violations', async ({ page }) => {
+  const offenders: Array<{ label: string; violations: string }> = [];
+  for (const { path, label } of PRIMARY_PAGES) {
+    await page.goto(path);
+    await expect(
+      page.getByRole('heading', { level: 1 }),
+      `${label} mounts with an accessible h1`,
+    ).toBeVisible({ timeout: 15_000 });
+    const critical = await scan(page, label);
+    if (critical.length > 0) {
+      offenders.push({ label, violations: summarize(critical) });
+    }
+  }
+  expect(
+    offenders,
+    `critical violations found: ${offenders.map((o) => `${o.label}: ${o.violations}`).join(' | ')}`,
+  ).toEqual([]);
+});
+
 test('skip link exists and is exposed to keyboard by focus', async ({ page }) => {
   await page.goto('/');
   const skip = page.locator('a[href="#main-content"]');
