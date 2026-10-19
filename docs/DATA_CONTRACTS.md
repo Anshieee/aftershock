@@ -66,6 +66,15 @@ Every material edge carries: `id`, `provenanceKind` (observed|source_verified|hu
 ### Publication / notice
 `verified` boolean on SourceNotice; `isSynthetic` boolean on Publication.
 
+### Audit artifacts & reseed (invariant integrity, 2026-10-19)
+`ReviewDecision` and `RevisionProposal` nodes (and their case-linkage edges) are **human-audit
+artifacts, never seeded fixture content**: written with `seeded: false`, excluded from the reseed
+wipe, and excluded from seeded-count idempotency accounting. A reseed therefore never destroys
+audit history; after a fixture-scope wipe the seed re-establishes case→decision linkage
+(HAS_REVIEW_DECISION) so graph traversal views keep working. Case reviewState itself is honest
+per-environment state: a reseed returns seeded items to pre-decision state while decision history
+remains inspectable via the nodes.
+
 ### Export status
 `complete | incomplete` (incomplete if any open task/unresolved).
 

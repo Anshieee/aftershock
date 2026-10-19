@@ -17,6 +17,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { connectFromEnv, resolveCredentials } from '../../graphClient.mjs';
 import { readSeedMeta, seedGraph } from '../../seed.mjs';
+import { getReviewDecisionsForCase, recordReviewDecision } from '../../reviewState.mjs';
 import {
   deferReferenceOccurrence,
   getSeedStatus,
@@ -234,5 +235,120 @@ integration(`M2 integration invariants on ${SMOKE_GRAPH}`, () => {
     const propagation = await unresolvedNonPropagationCheck(session);
     expect(propagation.occurrence.resolutionState).toBe('unresolved');
     expect(propagation.safe).toBe(true);
+  });
+});
+
+/* -------------------------------------------------------------------------- *
+ * M5/P4-integrity integration: recorded review decisions MUST survive reseeds.
+ *
+ * Regression for the 2026-10-19 wipe bug: a recorded ReviewDecision stamped
+ * seeded:true made the seeded-count idempotency accounting read it as fixture
+ * drift, so the next guided-seed wiped the audit history. Contract defense is
+ * threefold (writers stamp seeded:false; wipe excludes audit labels; relink
+ * re-attaches case→decision edges after a wipe). This suite exercises the
+ * behavior end-to-end on the throwaway smoke graph only.
+ * -------------------------------------------------------------------------- */
+
+integration('audit survival across reseeds on smoke graph', () => {
+  const DECISION_EXPLANATION = 'Vitest audit-survival probe: guided-demo retraction review stays in history.';
+
+  beforeAll(async () => {
+    session = await connectFromEnv({
+      graphName: SMOKE_GRAPH,
+      clientName: 'aftershock-vitest-integration',
+    });
+    const graphsOnConnect = await session.listGraphs();
+    if (graphsOnConnect.includes(SMOKE_GRAPH)) {
+      console.warn(`[audit-survival] leftover ${SMOKE_GRAPH} — deleting before baseline`);
+      await session.db.selectGraph(SMOKE_GRAPH).delete();
+    }
+    await seedGraph(session);
+  });
+
+  afterAll(async () => {
+    if (!session) return;
+    try {
+      await session.db.selectGraph(SMOKE_GRAPH).delete();
+    } catch {
+      // deleting a missing graph is a no-op for our purposes
+    }
+    const graphsAfter = (await session.listGraphs()).slice();
+    expect(graphsAfter).toEqual(graphsBefore);
+    await session.close();
+  });
+
+  it('records a real decision on claim-A as an audit artifact (seeded:false)', async () => {
+    const result = await recordReviewDecision(
+      /** @type {any} */ (session),
+      {
+        caseId: FIXTURE_IDS.claimSupporting,
+        outcome: 'not_affected',
+        explanation: DECISION_EXPLANATION,
+      },
+    );
+    expect(result.decisionId).toBeTruthy();
+    expect(result.caseId).toBe(FIXTURE_IDS.claimSupporting);
+
+    // Seed-count idempotency is intact after the audit write.
+    const status = await getSeedStatus(session);
+    expect(status.upToDate).toBe(true);
+
+    // The audit node is NOT seeded content (out of wipe scope).
+    const audited = await session.roQuery(
+      'MATCH (d:ReviewDecision) WHERE d.seeded = $audit RETURN count(d) AS c',
+      { audit: false },
+    );
+    expect(Number(audited.data?.[0]?.c ?? 0)).toBe(1);
+
+    // Decision is readable via the same op the report export uses.
+    const history = await getReviewDecisionsForCase(/** @type {any} */ (session), FIXTURE_IDS.claimSupporting);
+    expect(history).toHaveLength(1);
+    expect(history[0].explanation).toBe(DECISION_EXPLANATION);
+  });
+
+  it('noop reseed keeps the decision and does NOT relink existing links', async () => {
+    const noop = await seedGraph(session);
+    expect(noop.action).toBe('noop');
+    expect(noop.auditRelink).toBeUndefined();
+
+    const count = await session.roQuery(
+      'MATCH (d:ReviewDecision) WHERE d.seeded = $audit RETURN count(d) AS c',
+      { audit: false },
+    );
+    expect(Number(count.data?.[0]?.c ?? 0)).toBe(1);
+  });
+
+  it('a forced drift reseed wipes fixture scope but PRESERVES audit history + relinks it', async () => {
+    // Force real drift (same mechanism as the drift-heals test above).
+    await session.writeQuery('MATCH ()-[r:MENTIONS_HISTORICALLY]->() DELETE r');
+
+    const reseeded = await seedGraph(session);
+    expect(reseeded.action).toBe('reseeded');
+    // The relink pass re-attached the surviving decision's link edge honestly.
+    expect(reseeded.auditRelink).toEqual({ relinkedDecisionEdges: 1, decisionsTracked: 1 });
+
+    // Audit node survived the wipe AND is re-linked to the rebuilt case.
+    const linked = await session.roQuery(
+      `MATCH (c)-[:${'HAS_REVIEW_DECISION'}]->(d:ReviewDecision) WHERE d.explanation = $explanation RETURN count(d) AS c`,
+      { explanation: DECISION_EXPLANATION },
+    );
+    expect(Number(linked.data?.[0]?.c ?? 0)).toBe(1);
+
+    // History remains readable through the report/export read path.
+    const history = await getReviewDecisionsForCase(/** @type {any} */ (session), FIXTURE_IDS.claimSupporting);
+    expect(history).toHaveLength(1);
+    expect(history[0].explanation).toBe(DECISION_EXPLANATION);
+
+    // Case node is back to fixture state (fresh seeded environment — a claim
+    // carries no reviewState until a decision is recorded on it). The decision
+    // history and the case state are honestly distinct surfaces.
+    const claim = await session.roQuery(
+      'MATCH (c:Claim) WHERE c.id = $id RETURN c.reviewState AS reviewState',
+      { id: FIXTURE_IDS.claimSupporting },
+    );
+    expect(claim.data?.[0]?.reviewState ?? null).toBeNull();
+    // Seed counts healed exactly (decision stayed out of the accounting).
+    const healed = await getSeedStatus(session);
+    expect(healed.upToDate).toBe(true);
   });
 });

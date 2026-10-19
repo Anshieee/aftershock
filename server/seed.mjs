@@ -7,7 +7,11 @@
  *   fixture version and the seeded node/edge counts match the fixture, the
  *   seed is a no-op — nothing is written at all.
  * - Otherwise the seed wipes **only** the seeded subgraph (nodes/edges marked
- *   `seeded = true`) and recreates it. Foreign content in the same graph —
+ *   `seeded = true` — review/analysis audit artifacts are NOT in that scope:
+ *   ReviewDecision/RevisionProposal are human-audit content, excluded from the
+ *   wipe and from seeded-count idempotency accounting, and their case linkage
+ *   is re-established after a wipe so graph traversal views keep working) and
+ *   recreates it. Foreign content in the same graph —
  *   as well as protected foreign graphs that exist elsewhere on the same
  *   shared cloud instance — is never touched.
  * - Every seeded node/edge carries `seeded: true` so wipe scope is explicit
@@ -26,6 +30,7 @@ import {
   SEED_ANALYSIS_VERSION,
 } from './contract.mjs';
 import { getSeedStatus } from './impact.mjs';
+import { REVIEW_DECISION_EDGE_TYPE } from './reviewState.mjs';
 
 // Bundler-safe static JSON import (M3): Netlify functions bundle this module
 // with esbuild, which inlines the JSON at build time. The previous
@@ -268,7 +273,15 @@ export async function seedGraph(session, fixture = defaultFixture(), options = {
   }
 
   // Scoped wipe: only seeded:true content. Foreign nodes/edges survive.
-  await session.writeQuery('MATCH (n) WHERE n.seeded = $seeded DETACH DELETE n', { seeded: true }, { timeoutMs: 60_000 });
+  // REVIEW AUDIT HARD GUARD: ReviewDecision/RevisionProposal nodes are human-audit
+  // artifacts, never fixture content (see server/reviewState.mjs seeded:false).
+  // They are excluded from the wipe IN ADDITION to the seeded=false stamping so a
+  // legacy or future mis-stamped decision can never be destroyed by a reseed.
+  await session.writeQuery(
+    'MATCH (n) WHERE n.seeded = $seeded AND NOT n:ReviewDecision AND NOT n:RevisionProposal DETACH DELETE n',
+    { seeded: true },
+    { timeoutMs: 60_000 },
+  );
 
   // Nodes: one UNWIND batch per label.
   for (const [labelName, rows] of plan.nodesByLabel) {
@@ -299,6 +312,11 @@ export async function seedGraph(session, fixture = defaultFixture(), options = {
   // Seed metadata written last: a failed reseed never advertises the fixture version.
   await session.writeQuery('CREATE (m:SeedMeta) SET m = $meta', { meta: { ...plan.metaNode, seededAt } }, { timeoutMs: 60_000 });
 
+  // AUDIT RELINK: a wipe rebuilds the fixture case nodes, so ReviewDecision nodes
+  // (never wiped) lose their HAS_REVIEW_DECISION edge. Re-establish it so audit
+  // history stays reachable in graph traversal views. Read-only dedupe first:
+  // only pairs without a live retention edge are created (idempotent by design).
+  const relink = await relinkReviewDecisionEdges(session);
   const action = graphExistedBefore ? 'reseeded' : 'seeded';
   const status = await getSeedStatus(session, fixture);
   return {
@@ -309,7 +327,77 @@ export async function seedGraph(session, fixture = defaultFixture(), options = {
     stats: { nodes: status.nodeCount, edges: status.edgeCount },
     status,
     warnings: plan.warnings,
+    ...(relink.relinked > 0
+      ? { auditRelink: { relinkedDecisionEdges: relink.relinked, decisionsTracked: relink.decisions } }
+      : {}),
   };
+}
+
+/**
+ * Re-link surviving ReviewDecision audit nodes to their (possibly freshly
+ * rebuilt) case nodes after a reseed wipe. Read-only pre-check + UNWIND batch —
+ * only pairs whose retention edge is missing are (re)created, so the pass is
+ * idempotent and safe to run after every seed.
+ *
+ * Closure/relation behavior note: decision history lives on the ReviewDecision
+ * node itself (activity and report assembly read `d.caseId` directly), so a
+ * missing edge never erases history; this pass restores graph reachability only.
+ *
+ * @param {import('./graphClient.mjs').GraphSession} session
+ * @returns {Promise<{ relinked: number, decisions: number }>}
+ */
+export async function relinkReviewDecisionEdges(session) {
+  const decisionsRes = await session.roQuery(
+    'MATCH (d:ReviewDecision) WHERE d.seeded = $audit RETURN d.id AS id, d.caseId AS caseId, d.provenanceKind AS prov, d.analysisVersion AS av, d.createdAt AS createdAt, d.afterState AS afterState',
+    // Audit artifacts are stamped seeded:false (reviewState.mjs) — exactly the
+    // nodes this pass must see.
+    { audit: false },
+  );
+  const decisions = decisionsRes.data ?? [];
+  if (decisions.length === 0) return { relinked: 0, decisions: 0 };
+
+  const existingRes = await session.roQuery(
+    `MATCH (c)-[r:${REVIEW_DECISION_EDGE_TYPE}]->(d:ReviewDecision) WHERE d.seeded = $audit RETURN d.id AS did`,
+    { audit: false },
+  );
+  const linked = new Set((existingRes.data ?? []).map((row) => row.did));
+  const missing = decisions.filter((d) => !linked.has(d.id));
+
+  if (missing.length === 0) return { relinked: 0, decisions: decisions.length };
+
+  const rows = missing.map((d) => {
+    let reviewState = null;
+    try {
+      const after = d.afterState ? JSON.parse(d.afterState) : null;
+      reviewState = after ? after.reviewState ?? null : null;
+    } catch {
+      // Corrupt/absent afterState blob → no reviewState is asserted; the
+      // decision node itself remains fully inspectable and Activity renders it.
+    }
+    return {
+      fromId: d.caseId,
+      toId: d.id,
+      props: {
+        id: `relink-${d.id}`,
+        caseId: d.caseId,
+        provenanceKind: d.prov ?? 'human_confirmed',
+        rationale:
+          'Review-decision linkage re-established after an idempotent reseed. The decision itself was retained (audit history is not fixture content).',
+        sourcePointer: `ReviewDecision node ${d.id}`,
+        createdAt: d.createdAt,
+        analysisVersion: d.av ?? SEED_ANALYSIS_VERSION,
+        reviewState,
+        seeded: false,
+      },
+    };
+  });
+
+  await session.writeQuery(
+    `UNWIND $rows AS row MATCH (c) WHERE c.id = row.fromId MATCH (d:ReviewDecision) WHERE d.id = row.toId CREATE (c)-[r:${REVIEW_DECISION_EDGE_TYPE}]->(d) SET r = row.props`,
+    { rows },
+    { timeoutMs: 60_000 },
+  );
+  return { relinked: rows.length, decisions: decisions.length };
 }
 
 /**
