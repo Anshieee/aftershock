@@ -42,6 +42,13 @@ Core graph nodes. Every node carries `id`, `createdAt`, `updatedAt`, `provenance
 
 Every material edge carries: `id`, `provenanceKind` (observed|source_verified|human_confirmed|model_proposed|unresolved), `rationale`, `sourcePointer`, `createdAt`, `analysisVersion`, `reviewState`.
 
+**Non-graph note — import metadata extraction (Wave 3):** `POST /import-document` 200 responses MAY
+carry an additive, in-memory `extraction` block (text formats only in this wave). It is session-scoped:
+its contents are NEVER persisted and never written to the graph — no new node label, edge type, or
+property exists for it (the §1/§2 lists remain exhaustive for import-registered data). Detected DOIs
+are unverified pattern-match candidates on a bounded excerpt of the upload; presence in a file proves
+nothing about claim support or reference validity, and all citation-integrity rules below still bind.
+
 ## 3. Provenance kinds
 
 `observed`, `source_verified`, `human_confirmed`, `model_proposed`, `unresolved`.
