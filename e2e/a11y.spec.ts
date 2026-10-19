@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { buildDemoOverviewRecord } from '../src/test/graphFixtures';
 
 /**
  * Accessibility acceptance — axe scans of the landing and Knowledge Graph
@@ -34,6 +35,55 @@ test('Knowledge Graph page has no critical axe violations', async ({ page }) => 
   await page.goto('/graph');
   const critical = await scan(page, 'graph');
   expect(critical, `critical violations: ${summarize(critical)}`).toEqual([]);
+});
+
+/**
+ * Wave-3 a11y follow-up — the loaded graph state (route-stubbed exactly like
+ * e2e/graph-explorer.spec.ts; the real backend is never touched) must keep
+ * the canvas free of the two shipped violations:
+ *  - heading-order: no heading elements inside the records list (styled
+ *    paragraphs instead);
+ *  - label-content-name-mismatch: every SVG node button's accessible name
+ *    equals its visible label text.
+ * Gated on these two IDs only — other pages' minor findings stay reported,
+ * not failed, so the gate keeps stable across honest data states.
+ */
+test('loaded graph canvas keeps its shipped a11y violations fixed', async ({ page }) => {
+  await page.route('**/.netlify/functions/**', async (route: import('@playwright/test').Route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/graph-edges')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildDemoOverviewRecord()),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'not found' }),
+    });
+  });
+  await page.goto('/graph');
+  await page.getByTestId('graph-canvas').waitFor();
+  await page.getByTestId('graph-node-claim-A').click();
+  await page.getByTestId('graph-selection-provenance').waitFor();
+
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'])
+    .analyze();
+  const headingOrder = results.violations.filter((v) => v.id === 'heading-order');
+  expect(
+    headingOrder,
+    `heading-order must stay absent on the loaded graph page (found: ${summarize(headingOrder)})`,
+  ).toEqual([]);
+  const canvasMismatch = (results.violations.find((v) => v.id === 'label-content-name-mismatch')?.nodes ?? [])
+    .filter((n) => typeof n.html === 'string' && n.html.includes('data-testid="graph-node-'));
+  expect(
+    canvasMismatch.map((n) => n.target),
+    'SVG node buttons must keep name == visible label (label-content-name-mismatch)',
+  ).toEqual([]);
 });
 
 /**

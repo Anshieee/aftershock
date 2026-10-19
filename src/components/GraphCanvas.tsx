@@ -369,6 +369,12 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect, focuse
               const displayLabel = hasTitleField
                 ? truncate(rawLabel, 20)
                 : truncateMiddle(rawLabel, 18);
+              // The accessible name must equal the visible label text and nothing
+              // else (axe label-content-name-mismatch): the two SVG <text> rows
+              // concatenate without a space, so the name is that exact string.
+              // Kind and id stay announced elsewhere — the sr-only node list and
+              // the records list below are the complete text alternatives.
+              const visibleLabel = `${truncate(node.kind, 24)}${displayLabel}`;
               const firstNodeId = layout.layers[0]?.[0]?.id;
               const tabIndex =
                 selected || (selectedId === null && node.id === firstNodeId) ? 0 : -1;
@@ -376,7 +382,7 @@ export default function GraphCanvas({ nodes, edges, selectedId, onSelect, focuse
                 role: 'button' as const,
                 tabIndex,
                 'aria-pressed': selected,
-                'aria-label': `${node.kind}: ${node.id}`,
+                'aria-label': visibleLabel,
                 onClick: () => onSelect(node),
                 onKeyDown: (event: React.KeyboardEvent) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -542,7 +548,11 @@ export function GraphRecordsList({ nodes, edges, selectedId, onSelect, focusedNo
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div data-testid="graph-nodes-list">
-        <h3 className="text-sm font-semibold text-ink">Records ({nodes.length})</h3>
+        {/* Not a heading: the page's heading stream sits at h1–h3 around this
+            list, so a heading here would skip or tangle levels (axe
+            heading-order). A styled paragraph keeps the same visual weight
+            and meaning without changing the document outline. */}
+        <p className="text-sm font-semibold text-ink">Records ({nodes.length})</p>
         <ul className="mt-2 space-y-1">
           {nodes.map((node) => (
             <li key={node.id} className={isDimmedNode(node.id) ? 'opacity-40' : ''} data-dimmed={isDimmedNode(node.id)}>
@@ -575,7 +585,7 @@ export function GraphRecordsList({ nodes, edges, selectedId, onSelect, focusedNo
         </ul>
       </div>
       <div data-testid="graph-edges-list">
-        <h3 className="text-sm font-semibold text-ink">Connections ({edges.length})</h3>
+        <p className="text-sm font-semibold text-ink">Connections ({edges.length})</p>
         <ul className="mt-2 space-y-1">
           {edges.map((edge, index) => {
             const style = EDGE_PALETTE[edgeStyleFor(edge)];
