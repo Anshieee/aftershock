@@ -58,6 +58,11 @@ v1 `b1001c3` · v2 `a17ba80` · v3 `8111b7a` · v4 `bc84d11` · v5 `ecaf767` —
 - All five homepage variants QA-fixed and pushed; five live draft previews; comparison package + research note on main (`docs/design/home-experiments/2026-10-20/`).
 - M7 wave 3 (graph explorer) implemented/merged/deployed — production deploy `6ad692827f0122ef8f88666f`, main `3b85c35`; gates 528/297 + sweep 116/0; docs updated (BUILD_STATUS, MILESTONES, KNOWN_LIMITATIONS graph section refreshed).
 
+## Wave 4 shipped (2026-10-20, hygiene + a11y): deploy `6ad69d8e727b842d4f611430`, main `9db7459`
+- `fix/e2e-flaky-hygiene` (`49c0018`): deterministic waits; sweep went 116+3-flakes → **122/0 no flakes**.
+- `fix/graph-canvas-a11y` (`33718a5`): canvas heading-order + SVG label-name fixes + committed axe gate; `ContextInspector` reader-link aria-label removed by orchestrator + gate extended to zero-mismatch page-wide.
+- Gate wrap-up: root 531/13-skip · server 297 · tsc+build · guard 200 · prod live-verified. NOTE: an agent left the shared checkout on its branch; fixed via `--ff-only` advance of `main` (strictly-linear; branches preserved). Night ops lesson: after subagents that were told to branch, always `git branch --show-current` before continuing orchestrator work on the shared repo.
+
 ## Next actions queue (remaining night)
 1. OPTIONAL remaining M7 capacity: wave 3 (graph explorer) was NOT dispatched — provider capacity went to the 5-variant experiment + QA + fix wave. If resuming M7 work later tonight, dispatch wave-3 explore agent first (read-only inventory of KnowledgeGraphPage needs) before implementation wave.
 2. Keep ledger updated; human chooses winner; integration is a separate approved task (rebase onto latest main + reviewed PR).
