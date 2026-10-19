@@ -12,7 +12,7 @@ Running log for the autonomous session started 2026-10-19 ~04:45 UTC. Orchestrat
 - E2E vs production: desktop 28 passed / 0 failed / 4 skipped (24s); mobile 31 passed / 1 flaky-preexisting (empty-states /library retries green) / 0 failed (30s). Real review-decision recording verified earlier in `/activity`.
 - Export content check: POST /export-report (pdf) 200, real PDF, review-decision section present. NOTE: "No review decisions" at time of check because the guided-seed had wiped seeded-scope decisions — root-caused below, not an export bug.
 
-## Wave 1 completion — INTEGRITY FIX (merged to main 05:40 UTC)
+## Wave 1 completion — INTEGRITY FIX (merged to main 05:40 UTC, DEPLOYED 05:13 UTC)
 **Bug:** recorded ReviewDecision/HAS_REVIEW_DECISION edges/RevisionProposal were stamped `seeded:true` → seeded-count idempotency accounting saw "drift" → next guided-seed (incl. every landing E2E run) wiped the audit history. Violated append-only audit invariant; explains "decisions vanish" reports.
 **Fix (branch `fix/reseed-preserves-audit`, commit `78102b7`, merge `5c0aae5`):**
 1. reviewState.mjs: decisions/proposals/link edges stamp `seeded:false` (never fixture content).
@@ -21,7 +21,7 @@ Running log for the autonomous session started 2026-10-19 ~04:45 UTC. Orchestrat
 4. Tests: review-state assertions updated (seeded:false invariant pinned); new unit `seed.relink.test.mjs` (5 tests); new live integration suite "audit survival across reseeds" (3 tests) — real decision survives noop reseed AND forced drift reseed, linkage healed, counts exact.
 5. DATA_CONTRACTS §4 note "Audit artifacts & reseed" added.
 **Evidence:** server unit 160/160; live integration 9/9 (incl. drift reseed + relink); `npm run check` smoke pass; test_hosting + aftershock:demo untouched.
-**Deploy status:** merged to main + pushed (5c0aae5) but NOT yet deployed to production — deploying with the next feature wave.
+**Deploy status:** DEPLOYED to production `6ad5a6cfcfc554f169258083` (main `e0f9c6c`) at 2026-10-19 05:13 UTC; `/health` ok. **Live regression proof 05:14 UTC:** POST /review-decide?caseId=claim-A recorded `39161bd9` → POST /demo-seed returned `alreadySeeded:true` (noop — accounting no longer sees drift) → GET /activity still shows the decision. Append-only demo behavior restored; production verified.
 
 ## Wave 2 — P4 Find Evidence (IN FLIGHT)
 - Design of record written to /tmp/opencode/p4-spec.md (endpoint contract, payloads, safeguards).
@@ -29,6 +29,11 @@ Running log for the autonomous session started 2026-10-19 ~04:45 UTC. Orchestrat
 - Backend agent (ses_ead79b7d6ffe2x9JsWIoHg4sqz, glm-5.3-flash-free): `netlify/functions/evidence-find.mjs` + `server/evidenceSearch.mjs` + tests + contract note. Prepare/search modes, Crossref polite pool, 6s timeout + ≤1 retry, DOI dedupe, honest providersStatus, NO graph writes.
 - Frontend agent (ses_ead79b7d4ffeFHSFTnbAqFY6uA, glm-5.3-flash-free): api.ts client fn + types, FindEvidencePanel component + tests, ReviewQueuePage integration, deterministic stubbed E2E.
 - Merge order: backend → main, then frontend (single-owner files; api.ts is frontend-owned).
+
+## Post-merge status (updated 05:15 UTC)
+- main `e0f9c6c` typecheck clean; production deploy `6ad5a6cfcfc554f169258083` verified live (health ok; decision survives reseed).
+- Audit item #1 (AnalysisRun stage-enum alignment) already resolved on main: importAnalyze writes `status:'completed', stage:'results'` per contract §4 — removed from queue.
+- Remaining hardening queue: envcheck diagnostic gating; PENDING_FUNCTION_FILES tidy check; rate-window tuning; E2E empty-states /library flake (pre-existing, retries green).
 
 ## Queue (next after P4 merge)
 1. Deploy verified main to production (netlify CLI).
