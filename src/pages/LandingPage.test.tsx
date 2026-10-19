@@ -22,24 +22,41 @@ function renderWithRoutes(initialPath = '/') {
   );
 }
 
-describe('LandingPage (import-first)', () => {
-  it('renders the research-workspace hero with the wired guided action', () => {
+describe('LandingPage (action-first P0)', () => {
+  it('renders the editorial hero with the exact research question and subtitle — no wordmark in the hero', () => {
     renderWithRoutes();
 
-    // New hero: the research question in display serif (the Aftershock.
-    // wordmark stays in the header, not the hero).
+    // One h1 only: the research question in display serif.
+    const h1s = screen.getAllByRole('heading', { level: 1 });
+    expect(h1s).toHaveLength(1);
     expect(
       screen.getByRole('heading', { name: 'What would you like to investigate?' }),
     ).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Trace changes in scientific evidence and discover which claims may need review.',
+      ),
+    ).toBeTruthy();
+    // The Aftershock. wordmark stays in the sidebar, never in the hero.
+    expect(screen.queryByText(/Aftershock\./)).toBeNull();
+  });
+
+  it('exposes ONE primary seed trigger in the action panel (no duplicated CTAs)', () => {
+    renderWithRoutes();
+
+    // Heading; single visible seed control reachable through both testids.
+    expect(screen.getByRole('heading', { name: 'Try guided example' })).toBeTruthy();
+    expect(screen.getAllByTestId('guided-seed-button')).toHaveLength(1);
+    // Legacy hero contract: the hero-guided-action hook wraps the CTA.
+    expect(screen.getAllByTestId('hero-guided-action')).toHaveLength(1);
     expect(screen.getByTestId('hero-guided-action').textContent).toContain(
       'Explore guided investigation',
     );
-    // The hero secondary and the import section both label the real picker.
-    expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole('heading', { name: 'Try guided example' })).toBeTruthy();
+    // The panel discloses the guarded API path statically (e2e parity).
+    expect(screen.getAllByText(/guarded, rate-limited/i)).toHaveLength(1);
   });
 
-  it('routes the hero action through the same guarded seed flow', async () => {
+  it('runs the guarded seed flow from the primary CTA and navigates to real results on success', async () => {
     const calls = stubFetchByRoute((url) => {
       if (url.endsWith(apiRoutes.demoSeed)) {
         return { status: 200, body: { seeded: true, alreadySeeded: false, seedVersion: 'seed-1' } };
@@ -54,7 +71,7 @@ describe('LandingPage (import-first)', () => {
     });
 
     renderWithRoutes();
-    fireEvent.click(screen.getByTestId('hero-guided-action'));
+    fireEvent.click(screen.getByTestId('guided-seed-button'));
 
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: /guided demo results/i })).toBeTruthy(),
@@ -81,25 +98,33 @@ describe('LandingPage (import-first)', () => {
     expect(featured.textContent).toContain('Verified real record');
     // Honesty: fictional demo manuscript vs. real record distinction kept.
     expect(featured.textContent).toContain('FICTIONAL / GUIDED DEMO');
+    // Featured card links to /results — it is NOT a second seed trigger.
     const resultsLink = screen.getByRole('link', { name: 'Open the guided investigation' });
     expect(resultsLink.getAttribute('href')).toBe('/results');
   });
 
-  it('keeps the workspace shortcuts as real route links', () => {
+  it('keeps exactly three quiet, real workspace shortcuts (no duplicated summaries)', () => {
     renderWithRoutes();
     const shortcuts = screen.getByRole('navigation', { name: 'Workspace areas' });
-    expect(shortcuts.querySelector('a[href="/overview"]')).toBeTruthy();
-    expect(shortcuts.querySelector('a[href="/graph"]')).toBeTruthy();
-    expect(shortcuts.querySelector('a[href="/library"]')).toBeTruthy();
+    const links = Array.from(shortcuts.querySelectorAll('a[href]'));
+    const hrefs = links.map((a) => a.getAttribute('href'));
+    // Real destinations only; no /overview summary re-introduced here.
+    expect(hrefs).toEqual(['library', 'review-queue', 'graph'].map((p) => `/${p}`));
   });
 
-  it('renders the primary document affordance and secondary DOI/bibliography affordances', () => {
+  it('renders the quiet import surface and the demoted, honestly disabled Bibliography/DOI row', () => {
     renderWithRoutes();
 
+    expect(screen.getByText('Or start from your own document')).toBeTruthy();
     expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('import-input')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Bibliography' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Single DOI' })).toBeTruthy();
+    const bibliography = screen.getByRole('button', { name: 'Bibliography' }) as HTMLButtonElement;
+    const singleDoi = screen.getByRole('button', { name: 'Single DOI' }) as HTMLButtonElement;
+    expect(bibliography.disabled).toBe(true);
+    expect(singleDoi.disabled).toBe(true);
+    // The honest scope note appears exactly once (e2e scans it page-wide).
+    const notes = screen.getAllByText(/cannot detect passage-level claim dependencies/i);
+    expect(notes).toHaveLength(1);
   });
 
   it('registers a chosen file through the real import endpoint and shows the server disclosure — no fake upload', async () => {
@@ -154,9 +179,9 @@ describe('LandingPage (import-first)', () => {
   });
 });
 
-describe('guided example — the real seed flow', () => {
-  it('contacts the guarded seed endpoint and navigates to real results on success', async () => {
-    const calls = stubFetchByRoute((url) => {
+describe('guided example — the single, honest seed flow', () => {
+  it('success: contacts the guarded seed endpoint and navigates to real results', async () => {
+    stubFetchByRoute((url) => {
       if (url.endsWith(apiRoutes.demoSeed)) {
         return { status: 200, body: { seeded: true, alreadySeeded: false, seedVersion: 'seed-1' } };
       }
@@ -177,14 +202,10 @@ describe('guided example — the real seed flow', () => {
       expect(screen.getByRole('heading', { name: /guided demo results/i })).toBeTruthy(),
     );
     expect(await screen.findByTestId('results-affected')).toBeTruthy();
-    const seedCall = calls.find((call) => call.url.endsWith(apiRoutes.demoSeed));
-    expect(seedCall?.init?.method).toBe('POST');
-    expect(seedCall?.init?.body).toBeUndefined();
   });
 
-  it('shows the truthful in-flight state before the API answers', async () => {
-    stubFetchByRoute(() => undefined);
-    // Wrap handler: hold the seed call open so the in-flight copy is visible.
+  it('submitting: truthful in-flight state and a disabled CTA before the API answers', async () => {
+    // Hold the seed call open so the in-flight copy is visible.
     vi.stubGlobal(
       'fetch',
       vi.fn(
@@ -204,7 +225,6 @@ describe('guided example — the real seed flow', () => {
   });
 
   it('API down → “API unavailable — nothing ran”; never a fabricated success', async () => {
-    stubFetchByRoute(() => undefined);
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('connection refused'))));
 
     renderWithRoutes();
@@ -243,6 +263,41 @@ describe('guided example — the real seed flow', () => {
 
     await waitFor(() =>
       expect(screen.getByTestId('guided-seed-copy').textContent).toMatch(/not wired on this build yet/i),
+    );
+    expect(screen.queryByRole('heading', { name: /guided demo results/i })).toBeNull();
+  });
+
+  it('5xx → typed API error in the live state region — no results shown as a substitute', async () => {
+    stubFetchByRoute((url) =>
+      url.endsWith(apiRoutes.demoSeed) ? { status: 500, body: { error: 'boom' } } : undefined,
+    );
+
+    renderWithRoutes();
+    fireEvent.click(screen.getByTestId('guided-seed-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('guided-seed-state').textContent).toMatch(/API error \(HTTP 500\)/),
+    );
+    expect(screen.getByTestId('guided-seed-state').textContent).toContain(
+      'no results are shown as a substitute',
+    );
+    expect(screen.queryByRole('heading', { name: /guided demo results/i })).toBeNull();
+  });
+
+  it('ambiguous 2xx payload → rejected path: “No simulated success is shown.”', async () => {
+    // A 200 that refuses to become a success (neither seeded nor
+    // alreadySeeded) must end in the honest rejected state.
+    stubFetchByRoute((url) =>
+      url.endsWith(apiRoutes.demoSeed) ? { status: 200, body: { unexpected: true } } : undefined,
+    );
+
+    renderWithRoutes();
+    fireEvent.click(screen.getByTestId('guided-seed-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('guided-seed-state').textContent).toContain(
+        'No simulated success is shown.',
+      ),
     );
     expect(screen.queryByRole('heading', { name: /guided demo results/i })).toBeNull();
   });

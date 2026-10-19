@@ -82,16 +82,29 @@ export default function Layout() {
           </ul>
         </nav>
 
-        <div className="mt-2 px-4 pb-4 md:mt-auto md:px-0 md:pb-0">
-          <p className="hidden text-xs leading-5 text-ink-muted md:block">
-            Guided-demo build. Areas marked “under construction” are not
-            implemented yet — nothing here is simulated. Graph areas read the
-            live demo API only.
+        {/* Sidebar tail: compact honest scope marker, then dev-facing
+            diagnostics behind a native disclosure (Keyboard-reachable,
+            no pointer-only interaction). */}
+        <div className="mt-1 flex flex-col gap-1.5 px-4 pb-4 md:mt-auto md:px-0 md:pb-1">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+            Guided-demo build
           </p>
-          {/* Discreet truthful status: same honest health classification as
-              the chip, demoted to quiet text diagnostics. Never claims graph
-              state — /health does not probe the graph backend. */}
-          <ServiceStatusLine className="mt-2 text-[11px] md:mt-4 md:pb-0" />
+          <details data-testid="sidebar-diagnostics" className="group min-w-0">
+            <summary className="-mx-2 flex cursor-pointer list-none select-none items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium tracking-wide text-ink-muted no-underline hover:text-ink [&::-webkit-details-marker]:hidden">
+              System diagnostics
+              <span aria-hidden="true" className="group-open:hidden">
+                +
+              </span>
+              <span aria-hidden="true" className="hidden group-open:inline">
+                –
+              </span>
+            </summary>
+            {/* Discreet truthful status: same honest health classification
+                as the chip, demoted to quiet text diagnostics, revealed on
+                request only. Never claims graph state — /health does not
+                probe the graph backend. */}
+            <ServiceStatusLine className="mt-1 text-[11px]" />
+          </details>
         </div>
       </header>
 
