@@ -96,7 +96,9 @@ query params (e.g. `/unimplemented?for=document&id=…`), never by fabricated da
 - `POST /references/:id/confirm` — confirm candidate publication.
 - `POST /review/cases/:id/decide` — submit ReviewDecision.
 - `POST /review/cases/:id/revision` — create/edit RevisionProposal.
-- `POST /evidence/find` — candidate search for a claim.
+- `POST /evidence/find` — candidate search for a claim. Deploy path = function filename `evidence-find`;
+  `?claimId=` query param in place of the path segment; body `{query}` optional (empty/`{}` → prepare, no
+  external fetch); read-only, no graph writes.
 - `POST /export/report` — Evidence Impact Report (PDF).
 - `POST /export/revision-pack` — Revision Pack (DOCX).
 - `POST /export/annotated-manuscript` — Annotated Manuscript.
