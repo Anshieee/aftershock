@@ -132,7 +132,6 @@ export default function ContextInspector({ node, edges, onClose, focusActive, fo
         <Link
           to={`/reader?focus=${node.id}`}
           data-testid="inspector-reader-link"
-          aria-label={`Open ${node.kind} ${node.id} in the evidence reader`}
           className="mt-3 inline-block text-sm text-brand-deep underline hover:text-brand"
         >
           Open in evidence reader

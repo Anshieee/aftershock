@@ -84,6 +84,14 @@ test('loaded graph canvas keeps its shipped a11y violations fixed', async ({ pag
     canvasMismatch.map((n) => n.target),
     'SVG node buttons must keep name == visible label (label-content-name-mismatch)',
   ).toEqual([]);
+  // The inspector's reader link previously carried an aria-label that did not
+  // match its visible text ("Open Claim …" vs "Open in evidence reader"); the
+  // redundant aria-label was removed so the visible text is the name. Pin the
+  // loaded graph page to zero label-content-name-mismatch anywhere.
+  expect(
+    (results.violations.find((v) => v.id === 'label-content-name-mismatch')?.nodes ?? []).map((n) => n.target),
+    'no label-content-name-mismatch remains on the loaded graph page',
+  ).toEqual([]);
 });
 
 /**
