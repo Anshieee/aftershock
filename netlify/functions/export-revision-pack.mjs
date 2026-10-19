@@ -122,8 +122,14 @@ export function buildRevisionPackDocxPlan(data) {
   blocks.push({ kind: 'h2', text: REVISION_PACK_LABELS.acceptanceHeading });
   blocks.push({ kind: 'field', k: 'Acceptance status', v: data.acceptanceDisplay.label, tone: data.acceptanceDisplay.applied ? 'ink' : 'amber' });
   blocks.push({ kind: 'note', text: data.acceptanceDisplay.note });
-  blocks.push({ kind: 'h2', text: REVISION_PACK_LABELS.rationaleHeading });
-  blocks.push({ kind: 'note', text: data.rationale ?? '(none recorded with the draft proposal)' });
+  if (data.textPair.proposed) {
+    // Rationale belongs to the draft proposal — only rendered when one exists.
+    blocks.push({ kind: 'h2', text: REVISION_PACK_LABELS.rationaleHeading });
+    blocks.push({ kind: 'note', text: data.rationale ?? '(none recorded with the draft proposal)' });
+  } else {
+    // Section-level honest note: no invented "rationale: none" for a missing proposal.
+    blocks.push({ kind: 'note', text: REVISION_PACK_LABELS.noRationaleNote });
+  }
   blocks.push({ kind: 'spacer' });
 
   /* ---------- Evidence concern ---------- */
@@ -140,11 +146,12 @@ export function buildRevisionPackDocxPlan(data) {
   if (data.reviewDecisions.length === 0) {
     blocks.push({ kind: 'note', text: REVISION_PACK_LABELS.noDecisionNote });
   } else {
+    // ONE section-level note — not repeated under every decision.
+    blocks.push({ kind: 'note', text: 'A review decision means "needs human review" was exercised — it never validates or disproves the passage.' });
     for (const d of data.reviewDecisions) {
       blocks.push({ kind: 'field', k: `Decision ${d.id}`, v: `outcome: ${d.outcome}` });
       blocks.push({ kind: 'field', k: 'Decided at', v: `${d.decidedAt}   |   Reviewer: ${d.reviewer || '(not recorded)'}   |   Provenance: ${d.provenanceKind ?? '(none)'}` });
       blocks.push({ kind: 'field', k: 'Explanation', v: d.explanation });
-      blocks.push({ kind: 'bullet', text: 'A review decision means "needs human review" was exercised — it never validates or disproves the passage.' });
     }
   }
   blocks.push({ kind: 'spacer' });

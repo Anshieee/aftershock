@@ -49,6 +49,7 @@ export const REVISION_PACK_LABELS = Object.freeze({
   proposedNote: 'Draft only — copying is not applying; no acceptance record exists, so this must never be read as applied.',
   noProposalNote: 'No proposed revision (draft) is recorded for this case; none is invented here.',
   rationaleHeading: 'Rationale (recorded with the draft proposal)',
+  noRationaleNote: '(No draft proposal is recorded for this case; rationale applies to proposals only.)',
   acceptanceHeading: 'Acceptance status (draft disposition — copying is not applying)',
   reviewTrailHeading: 'Review decision trail (all recorded decisions, ordered by decidedAt)',
   noDecisionNote: 'No review decision recorded for this case; evidence review needed before any conclusion about this passage.',
@@ -65,6 +66,21 @@ export const EXPORT_STATUS_DISPLAY = Object.freeze({
   incomplete: 'INCOMPLETE — open review items remain at snapshot time',
   complete: 'COMPLETE — review-workflow snapshot only; not a scientific validation or verdict',
 });
+
+/**
+ * Honest per-item display for a notice-verification flag — never a bare
+ * boolean. "Verified" says only that a verification was recorded for the
+ * notice record itself at last verification; it never says any passage,
+ * claim or conclusion was validated. Same in-family phrasing policy as
+ * `exportStatusDisplay` / `acceptanceStatusDisplay`.
+ * @param {boolean} verified
+ * @returns {string}
+ */
+export function noticeVerifiedDisplay(verified) {
+  return verified === true
+    ? 'Verified — details recorded at last verification'
+    : 'Not verified — no verified check is recorded';
+}
 
 /**
  * @param {string} status

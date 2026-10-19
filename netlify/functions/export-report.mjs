@@ -27,7 +27,7 @@ import {
   textBodyOf,
   withSession,
 } from '../../server/demoApi.mjs';
-import { assembleExportReport, exportStatusDisplay, validateExportCaseId } from '../../server/reportExport.mjs';
+import { assembleExportReport, noticeVerifiedDisplay, exportStatusDisplay, validateExportCaseId } from '../../server/reportExport.mjs';
 import { PDFDocument } from 'pdfkit';
 
 /** Wall-clock budget: must stay below the client's 10 s abort. */
@@ -105,7 +105,7 @@ export function buildReportPdfPlan(data) {
           tone: 'alert',
           lines: [
             `Publication: ${vn.publication.id} (${vn.publication.doi ?? 'no DOI'})`,
-            `Notice published: ${vn.notice.publishedDate ?? '(not recorded)'}   |   Verified: ${vn.notice.verified}`,
+            `Notice published: ${vn.notice.publishedDate ?? '(not recorded)'}   |   ${noticeVerifiedDisplay(vn.notice.verified)}`,
             `Source: ${vn.notice.sourceUrl ?? '(none recorded)'}   |   Edge provenance: ${vn.edge.provenanceKind ?? '(none)'}`,
             vn.reviewFlag.message,
           ],

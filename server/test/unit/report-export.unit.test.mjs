@@ -745,6 +745,27 @@ describe('buildReportPdfPlan — render structure', () => {
       expect(s).not.toMatch(BANNED_VERDICT_LANGUAGE);
     }
   });
+
+  it('renders notice verification honestly — never a bare boolean', async () => {
+    const { data } = await richExportReportData();
+    const noticesSection = (d) => buildReportPdfPlan(d).find((s) => s.heading === 'Verified source notices');
+
+    const verifiedData = {
+      ...data,
+      verifiedNotices: data.verifiedNotices.map((vn) => ({ ...vn, notice: { ...vn.notice, verified: true } })),
+    };
+    const verifiedLines = noticesSection(verifiedData).items[0].lines.join('\n');
+    expect(verifiedLines).toContain('Verified — details recorded at last verification');
+    expect(verifiedLines).not.toContain('Verified: true');
+
+    const unverifiedData = {
+      ...data,
+      verifiedNotices: data.verifiedNotices.map((vn) => ({ ...vn, notice: { ...vn.notice, verified: false } })),
+    };
+    const unverifiedLines = noticesSection(unverifiedData).items[0].lines.join('\n');
+    expect(unverifiedLines).toContain('Not verified — no verified check is recorded');
+    expect(unverifiedLines).not.toContain('Verified — details recorded at last verification');
+  });
 });
 
 /* ------------------------------------------------------------------ *
@@ -786,12 +807,15 @@ describe('buildRevisionPackDocxPlan — render structure', () => {
     expect(blocks[proposedIdx + 1]).toMatchObject({ kind: 'quote', text: data.textPair.proposed.text, tone: 'amber' });
   });
 
-  it('renders the absent-proposal case honestly — no draft invented', async () => {
+  it('renders the absent-proposal case honestly — no draft invented, no rationale section', async () => {
     const fake = buildFakeSession({ caseNode: { id: CASE_ID, text: 'Original claim text.', kind: 'Claim' } });
     const data = await assembleRevisionPack(fake.session, { caseId: CASE_ID });
     const blocks = buildRevisionPackDocxPlan(data);
     expect(blocks.some((b) => b.kind === 'h2' && b.text === REVISION_PACK_LABELS.proposedHeading)).toBe(false);
     expect(blocks.some((b) => b.kind === 'note' && b.text === REVISION_PACK_LABELS.noProposalNote)).toBe(true);
+    // No rationale section is invented when no draft proposal exists.
+    expect(blocks.some((b) => b.kind === 'h2' && b.text === REVISION_PACK_LABELS.rationaleHeading)).toBe(false);
+    expect(blocks.some((b) => b.kind === 'note' && b.text === REVISION_PACK_LABELS.noRationaleNote)).toBe(true);
     // Acceptance status still displayed, still never applied.
     const acceptanceField = blocks.find((b) => b.kind === 'field' && b.k === 'Acceptance status');
     expect(acceptanceField.v).toBe('NONE — no draft revision recorded');
@@ -809,7 +833,7 @@ describe('buildRevisionPackDocxPlan — render structure', () => {
     expect(kv['Snapshot taken at']).toBe(data.snapshot.snapshotTakenAt);
   });
 
-  it('renders the full decision trail ordered by decidedAt', async () => {
+  it('renders the full decision trail ordered by decidedAt with ONE section-level honesty note', async () => {
     const { data } = await richRevisionPackData();
     const blocks = buildRevisionPackDocxPlan(data);
     const trail = blocks.filter((b) => b.kind === 'field' && b.k.startsWith('Decision '));
@@ -817,6 +841,13 @@ describe('buildRevisionPackDocxPlan — render structure', () => {
     // Fake session mirrors ORDER BY decidedAt ASC.
     expect(trail[0].v).toContain(data.reviewDecisions[0].outcome);
     expect(trail[1].v).toContain(data.reviewDecisions[1].outcome);
+    // The "needs human review" note appears ONCE as a section-level note,
+    // never repeated as a per-decision bullet.
+    const exercisedNotes = blocks.filter(
+      (b) => (b.kind === 'note' || b.kind === 'bullet') && b.text.includes('was exercised'),
+    );
+    expect(exercisedNotes).toHaveLength(1);
+    expect(exercisedNotes[0].kind).toBe('note');
   });
 
   it('renders unresolved reference count + candidates and limitations verbatim', async () => {
