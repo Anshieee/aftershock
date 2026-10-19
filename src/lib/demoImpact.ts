@@ -13,6 +13,139 @@
 
 import type { GraphEdge, GraphNode, GraphOverview } from './api';
 
+/* ------------------------------------------------------------------ *
+ * M7 Priority A — read-only Evidence Reader helpers. PURE ADDITIVE:
+ * every export above stays byte-compatible (DemoResultsPage and its
+ * tests depend on it). These helpers only ORDER and TOLERANTLY PARSE
+ * what the returned records already carry — they never invent
+ * locations, page numbers or pagination (AGENTS.md integrity).
+ * ------------------------------------------------------------------ */
+
+/**
+ * Recorded location of one passage, as the returned record states it.
+ * Every field is optional: the reader renders only the pieces that are
+ * actually recorded and groups anything else as unlocatable.
+ */
+export interface RecordedLocation {
+  section?: string;
+  page?: number;
+  offset?: number;
+  /**
+   * Verbatim recorded string when the location arrived in an
+   * unstructured form (a non-JSON string). Shown as-is, never parsed
+   * into a position.
+   */
+  raw?: string;
+}
+
+/**
+ * Tolerant `location` reader. The seeded graph normalizes structural
+ * values to JSON strings (seed.mjs `normalizeValue`), so the same
+ * metadata can arrive as an object OR as a JSON string; it may also be
+ * a plain recorded string (e.g. "p.12"). Never throws — any value the
+ * helper cannot read becomes `null`, which the reader treats as
+ * unlocatable rather than guessing a position.
+ * Accepted keys: `section` (string), `page` (finite number),
+ * `offset`/`excerptOffset` (finite number).
+ */
+export function parseRecordedLocation(value: unknown): RecordedLocation | null {
+  if (value === null || value === undefined || value === false) return null;
+  let source: unknown = value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return null;
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        source = JSON.parse(trimmed);
+      } catch {
+        // Not JSON — keep the string verbatim; it is still a recorded
+        // location statement, just not one we can order by.
+        return { raw: trimmed };
+      }
+    } else {
+      return { raw: trimmed };
+    }
+  }
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null;
+  const record = source as Record<string, unknown>;
+  const section =
+    typeof record['section'] === 'string' && record['section'].trim().length > 0
+      ? record['section'].trim()
+      : undefined;
+  const page = typeof record['page'] === 'number' && Number.isFinite(record['page']) ? record['page'] : undefined;
+  const offsetCandidate = 'offset' in record ? record['offset'] : record['excerptOffset'];
+  const offset =
+    typeof offsetCandidate === 'number' && Number.isFinite(offsetCandidate)
+      ? offsetCandidate
+      : undefined;
+  if (section === undefined && page === undefined && offset === undefined) return null;
+  return { section, page, offset };
+}
+
+export interface ReaderOrderedEntry<T> {
+  item: T;
+  id: string;
+  /** True when the record carries at least one usable location piece. */
+  located: boolean;
+  section?: string;
+  page?: number;
+  offset?: number;
+  /** Verbatim recorded string for unstructured locations (sorted last). */
+  rawLocation?: string;
+}
+
+const SECTION_COLLATOR = new Intl.Collator('en', { numeric: true, sensitivity: 'variant' });
+
+/**
+ * Deterministic ordering of passages for the read-only reader: records
+ * WITH usable recorded location metadata first — primary key recorded
+ * section (entries with no recorded section keep their recorded
+ * page/offset and sort after all sectioned entries), then recorded
+ * page, then recorded offset, then record id (full-determinism
+ * tie-break). Records WITHOUT usable location metadata keep their
+ * returned order and come last in their own unlocatable group. No
+ * positions are ever invented for the unlocatable group.
+ */
+export function orderRecordedEntries<T>(
+  items: readonly T[],
+  idOf: (item: T) => string,
+  locationValueOf: (item: T) => unknown,
+): ReaderOrderedEntry<T>[] {
+  const entries: ReaderOrderedEntry<T>[] = items.map((item) => {
+    const id = idOf(item);
+    const location = parseRecordedLocation(locationValueOf(item));
+    if (!location) return { item, id, located: false };
+    return {
+      item,
+      id,
+      located: true,
+      section: location.section,
+      page: location.page,
+      offset: location.offset,
+      rawLocation: location.raw,
+    };
+  });
+  const sorted = entries.filter((entry) => entry.located);
+  const unlocated = entries.filter((entry) => !entry.located);
+  sorted.sort((a, b) => {
+    // Section-less (but still located) entries form the last located group.
+    if ((a.section !== undefined) !== (b.section !== undefined)) {
+      return a.section !== undefined ? -1 : 1;
+    }
+    if (a.section !== undefined && b.section !== undefined && a.section !== b.section) {
+      return SECTION_COLLATOR.compare(a.section, b.section) || (a.section < b.section ? -1 : 1);
+    }
+    const aPage = a.page ?? Number.POSITIVE_INFINITY;
+    const bPage = b.page ?? Number.POSITIVE_INFINITY;
+    if (aPage !== bPage) return aPage - bPage;
+    const aOffset = a.offset ?? Number.POSITIVE_INFINITY;
+    const bOffset = b.offset ?? Number.POSITIVE_INFINITY;
+    if (aOffset !== bOffset) return aOffset - bOffset;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+  return [...sorted, ...unlocated];
+}
+
 export interface VerifiedNoticeItem {
   noticeId: string;
   noticeType: string;
