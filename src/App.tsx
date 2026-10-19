@@ -9,6 +9,7 @@ import ActivityPage from './pages/ActivityPage';
 import ExportPage from './pages/ExportPage';
 import KnowledgeGraphPage from './pages/KnowledgeGraphPage';
 import DemoResultsPage from './pages/DemoResultsPage';
+import EvidenceReaderPage from './pages/EvidenceReaderPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 /**
@@ -16,6 +17,8 @@ import NotFoundPage from './pages/NotFoundPage';
  * five primary sidebar areas, one visible secondary destination
  * (Knowledge Graph), and the import-first landing state at `/`.
  * `/results` shows the guided-demo story derived from live graph data.
+ * `/reader` (M7) is a read-only linked destination — never a sidebar
+ * area (see Layout.tsx's IA rule).
  */
 export default function App() {
   return (
@@ -24,6 +27,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/overview" element={<OverviewPage />} />
         <Route path="/results" element={<DemoResultsPage />} />
+        <Route path="/reader" element={<EvidenceReaderPage />} />
         <Route path="/investigations" element={<InvestigationsPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/review-queue" element={<ReviewQueuePage />} />

@@ -7,6 +7,12 @@ import ServiceStatusLine from './ServiceStatusLine';
  * secondary destination below the divider: Knowledge Graph. Evidence
  * Reader / Export are never a sixth area.
  *
+ * M7 note (IA rule applied to /reader): the Evidence Reader is a linked
+ * destination, NOT a nav item — it is opened from the Investigations
+ * demo-manuscript card, from Review Queue / Results links, and via
+ * /reader#p-<nodeId> deep links. The sidebar markup below therefore
+ * stays untouched (five primary areas + the Explore area, unchanged).
+ *
  * Wave U1 (2026-10-19 redesign): Overview → Home pointing at '/'; the
  * active state is the calm lavender surface (brand.surface + brand.deep +
  * font-medium) with a paper.deep hover; on mobile the primary nav renders
