@@ -528,6 +528,25 @@ describe('createReviewDecideHandler — HTTP', () => {
     expect(body.error).toBe('conflict');
   });
 
+  it('reports a missing case with the honest `case-not-found` code (400 per contract)', async () => {
+    // The contract deliberately surfaces unknown review cases as 400 (no 404
+    // review-decision status), but the error CODE must still discriminate:
+    // a missing case is not generic input validation.
+    const handler = createReviewDecideHandler({ env: envWithGraph(), layer: buildFakeLayer(buildFakeSession().session) });
+    const res = await handler(requestFor(`${base}/review-decide?caseId=unknown-case`, { outcome: 'not_affected', explanation: 'e' }));
+    expect(res.status).toBe(400);
+    const body = await jsonOf(res);
+    expect(body.error).toBe('case-not-found');
+  });
+
+  it('maps a validation failure to `invalid-request` (not case-not-found)', async () => {
+    const handler = createReviewDecideHandler({ env: envWithGraph(), layer: buildFakeLayer(buildFakeSession().session) });
+    const res = await handler(requestFor(`${base}/review-decide?caseId=${CASE_ID}`, { outcome: 'bogus', explanation: 'e' }));
+    expect(res.status).toBe(400);
+    const body = await jsonOf(res);
+    expect(body.error).toBe('invalid-request');
+  });
+
   it('returns 503 when the graph is unavailable and fabricates nothing', async () => {
     const { session } = buildFakeSession({ caseNode: { id: CASE_ID, text: 't', kind: 'Claim' }, fail: true });
     const handler = createReviewDecideHandler({
@@ -582,6 +601,14 @@ describe('createReviewDecideHandler — HTTP', () => {
 
 describe('createReviewRevisionHandler — HTTP', () => {
   const base = `http://localhost/${GRAPH_NAME}`;
+
+  it('reports a missing case with the honest `case-not-found` code (400 per contract)', async () => {
+    const handler = createReviewRevisionHandler({ env: envWithGraph(), layer: buildFakeLayer(buildFakeSession().session) });
+    const res = await handler(requestFor(`${base}/review-revision?caseId=unknown-case`, { proposedText: 'Revised.' }));
+    expect(res.status).toBe(400);
+    const body = await jsonOf(res);
+    expect(body.error).toBe('case-not-found');
+  });
 
   it('creates a draft proposal and returns 200', async () => {
     const { session, proposals, getState } = buildFakeSession({

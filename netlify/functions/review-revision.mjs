@@ -36,10 +36,23 @@ import { createRevisionProposal } from '../../server/reviewState.mjs';
 const WRITE_BUDGET_MS = 8_000;
 const ALLOW = 'POST';
 
+/**
+ * Demo-traffic tuning (hardening wave — POST_SUBMISSION_AUDIT item 3): same
+ * split as review-decide — per-IP budget fits a live review session, per-case
+ * budget stays tight so revision proposals cannot churn on one case.
+ */
+const IP_COOLDOWN_MS = 10_000;
+const IP_WINDOW_MS = 600_000;
+const IP_MAX_PER_WINDOW = 24;
+const CASE_COOLDOWN_MS = 30_000;
+const CASE_WINDOW_MS = 600_000;
+const CASE_MAX_PER_WINDOW = 6;
+
 export function createReviewRevisionHandler(deps = {}) {
   const env = deps.env ?? process.env;
   const layer = deps.layer ?? createGraphLayer(env);
-  const limiter = deps.limiter ?? createRateLimiter();
+  const ipLimiter = deps.ipLimiter ?? deps.limiter ?? createRateLimiter({ cooldownMs: IP_COOLDOWN_MS, windowMs: IP_WINDOW_MS, maxPerWindow: IP_MAX_PER_WINDOW });
+  const caseLimiter = deps.caseLimiter ?? deps.limiter ?? createRateLimiter({ cooldownMs: CASE_COOLDOWN_MS, windowMs: CASE_WINDOW_MS, maxPerWindow: CASE_MAX_PER_WINDOW });
   const propose = deps.propose ?? createRevisionProposal;
 
   return async function handler(request /*, context */) {
@@ -55,7 +68,7 @@ export function createReviewRevisionHandler(deps = {}) {
     // Per-IP rate limit (demo-scope, in-memory; the platform edge is the real
     // control). Checked before consuming the request body so IP flooding is
     // stopped before any parsing or graph work.
-    const ipGate = limiter.check(`ip:${ip}`);
+    const ipGate = ipLimiter.check(`ip:${ip}`);
     if (!ipGate.allowed) {
       const retryAfterSeconds = Math.max(1, Math.ceil(ipGate.retryAfterMs / 1000));
       return jsonResponse(
@@ -79,7 +92,7 @@ export function createReviewRevisionHandler(deps = {}) {
     input.caseId = caseId;
 
     // Per-case rate limit (demo-scope, in-memory; the platform edge is the real control).
-    const gate = limiter.check(caseId);
+    const gate = caseLimiter.check(caseId);
     if (!gate.allowed) {
       const retryAfterSeconds = Math.max(1, Math.ceil(gate.retryAfterMs / 1000));
       return jsonResponse(
@@ -101,7 +114,17 @@ export function createReviewRevisionHandler(deps = {}) {
       // Domain errors carry an explicit HTTP status; graph/backend failures use
       // errorBodyFor (503 for connectivity/query/deadline, never fabricated data).
       if (Number.isInteger(err.status) && err.status >= 400 && err.status < 600) {
-        return jsonResponse(err.status, { error: 'invalid-request', message: err.message });
+        return jsonResponse(err.status, {
+          // Honest error classes (same mapping as review-decide): validation,
+          // missing case, and conflict stay distinguishable for clients.
+          error:
+            err.name === 'ReviewConflictError'
+              ? 'conflict'
+              : err.name === 'ReviewNotFoundError'
+                ? 'case-not-found'
+                : 'invalid-request',
+          message: err.message,
+        });
       }
       const { status, body } = errorBodyFor(err);
       return jsonResponse(status, body);
