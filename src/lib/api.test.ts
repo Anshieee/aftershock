@@ -19,6 +19,7 @@ import {
   getDemoDocuments,
   getDocumentDetail,
   getGraphOverview,
+  getImportedDocuments,
   getSeedStatus,
   importDocument,
   startAnalysis,
@@ -197,6 +198,91 @@ describe('api client — endpoints landing later tolerate 404/501', () => {
     stubFetch(() => ({ status: 501 }));
     const outcome = await getAnalysisRun('run-123');
     expect(outcome).toEqual({ available: false, reason: 'not-implemented' });
+  });
+});
+
+describe('api client — imported documents (GET /documents-imported)', () => {
+  it('GETs /documents-imported and parses the imported list', async () => {
+    const calls = stubFetchByRoute(() => ({
+      status: 200,
+      body: {
+        documents: [
+          {
+            id: 'doc-user-1',
+            fileName: 'field-notes.pdf',
+            format: 'pdf',
+            sizeBytes: 12345,
+            importedAt: '2026-10-18T09:00:00.000Z',
+            contentStored: false,
+            disclosure: 'Registered without stored text content.',
+            isSynthetic: false,
+          },
+        ],
+      },
+    }));
+    const outcome = await getImportedDocuments();
+    expect(outcome.available).toBe(true);
+    if (outcome.available) {
+      expect(outcome.data).toHaveLength(1);
+      expect(outcome.data[0]).toEqual({
+        id: 'doc-user-1',
+        title: undefined,
+        fileName: 'field-notes.pdf',
+        format: 'pdf',
+        importedAt: '2026-10-18T09:00:00.000Z',
+        versionId: undefined,
+        contentStored: false,
+        disclosure: 'Registered without stored text content.',
+        isSynthetic: false,
+        syntheticLabel: undefined,
+        sizeBytes: 12345,
+      });
+    }
+    const call = calls[0];
+    expect(call?.url).toBe('/.netlify/functions' + apiRoutes.documentsImported);
+    expect(call?.init?.method).toBeUndefined();
+  });
+
+  it('404 reads as available:false — imported endpoint not wired is not an error', async () => {
+    stubFetchByRoute(() => ({ status: 404 }));
+    const outcome = await getImportedDocuments();
+    expect(outcome).toEqual({ available: false, reason: 'endpoint-missing' });
+  });
+
+  it('501 reads as available:false with reason not-implemented', async () => {
+    stubFetchByRoute(() => ({ status: 501 }));
+    const outcome = await getImportedDocuments();
+    expect(outcome).toEqual({ available: false, reason: 'not-implemented' });
+  });
+
+  it('500 throws a typed ApiHttpError, never fabricates imported documents', async () => {
+    stubFetchByRoute(() => ({ status: 500 }));
+    await expect(getImportedDocuments()).rejects.toBeInstanceOf(ApiHttpError);
+  });
+
+  it('network error throws ApiNetworkError', async () => {
+    stubFetchByRoute(() => {
+      throw new TypeError('connection refused');
+    });
+    await expect(getImportedDocuments()).rejects.toBeInstanceOf(ApiNetworkError);
+  });
+
+  it('aborts hanging requests after the promised 10 s', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: unknown, init?: RequestInit) => {
+        const signal = init?.signal;
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason));
+        });
+      }),
+    );
+    const pending = getImportedDocuments();
+    const expectation = expect(pending).rejects.toBeInstanceOf(ApiTimeoutError);
+    await vi.advanceTimersByTimeAsync(API_TIMEOUT_MS - 1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expectation;
   });
 });
 

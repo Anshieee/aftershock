@@ -8,7 +8,9 @@ import {
   ApiTimeoutError,
   ApiUnavailableError,
   DEMO_MANUSCRIPT_VERSION_ID,
+  describeBytes,
   getDemoDocuments,
+  getImportedDocuments,
   startAnalysis,
   type DocumentSummary,
 } from '../lib/api';
@@ -36,7 +38,7 @@ function describeAnalysisError(error: unknown): string {
   }
   if (error instanceof ApiHttpError) {
     if (error.status >= 500) {
-      return 'The analysis API is unavailable (server error) — the run did not start. Nothing is simulated.';
+      return 'The analysis API is unavailable (server error) — the run did not start.';
     }
     if (error.status === 404 || error.status === 501) {
       return 'Analysis is not wired on this deployment yet — the run did not start.';
@@ -68,6 +70,7 @@ function describeListError(error: unknown): string {
 
 export default function LibraryPage() {
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const [importedState, setImportedState] = useState<ListState>({ phase: 'loading' });
   const [rowAnalysis, setRowAnalysis] = useState<Record<string, RowAnalysis>>({});
   const rowAbortRef = useRef<Map<string, AbortController>>(new Map());
 
@@ -85,6 +88,22 @@ export default function LibraryPage() {
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setListState({ phase: 'failed', detail: describeListError(error) });
+      });
+
+    // Imported (user) documents load in parallel with the seeded list. These
+    // are non-seeded (contentStored: false) and never appear in /documents.
+    getImportedDocuments({ signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (result.available) {
+          setImportedState({ phase: 'loaded', documents: result.data });
+        } else {
+          setImportedState({ phase: 'unavailable' });
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setImportedState({ phase: 'failed', detail: describeListError(error) });
       });
     return () => controller.abort();
   }, []);
@@ -122,19 +141,24 @@ export default function LibraryPage() {
       });
   };
 
-  const empty = listState.phase === 'loaded' && listState.documents.length === 0;
+  const loading = listState.phase === 'loading' || importedState.phase === 'loading';
+  const seededEmpty = listState.phase === 'loaded' && listState.documents.length === 0;
+  const importedEmpty = importedState.phase === 'loaded' && importedState.documents.length === 0;
+  const bothEmpty = seededEmpty && importedEmpty;
 
   return (
     <div className="mx-auto max-w-3xl">
-      {!empty && <h1 className="font-display text-3xl text-ink">Library</h1>}
+      {!loading && !bothEmpty && (
+        <h1 className="font-display text-3xl text-ink">Library</h1>
+      )}
 
-      {listState.phase === 'loading' && (
+      {loading && (
         <p className="mt-8 text-base text-ink-muted" role="status" data-testid="library-loading">
           Loading…
         </p>
       )}
 
-      {listState.phase === 'failed' && (
+      {!loading && listState.phase === 'failed' && (
         <div
           className="mt-8 rounded-lg border border-notice-border bg-notice-surface px-4 py-3 text-base text-ink"
           role="status"
@@ -148,7 +172,7 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {listState.phase === 'unavailable' && (
+      {!loading && listState.phase === 'unavailable' && (
         <div
           className="mt-8 rounded-lg border border-uncertain-border bg-uncertain-surface px-4 py-3"
           role="status"
@@ -164,19 +188,10 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {empty && (
-        <div className="mt-8" data-testid="library-empty">
-          <EmptyArea
-            title="Library"
-            note="Your imported research documents, publication records, bibliographies, references and documents versions will be listed here. No documents exist yet — the Library will never show placeholder records."
-          />
-        </div>
-      )}
-
-      {listState.phase === 'loaded' && listState.documents.length > 0 && (
+      {!loading && listState.phase === 'loaded' && listState.documents.length > 0 && (
         <section aria-labelledby="library-list-heading" className="mt-8" data-testid="library-list">
           <h2 id="library-list-heading" className="sr-only">
-            Imported documents
+            Seeded documents
           </h2>
           <ul className="space-y-4">
             {listState.documents.map((doc) => {
@@ -302,6 +317,125 @@ export default function LibraryPage() {
             })}
           </ul>
         </section>
+      )}
+
+      {!loading && importedState.phase === 'failed' && (
+        <div
+          className="mt-8 rounded-lg border border-notice-border bg-notice-surface px-4 py-3 text-base text-ink"
+          role="status"
+          data-testid="library-imported-failed"
+        >
+          <span className="block font-medium">The imported documents list can’t be read right now.</span>
+          <span className="mt-1 block text-sm text-ink-muted">{importedState.detail}</span>
+          <span className="mt-1 block text-sm text-ink-muted">
+            No imported documents are shown instead — the list is never guessed.
+          </span>
+        </div>
+      )}
+
+      {!loading && importedState.phase === 'unavailable' && (
+        <div
+          className="mt-8 rounded-lg border border-uncertain-border bg-uncertain-surface px-4 py-3"
+          role="status"
+          data-testid="library-imported-unavailable"
+        >
+          <span className="block font-medium text-uncertain-text">
+            The imported documents list is not available in this deployment yet.
+          </span>
+          <span className="mt-1 block text-sm text-uncertain-text">
+            The Library cannot claim which imported documents do or don’t exist. Nothing is
+            simulated.
+          </span>
+        </div>
+      )}
+
+      {!loading && importedState.phase === 'loaded' && importedState.documents.length > 0 && (
+        <section
+          aria-labelledby="library-imported-heading"
+          className="mt-8"
+          data-testid="library-imported-list"
+        >
+          <h2 id="library-imported-heading" className="sr-only">
+            Imported documents
+          </h2>
+          <p className="mb-3 text-sm text-ink-muted" data-testid="library-imported-note">
+            User imports — real content you uploaded. These are registered without stored text
+            (contentStored: false), so analysis is not available for them.
+          </p>
+          <ul className="space-y-4">
+            {importedState.documents.map((doc) => {
+              return (
+                <li
+                  key={doc.id}
+                  data-testid={`library-imported-doc-${doc.id}`}
+                  className="rounded-lg border border-ink-border bg-paper-raised p-5"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">{doc.title ?? doc.fileName ?? doc.id}</p>
+                      <p className="mt-1 text-sm text-ink-muted">
+                        {[
+                          doc.fileName,
+                          doc.format ? `.${doc.format}` : null,
+                          doc.sizeBytes ? describeBytes(doc.sizeBytes) : null,
+                          doc.importedAt ? `Imported ${doc.importedAt}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span
+                        className="inline-flex items-center gap-2 rounded border border-brand bg-brand-surface px-2 py-0.5 text-xs font-medium text-brand"
+                        data-testid={`imported-real-${doc.id}`}
+                      >
+                        Real user content — not a demo fixture
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-sm text-ink" data-testid={`imported-status-${doc.id}`}>
+                    Analysis not available — content not stored (contentStored: false).
+                  </p>
+
+                  {doc.disclosure && (
+                    <blockquote
+                      className="mt-2 border-l-2 border-notice-border bg-notice-surface px-3 py-2 text-sm text-ink"
+                      data-testid={`imported-disclosure-${doc.id}`}
+                    >
+                      {doc.disclosure}
+                    </blockquote>
+                  )}
+
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      disabled
+                      aria-disabled="true"
+                      data-testid={`imported-analyze-${doc.id}`}
+                      className="rounded border border-ink-border bg-ink-border px-4 py-2 text-sm font-medium text-ink-muted cursor-not-allowed opacity-60"
+                    >
+                      Analyze — content not stored
+                    </button>
+                    <p className="mt-1 text-sm text-ink-muted" data-testid={`imported-analyze-hint-${doc.id}`}>
+                      Analysis requires stored text content. This import registered the file without
+                      storing its text, so there is nothing to analyze.
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {!loading && bothEmpty && (
+        <div className="mt-8" data-testid="library-empty">
+          <EmptyArea
+            title="Library"
+            note="Your imported research documents, publication records, bibliographies, references and documents versions will be listed here. No documents exist yet — the Library will never show placeholder records."
+          />
+        </div>
       )}
     </div>
   );

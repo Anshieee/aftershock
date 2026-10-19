@@ -45,6 +45,7 @@ export const apiRoutes = {
   demoSeed: '/demo-seed',
   graphEdges: '/graph-edges',
   documents: '/documents',
+  documentsImported: '/documents-imported',
   document: (id: string) => '/unimplemented?for=document&id=' + encodeURIComponent(id),
   analysisRunStatus: (runId: string) => '/unimplemented?for=analyze&runId=' + encodeURIComponent(runId),
   importDocument: '/import-document',
@@ -595,6 +596,8 @@ export interface DocumentSummary {
   disclosure?: string;
   isSynthetic?: boolean;
   syntheticLabel?: string;
+  /** Size in bytes of the imported file — shown verbatim, never guessed. */
+  sizeBytes?: number;
 }
 
 export interface DocumentDetail extends DocumentSummary {
@@ -648,6 +651,46 @@ export async function getDemoDocuments(options?: RequestOptions): Promise<ApiOut
       disclosure: stringField(element.disclosure),
       isSynthetic: typeof element.isSynthetic === 'boolean' ? element.isSynthetic : undefined,
       syntheticLabel: stringField(element.syntheticLabel),
+      sizeBytes: typeof element.sizeBytes === 'number' ? element.sizeBytes : undefined,
+    })),
+  );
+}
+
+/**
+ * GET /documents-imported — user-imported documents (non-seeded,
+ * contentStored: false). These do not appear in the seeded /documents list.
+ * 404/501 resolve to `available: false` ("not available yet", never an error).
+ */
+export async function getImportedDocuments(
+  options?: RequestOptions,
+): Promise<ApiOutcome<DocumentSummary[]>> {
+  let data: unknown;
+  try {
+    data = await request({
+      path: apiRoutes.documentsImported,
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
+  return outcome(data, (payload) =>
+    asObjectList(payload).map((element, index) => ({
+      id: stringField(element.id) ?? `document-${index}`,
+      title: stringField(element.title),
+      fileName: stringField(element.fileName),
+      format: stringField(element.format),
+      importedAt: stringField(element.importedAt),
+      versionId: stringField(element.versionId),
+      contentStored:
+        typeof element.contentStored === 'boolean' ? element.contentStored : undefined,
+      disclosure: stringField(element.disclosure),
+      isSynthetic: typeof element.isSynthetic === 'boolean' ? element.isSynthetic : undefined,
+      syntheticLabel: stringField(element.syntheticLabel),
+      sizeBytes: typeof element.sizeBytes === 'number' ? element.sizeBytes : undefined,
     })),
   );
 }
@@ -780,7 +823,7 @@ export async function importDocument(
   return outcome(data, parseImportDocumentInfo);
 }
 
-function describeBytes(bytes: number): string {
+export function describeBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${bytes} bytes`;
 }

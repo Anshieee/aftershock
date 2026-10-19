@@ -19,7 +19,11 @@ const demoDocument = {
 };
 
 function stubDocuments(body: unknown, status = 200) {
-  return stubFetchByRoute((url) => (url.endsWith('/documents') ? { status, body } : undefined));
+  return stubFetchByRoute((url) => {
+    if (url.endsWith('/documents-imported')) return { status: 200, body: { documents: [] } };
+    if (url.endsWith('/documents')) return { status, body };
+    return undefined;
+  });
 }
 
 describe('LibraryPage — real document list', () => {
@@ -104,6 +108,130 @@ describe('LibraryPage — real document list', () => {
     );
     expect(screen.queryByTestId('library-list')).toBeNull();
     expect(screen.queryByTestId('library-empty')).toBeNull();
+  });
+});
+
+describe('LibraryPage — imported documents section', () => {
+  const importedDocument = {
+    id: 'doc-user-1',
+    fileName: 'field-notes.pdf',
+    format: 'pdf',
+    sizeBytes: 12345,
+    importedAt: '2026-10-18T09:00:00.000Z',
+    contentStored: false,
+    disclosure: 'The text content of this document is not stored in this demo build.',
+    isSynthetic: false,
+  };
+
+  function stubBoth(seededBody: unknown, importedBody: unknown, status = 200) {
+    return stubFetchByRoute((url) => {
+      if (url.endsWith('/documents')) return { status, body: seededBody };
+      if (url.endsWith('/documents-imported')) return { status, body: importedBody };
+      return undefined;
+    });
+  }
+
+  it('lists imported user documents with file name, format, size and content-not-stored disclosure', async () => {
+    stubBoth({ documents: [demoDocument] }, { documents: [importedDocument] });
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
+
+    const importedList = await waitFor(() => screen.getByTestId('library-imported-list'));
+    expect(importedList.textContent).toContain('field-notes.pdf');
+    expect(importedList.textContent).toContain('.pdf');
+    expect(importedList.textContent).toContain('12345 bytes');
+    // Real user content, not a demo fixture — isSynthetic: false.
+    expect(importedList.textContent).toContain('Real user content — not a demo fixture');
+    // Honest disclosure: contentStored: false, no analysis.
+    expect(importedList.textContent).toContain('Analysis not available — content not stored (contentStored: false).');
+    expect(importedList.textContent).toContain(
+      'The text content of this document is not stored in this demo build.',
+    );
+    // Analyze button disabled with honest explanation — no fabricated analysis.
+    const analyze = screen.getByTestId('imported-analyze-doc-user-1');
+    expect((analyze as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('imported-analyze-hint-doc-user-1').textContent).toContain(
+      'requires stored text content',
+    );
+  });
+
+  it('shows an honest empty state for the imported section when there are no imports', async () => {
+    stubBoth({ documents: [demoDocument] }, { documents: [] });
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
+
+    await waitFor(() => expect(screen.getByTestId('library-list')).toBeTruthy());
+    expect(screen.queryByTestId('library-imported-list')).toBeNull();
+    expect(screen.queryByTestId('library-imported-empty')).toBeNull();
+  });
+
+  it('shows the overall empty state when both seeded and imported lists are empty', async () => {
+    stubBoth({ documents: [] }, { documents: [] });
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
+
+    await waitFor(() => expect(screen.getByTestId('library-empty')).toBeTruthy());
+    expect(screen.queryByTestId('library-list')).toBeNull();
+    expect(screen.queryByTestId('library-imported-list')).toBeNull();
+  });
+
+  it('shows an honest failure state when the imported read fails', async () => {
+    stubBoth({ documents: [demoDocument] }, { error: 'graph down' }, 500);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('library-imported-failed').textContent).toMatch(/HTTP 500/),
+    );
+    expect(screen.queryByTestId('library-imported-list')).toBeNull();
+  });
+
+  it('shows an honest unavailable state when the imported endpoint is not wired', async () => {
+    stubBoth({ documents: [demoDocument] }, { error: 'not found' }, 404);
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('library-imported-unavailable')).toBeTruthy(),
+    );
+    expect(screen.queryByTestId('library-imported-list')).toBeNull();
+  });
+
+  it('shows loading while both fetches are in flight', async () => {
+    // Hang both fetches so the page stays in the loading phase.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: unknown, init?: RequestInit) => {
+        const signal = init?.signal;
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason));
+        });
+      }),
+    );
+    render(
+    <MemoryRouter>
+      <LibraryPage />
+    </MemoryRouter>,
+  );
+
+    expect(screen.getByTestId('library-loading')).toBeTruthy();
+    expect(screen.queryByTestId('library-list')).toBeNull();
+    expect(screen.queryByTestId('library-imported-list')).toBeNull();
   });
 });
 
