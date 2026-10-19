@@ -52,3 +52,14 @@ Running log for the autonomous session started 2026-10-19 ~04:45 UTC. Orchestrat
 - **E2E vs production: 74 passed / 0 failed / 4 skipped** (desktop + mobile + find-evidence), 48.7 s.
 - **Docs:** BUILD_STATUS (P4 row + verification section + blocker refresh), MILESTONES (M7 shipped bullet), KNOWN_LIMITATIONS (Find Evidence v1 section), decisions/0002-find-evidence-design.md (new ADR).
 - Next: Wave 3 — bounded in-memory reference/DOI extraction for imports (metadata-only tier; NEVER persisted to graph), TXT-first honest PDF limits, synthetic fixtures only.
+
+## Wave 3 launch + small fixes (11:20–11:30 UTC block)
+- **KG filter-init race fix committed** `edcf151` → merge `61c26df` (see P4 block above for evidence).
+- **fixtureId display-quote drift fixed** (`d31ae56`): `str()` (error-message display helper that JSON-quotes strings) was used for the SeedMeta `fixtureId` DATA value — the graph stored literal quoted characters. New `coercePlainString()` for stored values + regression test (`plan.metaNode.fixtureId` has no quotes). Server unit 220/220. Existing seeded graph heals on next drift reseed (noop reseeds don't rewrite the meta node; cosmetic until then).
+- `.zcode/` (local agent-role config) added to .gitignore, files untouched (`c26575c`).
+- **Wave 3 (in-memory import metadata extraction) launched** — two parallel MEDIUM agents on worktrees:
+  - backend `ses_ead461980ffeSMJxveCZSfkMpa` on `feat/w3-meta-extract-backend` (`/home/ansh/Projects/aftershock-wt-w3-backend`): `server/metaExtract.mjs` pure DOI/reference extraction module (TXT only, 512 KiB scan budget, ≤50 DOIs, tolerant decode, honest attempted:false + reason for pdf/docx), handler integration (extraction must never fail the import), unit tests, DATA_CONTRACTS note. NO graph writes.
+  - frontend `ses_ead46197effecaSk2oa9ugShu2` on `feat/w3-meta-extract-frontend` (`/home/ansh/Projects/aftershock-wt-w3-frontend`): typed optional `extraction` member in `src/lib/api.ts`, honest "Detected in your file — unverified candidate references" section in ImportPanel, unit + stubbed E2E.
+  - Design of record: `/tmp/opencode/wave3-spec.md`.
+- Deploy decision: sweep `d31ae56`/`c26575c` into production in the Wave-3 deploy after both branches merge (fixtureId fix is cosmetic; no urgency).
+- Empty-states `/library` E2E flake: did NOT reproduce in the last two full production sweeps (74/0/4 clean); leaving spec as-is per bounded-diagnostics constraint.
