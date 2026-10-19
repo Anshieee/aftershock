@@ -9,3 +9,6 @@ logs/
 # Playwright e2e artifacts
 test-results/
 playwright-report/
+
+# Local agent-role config (kept on disk, not project code)
+.zcode/
