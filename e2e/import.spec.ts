@@ -54,16 +54,24 @@ async function openDocumentPicker(page: Page) {
 
 /**
  * Resolves which Library state production currently serves.
- * Returns 'panel' when a real upload surface is present, 'placeholder'
+ * Returns 'list' when a real upload surface is present, 'placeholder'
  * for the honest under-construction empty area.
+ *
+ * Every terminal render of LibraryPage is covered (markers in DOM order):
+ * seeded failure/unavailable panels first, then the seeded list, then the
+ * imported list, then the both-empty placeholder. Missing
+ * `library-imported-list` here caused a hard 20 s timeout whenever the
+ * seeded cohort was empty while real user imports existed (unseeded-graph
+ * sweeps) — a real terminal state that the union simply never matched.
  */
 async function resolveLibraryState(
   page: Page,
-): Promise<'list' | 'empty' | 'unavailable' | 'failed'> {
+): Promise<'list' | 'empty' | 'imports-only' | 'unavailable' | 'failed'> {
   await page.goto('/library');
   const terminal = page
     .locator('[data-testid="library-list"]')
     .or(page.locator('[data-testid="library-empty"]'))
+    .or(page.locator('[data-testid="library-imported-list"]'))
     .or(page.locator('[data-testid="library-unavailable"]'))
     .or(page.locator('[data-testid="library-failed"]'))
     .first();
@@ -74,6 +82,7 @@ async function resolveLibraryState(
     return rows > 0 ? 'list' : 'empty';
   }
   if (marker === 'library-empty') return 'empty';
+  if (marker === 'library-imported-list') return 'imports-only';
   return (marker === 'library-unavailable' ? 'unavailable' : 'failed') as
     | 'unavailable'
     | 'failed';
@@ -185,6 +194,22 @@ test.describe('M4 import flow', () => {
       return;
     }
 
+    if (state === 'imports-only') {
+      // Seeded cohort empty while REAL user imports are listed: an honest
+      // real-content state — every row must carry its contentStored: false
+      // disclosure, and nothing fabricated may appear.
+      await expect(main.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
+      await expect(page.locator('[data-testid="library-imported-list"]')).toBeVisible();
+      await expect(main.locator('table')).toHaveCount(0);
+      const text = (await main.innerText()) ?? '';
+      expect(
+        text,
+        'real import rows keep their contentStored:false disclosure',
+      ).toMatch(/content not stored|contentStored: false/i);
+      expect(text, 'no fabricated content').not.toMatch(FABRICATED);
+      return;
+    }
+
     // State: real list. Rows carry REAL metadata (ids/size/dates), the
     // synthetic demo document is labeled, and nothing is fabricated.
     const rows = await page.locator('[data-testid^="library-doc-"]').count();
@@ -254,26 +279,42 @@ test.describe('M4 import flow', () => {
     const { posts } = trackFunctionPosts(page);
     // 40 MB — beyond every plausible demo limit and beyond the platform's
     // function body cap; kept in memory so no giant fixture is committed.
-    await input.setInputFiles({
-      name: 'size-probe.txt',
-      mimeType: 'text/plain',
-      buffer: Buffer.alloc(40 * 1024 * 1024, 0x61),
-    });
+    // Bulk payload transfer is not an interactive action: it used to race
+    // the default 10 s action timeout under parallel sweep load (observed
+    // `setInputFiles: Timeout 10000ms exceeded` on desktop AND mobile, even
+    // on retry), so it gets an explicit bounded timeout of its own.
+    await input.setInputFiles(
+      {
+        name: 'size-probe.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.alloc(40 * 1024 * 1024, 0x61),
+      },
+      { timeout: 30_000 },
+    );
 
-    await page.waitForTimeout(3_000);
-    const rejected = await page
-      .locator('main')
-      .getByText(/too large|too big|exceeds|size limit|maximum size|maximum allowed/i)
-      .first()
-      .isVisible()
-      .catch(() => false);
+    // Real signal instead of a fixed sleep: the client-side size guard runs
+    // synchronously in onChange and renders its rejection BEFORE any network
+    // path can run. Awaiting that gate state makes the "no upload fired"
+    // window deterministic.
+    const guard = page.locator('[data-testid="import-guard-rejection"]');
+    await expect(guard).toBeVisible({ timeout: 30_000 });
+    await expect(guard, 'honest size rejection names the limit').toContainText(
+      /larger than the \d+ MB limit/i,
+    );
+    await expect(
+      guard,
+      'honest size rejection discloses that nothing left the browser',
+    ).toContainText(/nothing was uploaded|rejected before any network request/i);
 
-    if (!rejected) {
-      expect(
-        posts(),
-        'no upload POST for an oversized file — client-side size guard must reject before any network traffic',
-      ).toBe(0);
-    }
+    // Settled counter: no functions POST at the gate, and none appears
+    // during a bounded settle window after it.
+    const postsAtGate = posts();
+    expect(
+      postsAtGate,
+      'no upload POST for an oversized file — client-side size guard must reject before any network traffic',
+    ).toBe(0);
+    await page.waitForTimeout(2_000);
+    expect(posts(), 'no late upload POST after the guard gate').toBe(postsAtGate);
     const main = await page.locator('main').innerText();
     expect(main, 'no fabricated success for an oversized file').not.toMatch(
       /uploaded successfully|import complete|successfully imported/i,

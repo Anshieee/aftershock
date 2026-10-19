@@ -24,9 +24,21 @@ for (const { path, title, honest } of AREAS) {
     await page.goto(path);
     const main = page.locator('main');
 
-    // DUAL-STATE: resolve whether production still serves the placeholder.
-    const isPlaceholder = await page
+    // Deterministic settle BEFORE the dual-state probe: /library renders no
+    // heading at all while its two list requests are in flight (every
+    // terminal state has exactly one h1), and the API client gives up after
+    // 10 s — so a 20 s bound always resolves to a terminal render first.
+    // Without it the probe below raced the async load: it sampled
+    // "not placeholder" during the loading phase and the follow-up h1
+    // assertion then timed out while the page still showed "Loading…".
+    await expect(main.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
+
+    // DUAL-STATE: the render is terminal now, so this one-shot probe is
+    // stable — either honest variant below is assertable, and the honesty
+    // assertions for the sampled variant run in full.
+    const isPlaceholder = await main
       .getByText('Feature under construction')
+      .first()
       .isVisible()
       .catch(() => false);
 
@@ -48,10 +60,16 @@ for (const { path, title, honest } of AREAS) {
     const note = main.locator('p').filter({ hasText: honest });
     await expect(note.first(), 'honest scoped note shown').toBeVisible();
 
-    // No fabricated data rows/cards in the empty state.
+    // No fabricated data rows/cards in the empty state. The honest
+    // empty-state wrapper itself may carry a test id (the /library
+    // placeholder renders inside `[data-testid="library-empty"]`), so the
+    // scan is scoped past that one honest marker — any other test id in main
+    // would be a row/card/component, i.e. fabricated content.
     await expect(main.locator('table')).toHaveCount(0);
     await expect(main.locator('img')).toHaveCount(0);
-    await expect(main.locator('[data-testid]')).toHaveCount(0);
+    await expect(
+      main.locator('[data-testid]:not([data-testid="library-empty"])'),
+    ).toHaveCount(0);
     // The area stays sparse — a wall of matching "items" would indicate
     // placeholder data.
     const text = (await main.innerText()) ?? '';
