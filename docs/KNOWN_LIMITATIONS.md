@@ -40,6 +40,11 @@ Honest, evidence-linked list of what the current demo does **not** guarantee. Up
 - **Session-scoped, never persisted:** the extraction lives only in the import HTTP response. No node label, edge type, or graph property exists for it; the graph contract of `/import-document` is unchanged (`contentStored:false` still primary).
 - **OTL (out of this tier) explicitly:** no reference-section parsing (author/year/title structure), no retraction lookups on detected DOIs, no DOI resolution/verification, no PDF/DOCX text extraction, no claim↔reference linkage from file content.
 
+## Independence groups (Wave 4, deployed 2026-10-19) — honest scope
+- **Same-publication sharing only:** a group means two or more claims have supporting citation uses referencing the SAME publication record. Shared datasets, analyses, or review trees are NOT detected in this tier (Find Evidence responses disclose the same limitation).
+- **Support-only contribution:** historical mentions (`MENTIONS_HISTORICALLY`) and unresolved possible matches never feed a group; only `CITATION_USE_SUPPORTS_CLAIM` with `role='supporting'` does.
+- **Read-only and decision-neutral:** the panel informs review and never changes a review state; a group is never a verdict, and absence of groups is never a guarantee of independence.
+
 ## Third-party / telemetry residuals
 - External fetches are time-boxed and logs are content-redacted (AGENTS.md). Sentry, if enabled, is scrubbed for manuscript content and PII (§13). **Residual risks that cannot be fully eliminated in this demo:** the unencrypted graph channel still exposes synthetic workload metadata to network observers; verification fetches reach third-party services (Crossref, NCBI, doi.org) and reveal working IPs/agents without sending user content; direct `thelancet.com` fetch is blocked (403) and only corroborated indirectly. Fonts are self-hosted (no runtime CDN calls).
 - No "secure transport" or encryption claims are made anywhere in the demo UI; the disclosure duties of §2 and §4 bind all product surfaces.
