@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import FindEvidencePanel, {
   EMPTY_PROVIDERS_COPY,
   FOOTER_DISCLOSURE,
@@ -403,5 +404,93 @@ describe('FindEvidencePanel — staged honest flow', () => {
     fireEvent.click(screen.getByTestId('find-evidence-retry'));
     await waitFor(() => screen.getByTestId('find-evidence-candidate-0'));
     expect(screen.queryByTestId('find-evidence-error')).toBeNull();
+  });
+});
+
+describe('FindEvidencePanel — optional origin context (M7 Priority B)', () => {
+  it('renders zero origin UI when the prop is absent (review-queue flow stays byte-compatible)', async () => {
+    const impl = stagedImpl();
+    render(<FindEvidencePanel claimId="claim-A" open onClose={vi.fn()} findEvidence={impl} />);
+    await waitFor(() => screen.getByTestId('find-evidence-search'));
+
+    expect(screen.queryByTestId('find-evidence-origin')).toBeNull();
+    expect(screen.queryByTestId('find-evidence-origin-label')).toBeNull();
+    expect(screen.queryByTestId('find-evidence-origin-return')).toBeNull();
+    expect(screen.queryByTestId('find-evidence-review-queue')).toBeNull();
+  });
+
+  it('renders "From: <label>" when origin is provided, without a return link when backHref is absent', async () => {
+    const impl = stagedImpl();
+    render(
+      <MemoryRouter>
+        <FindEvidencePanel
+          claimId="claim-A"
+          open
+          onClose={vi.fn()}
+          findEvidence={impl}
+          origin={{ label: 'Results — affected claim claim-A' }}
+        />
+      </MemoryRouter>,
+    );
+    await waitFor(() => screen.getByTestId('find-evidence-search'));
+
+    expect(screen.getByTestId('find-evidence-origin-label').textContent).toBe(
+      'Results — affected claim claim-A',
+    );
+    expect(screen.queryByTestId('find-evidence-origin-return')).toBeNull();
+    // The rest of the panel flow is unaffected by the origin header.
+    expect(screen.getByTestId('find-evidence-claim-text').textContent).toContain(CLAIM_TEXT);
+    expect(screen.getByTestId('find-evidence-footer-disclosure').textContent).toBe(FOOTER_DISCLOSURE);
+  });
+
+  it('renders the return link only when backHref is provided, and it closes the panel', async () => {
+    const impl = stagedImpl();
+    const onClose = vi.fn();
+    render(
+      <MemoryRouter>
+        <FindEvidencePanel
+          claimId="claim-A"
+          open
+          onClose={onClose}
+          findEvidence={impl}
+          origin={{ label: 'Results — affected claim claim-A', backHref: '/results' }}
+        />
+      </MemoryRouter>,
+    );
+    await waitFor(() => screen.getByTestId('find-evidence-search'));
+
+    const back = screen.getByTestId('find-evidence-origin-return') as HTMLAnchorElement;
+    expect(back.getAttribute('href')).toBe('/results');
+    // Keyboard reachable; activating it leaves the dialog (closes first).
+    expect(back.tagName).toBe('A');
+    fireEvent.click(back);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers the review-queue link for the same case, framed as viewing-only navigation', async () => {
+    const impl = stagedImpl();
+    const onClose = vi.fn();
+    render(
+      <MemoryRouter>
+        <FindEvidencePanel
+          claimId="claim-A"
+          open
+          onClose={onClose}
+          findEvidence={impl}
+          origin={{ label: 'Results — affected claim claim-A' }}
+        />
+      </MemoryRouter>,
+    );
+    await waitFor(() => screen.getByTestId('find-evidence-search'));
+
+    const queueLink = screen.getByTestId('find-evidence-review-queue') as HTMLAnchorElement;
+    expect(queueLink.getAttribute('href')).toBe('/review-queue');
+    expect(queueLink.textContent).toBe('Open review queue');
+    // It must NOT read as a state-changing action, and the label is exact.
+    expect(queueLink.getAttribute('aria-label')).toBe(
+      'Open review queue for case claim-A (viewing only)',
+    );
+    fireEvent.click(queueLink);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

@@ -339,3 +339,78 @@ test.describe('P4 Find Evidence (deterministic stubs, no real Crossref call)', (
     expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(390);
   });
 });
+
+/**
+ * M7 Priority B — the results page (DemoResultsPage) mounts the SAME panel
+ * with origin context when its affected claim/conclusion rows ask for
+ * evidence. Same stubbing convention: every function route is intercepted,
+ * the real Crossref API is never hit, and the search stays read-only.
+ */
+test.describe('M7 Priority B — Find Evidence opened from the results page (origin context)', () => {
+  test('affected-claim row opens the panel with origin context, claimId = item id, and viewing-only links', async ({ page }) => {
+    const calls = await installStubs(page);
+    await page.goto('/results');
+    await page.getByTestId('affected-claim-A').waitFor({ state: 'visible' });
+
+    await page.getByTestId('results-find-evidence-claim-A').click();
+    await page.getByTestId('find-evidence-dialog').waitFor({ state: 'visible' });
+    await page.getByTestId('find-evidence-search').waitFor({ state: 'visible' });
+
+    // One prepare call for the right case, exactly like the queue mount.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.body).toEqual({});
+    expect(page.url()).toContain('/results');
+
+    // Origin context header (optional prop; never rendered on the queue).
+    await expect(page.getByTestId('find-evidence-origin-label')).toHaveText(
+      'Results — affected claim claim-A',
+    );
+    const back = page.getByTestId('find-evidence-origin-return');
+    await expect(back).toHaveAttribute('href', '/results');
+    await expect(back).toHaveAttribute(
+      'aria-label',
+      'Return to origin (Results — affected claim claim-A)',
+    );
+
+    // Review-queue link: navigation only, framed as viewing-only (no state change).
+    const queueLink = page.getByTestId('find-evidence-review-queue');
+    await expect(queueLink).toHaveAttribute('href', '/review-queue');
+    await expect(queueLink).toHaveText('Open review queue');
+    await expect(queueLink).toHaveAttribute(
+      'aria-label',
+      'Open review queue for case claim-A (viewing only)',
+    );
+
+    // The honest core is unchanged by the origin context.
+    await expect(page.getByTestId('find-evidence-footer-disclosure')).toContainText(
+      'This search does not modify citations, review states, or the manuscript.',
+    );
+  });
+
+  test('affected-conclusion row opens the panel for that passage with its own origin label', async ({ page }) => {
+    await installStubs(page);
+    await page.goto('/results');
+    await page.getByTestId('affected-conclusion-C').waitFor({ state: 'visible' });
+
+    await page.getByTestId('results-find-evidence-conclusion-C').click();
+    await page.getByTestId('find-evidence-dialog').waitFor({ state: 'visible' });
+    await page.getByTestId('find-evidence-search').waitFor({ state: 'visible' });
+
+    await expect(page.getByTestId('find-evidence-origin-label')).toHaveText(
+      'Results — affected conclusion conclusion-C',
+    );
+  });
+
+  test('Escape closes the panel and the results page rows keep their honest states', async ({ page }) => {
+    await installStubs(page);
+    await page.goto('/results');
+    await page.getByTestId('affected-claim-A').waitFor({ state: 'visible' });
+    await page.getByTestId('results-find-evidence-claim-A').click();
+    await page.getByTestId('find-evidence-dialog').waitFor({ state: 'visible' });
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('find-evidence-dialog')).toHaveCount(0);
+    await expect(page.getByTestId('affected-claim-A')).toBeVisible();
+    await expect(page.getByTestId('affected-claim-A')).toContainText('direct evidence review');
+  });
+});
