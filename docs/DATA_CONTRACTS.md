@@ -119,6 +119,16 @@ query params (e.g. `/unimplemented?for=document&id=…`), never by fabricated da
 - `POST /export/revision-pack` — Revision Pack (DOCX).
 - `POST /export/annotated-manuscript` — Annotated Manuscript.
 - `GET /activity` — timeline events.
+- `GET /independence-groups` — read-only "independence groups": every publication whose
+  `CITATION_USE_SUPPORTS_CLAIM` + `role='supporting'` links support more than one visible claim, plus an
+  all-zero summary when none do (honest empties). Deploy path = function filename; no query params.
+
+**Non-graph note — independence groups (Wave 4, read-only):** `GET /.netlify/functions/independence-groups` introduces
+NO new node labels, edge types, or properties — it is a pure read-side re-port of existing, contract-stored links.
+Only `CITATION_USE_SUPPORTS_CLAIM` edges with `role='supporting'` are ever traversed; `MENTIONS_HISTORICALLY` /
+`POSSIBLE_MATCH` and all other relation types participate in nothing. The response states only the
+same-publication co-support fact (standing caveat + limitations strings are server constants); it never asserts
+independence or dependence beyond that and never changes review state.
 
 All write endpoints require method guard + input validation + rate limit. No arbitrary Cypher or reset exposed.
 
