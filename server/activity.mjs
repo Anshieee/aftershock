@@ -48,31 +48,49 @@ export const ACTIVITY_READ_BUDGET_MS = 8_000;
 /**
  * All ReviewDecision nodes. No `seeded` filter: the timeline covers every
  * real decision, seed fixture or user-recorded alike.
+ *
+ * When `caseId` is provided (M7 Priority D per-case view, additive optional
+ * GET /activity?caseId= read-only filter), the Cypher narrows to decisions
+ * recorded against that case via a `$caseId` parameter — caseId never
+ * appears as an inline literal.
  * @param {import('./graphClient.mjs').GraphSession} session
+ * @param {string | undefined} [caseId]
  * @returns {Promise<Array<{id, caseId, outcome, explanation, reviewer?, decidedAt, beforeState?, afterState?, provenanceKind?, analysisVersion?}>>}
  */
-async function readReviewDecisions(session) {
-  const cypher = `MATCH (d:ReviewDecision)
+async function readReviewDecisions(session, caseId = undefined) {
+  const params = caseId === undefined ? {} : { caseId };
+  const cypher = caseId === undefined
+    ? `MATCH (d:ReviewDecision)
+   RETURN d.id AS id, d.caseId AS caseId, d.outcome AS outcome, d.explanation AS explanation,
+          d.reviewer AS reviewer, d.decidedAt AS decidedAt, d.beforeState AS beforeState,
+          d.afterState AS afterState, d.provenanceKind AS provenanceKind,
+          d.analysisVersion AS analysisVersion
+   ORDER BY d.decidedAt`
+    : `MATCH (d:ReviewDecision) WHERE d.caseId = $caseId
    RETURN d.id AS id, d.caseId AS caseId, d.outcome AS outcome, d.explanation AS explanation,
           d.reviewer AS reviewer, d.decidedAt AS decidedAt, d.beforeState AS beforeState,
           d.afterState AS afterState, d.provenanceKind AS provenanceKind,
           d.analysisVersion AS analysisVersion
    ORDER BY d.decidedAt`;
-  assertParameterized(cypher, {});
-  const res = await session.roQuery(cypher, {});
+  assertParameterized(cypher, params);
+  const res = await session.roQuery(cypher, params);
   return /** @type {Array<{id: string, caseId: string, outcome: string, explanation: string, reviewer?: string, decidedAt: string, beforeState?: string, afterState?: string, provenanceKind?: string, analysisVersion?: string}>} */ (res.data ?? []);
 }
 
 /**
  * All SourceNotice nodes joined to their publication so the event names the
- * publication whose status changed. publishedDate/detectedAt/lastVerifiedAt
- * are returned as distinct fields and never merged.
+ * publication whose status changed. publishedDate/noticeRecordedDate/
+ * detectedAt/lastVerifiedAt are returned as distinct fields and never merged:
+ * publishedDate = official announcement date, noticeRecordedDate = the
+ * PubMed/PMC/Crossref indexing-system record date, detectedAt = when
+ * Aftershock first recorded the notice, lastVerifiedAt = most recent re-check.
  * @param {import('./graphClient.mjs').GraphSession} session
- * @returns {Promise<Array<{id, noticeType, publishedDate, detectedAt?, lastVerifiedAt?, sourceUrl?, verified?, publicationId?, publicationTitle?, provenanceKind?}>>}
+ * @returns {Promise<Array<{id, noticeType, publishedDate, noticeRecordedDate?, detectedAt?, lastVerifiedAt?, sourceUrl?, verified?, publicationId?, publicationTitle?, provenanceKind?}>>}
  */
 async function readSourceNotices(session) {
   const cypher = `MATCH (p:Publication)-[:PUBLICATION_HAS_NOTICE]->(n:SourceNotice)
    RETURN n.id AS id, n.noticeType AS noticeType, n.publishedDate AS publishedDate,
+          n.noticeRecordedDate AS noticeRecordedDate,
           n.detectedAt AS detectedAt, n.lastVerifiedAt AS lastVerifiedAt,
           n.sourceUrl AS sourceUrl, n.verified AS verified,
           p.id AS publicationId, p.title AS publicationTitle, n.provenanceKind AS provenanceKind
@@ -100,6 +118,41 @@ async function readAnalysisRuns(session) {
 }
 
 /**
+ * caseId safe charset for the M7 per-case activity filter — mirrors the
+ * review-domain pattern (server/reviewState.mjs `CASE_ID_RE` / max length):
+ * letters, digits, underscore, hyphen only; bounding payloads and enumeration
+ * probes before any graph I/O. Exported so the HTTP handler and unit tests
+ * share one definition.
+ */
+export const MAX_ACTIVITY_CASE_ID_LEN = 100;
+
+const ACTIVITY_CASE_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Validate the optional `?caseId=` filter value. Returns a normalized string
+ * or undefined (no filter). Throws an `inputError`-class 400 error when
+ * present but malformed — the handler maps this to a 400 body and no graph
+ * I/O happens. The value reaches Cypher exclusively as a `$caseId`
+ * parameter; it is never interpolated.
+ * @param {unknown} raw
+ * @returns {string | undefined}
+ */
+export function parseActivityCaseId(raw) {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    throw new Error('caseId filter must be a non-empty string.');
+  }
+  const caseId = raw.trim();
+  if (!ACTIVITY_CASE_ID_RE.test(caseId)) {
+    throw new Error('caseId may only contain letters, digits, underscores, and hyphens.');
+  }
+  if (caseId.length > MAX_ACTIVITY_CASE_ID_LEN) {
+    throw new Error(`caseId must be ${MAX_ACTIVITY_CASE_ID_LEN} characters or fewer.`);
+  }
+  return caseId;
+}
+
+/**
  * Parse a beforeState/afterState JSON blob stored on a ReviewDecision node.
  * @param {unknown} value
  * @returns {object | null}
@@ -117,17 +170,29 @@ function parseStateBlob(value) {
 /**
  * Assemble the unified activity timeline: one event per real graph record,
  * newest first, deduplicated by event id.
+ *
+ * M7 Priority D per-case view: when `options.caseId` is a validated case id,
+ * the timeline narrows to review_decision events recorded against that case
+ * only. Source notices (publication-scoped) and analysis runs (document
+ * version-scoped) carry no caseId on their nodes — including them under a
+ * caseId query would imply a case linkage that is not recorded, so they are
+ * excluded rather than laundered into "case" events. An empty result is the
+ * honest answer ("no recorded case events for this id").
  * @param {import('./graphClient.mjs').GraphSession} session
- * @returns {Promise<Array<{id: string, type: string, actor?: string, action: string, timestamp: string, targetId?: string, targetType?: string, description: string, beforeState?: object | null, afterState?: object | null, provenanceKind: string | null, detectedAt?: string | null, lastVerifiedAt?: string | null}>>}
+ * @param {{caseId?: string}} [options]
+ * @returns {Promise<Array<{id: string, type: string, actor?: string, action: string, timestamp: string, targetId?: string, targetType?: string, description: string, beforeState?: object | null, afterState?: object | null, provenanceKind: string | null, noticeRecordedDate?: string | null, detectedAt?: string | null, lastVerifiedAt?: string | null, startedAt?: string | null, completedAt?: string | null}>>}
  */
-export async function assembleActivityEvents(session) {
+export async function assembleActivityEvents(session, options = {}) {
+  const caseId = options.caseId !== undefined ? String(options.caseId) : undefined;
   const [decisions, notices, runs] = await Promise.all([
-    readReviewDecisions(session),
-    readSourceNotices(session),
-    readAnalysisRuns(session),
+    readReviewDecisions(session, caseId),
+    // Notices and runs are skipped entirely under a caseId filter — they are
+    // not case-scoped records (see the doc comment above).
+    caseId === undefined ? readSourceNotices(session) : Promise.resolve([]),
+    caseId === undefined ? readAnalysisRuns(session) : Promise.resolve([]),
   ]);
 
-  /** @type {Array<{id, type, actor?, action, timestamp, targetId?, targetType?, description, beforeState?, afterState?, provenanceKind, detectedAt?, lastVerifiedAt?}>} */
+  /** @type {Array<{id, type, actor?, action, timestamp, targetId?, targetType?, description, beforeState?, afterState?, provenanceKind, noticeRecordedDate?, detectedAt?, lastVerifiedAt?, startedAt?, completedAt?}>} */
   const events = [];
 
   for (const d of decisions) {
@@ -158,6 +223,7 @@ export async function assembleActivityEvents(session) {
       description: `${String(n.noticeType)} notice for ${publication}`,
       detectedAt: n.detectedAt ?? null,
       lastVerifiedAt: n.lastVerifiedAt ?? null,
+      noticeRecordedDate: n.noticeRecordedDate ?? null,
       provenanceKind: n.provenanceKind ?? null,
     });
   }
@@ -173,6 +239,8 @@ export async function assembleActivityEvents(session) {
       timestamp,
       ...(r.documentVersionId ? { targetId: r.documentVersionId, targetType: TARGET_DOCUMENT_VERSION } : {}),
       description: 'Analysis run for document version',
+      startedAt: r.startedAt ?? null,
+      completedAt: r.completedAt ?? null,
       provenanceKind: r.provenanceKind ?? null,
     });
   }

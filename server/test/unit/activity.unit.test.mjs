@@ -11,7 +11,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { assertParameterized, ConnectionError } from '../../graphClient.mjs';
-import { assembleActivityEvents, ACTIVITY_EVENT_TYPES } from '../../activity.mjs';
+import {
+  assembleActivityEvents,
+  ACTIVITY_EVENT_TYPES,
+  MAX_ACTIVITY_CASE_ID_LEN,
+  parseActivityCaseId,
+} from '../../activity.mjs';
 import { createActivityHandler } from '../../../netlify/functions/activity.mjs';
 
 const GRAPH_NAME = 'test-graph';
@@ -51,6 +56,7 @@ const NOTICE_RETRACTION = {
   id: 'notice-mehra-retraction-2020-06-04',
   noticeType: 'retraction',
   publishedDate: '2020-06-04',
+  noticeRecordedDate: '2020-06-05',
   detectedAt: '2026-01-10T00:00:00.000Z',
   lastVerifiedAt: '2026-01-15T00:00:00.000Z',
   sourceUrl: 'https://doi.org/10.1016/S0140-6736(20)31324-6',
@@ -96,8 +102,12 @@ function buildFakeSession({ decisions = [], notices = [], runs = [], fail = fals
       reads.push({ cypher, params });
       if (fail) throw new ConnectionError('graph is down');
       if (cypher.includes('ReviewDecision')) {
+        // Mirror the real graph semantics: the $caseId WHERE clause filters.
+        const rows = cypher.includes('$caseId')
+          ? decisions.filter((d) => d.caseId === params.caseId)
+          : decisions;
         return {
-          data: decisions.map((d) => ({
+          data: rows.map((d) => ({
             ...d,
             beforeState: JSON.stringify(d.beforeState),
             afterState: JSON.stringify(d.afterState),
@@ -204,6 +214,8 @@ describe('assembleActivityEvents — source notices', () => {
     // the notice's official publication date.
     expect(event.detectedAt).toBe('2026-01-10T00:00:00.000Z');
     expect(event.lastVerifiedAt).toBe('2026-01-15T00:00:00.000Z');
+    expect(event.noticeRecordedDate).toBe('2020-06-05'); // ≠ publishedDate — distinct kinds
+    expect(event.noticeRecordedDate).not.toBe(event.timestamp);
     expect(event.actor).toBeUndefined();
     expect(event.provenanceKind).toBe('source_verified');
   });
@@ -244,6 +256,10 @@ describe('assembleActivityEvents — analysis runs', () => {
       description: 'Analysis run for document version',
     });
     expect(event.provenanceKind).toBe('observed');
+    // The run window stays visible as distinct fields — the timeline
+    // timestamp (completedAt) is never the only recorded time.
+    expect(event.startedAt).toBe('2026-02-01T00:00:00.000Z');
+    expect(event.completedAt).toBe('2026-02-01T01:30:00.000Z');
     expect(event.actor).toBeUndefined();
   });
 
@@ -315,6 +331,82 @@ describe('ACTIVITY_EVENT_TYPES', () => {
       'analysis_run',
       'export_generated',
     ]);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * parseActivityCaseId — shared validator for the M7 per-case filter
+ * ------------------------------------------------------------------ */
+
+describe('parseActivityCaseId — M7 per-case filter validation', () => {
+  it('returns undefined for absent input (no filter)', () => {
+    expect(parseActivityCaseId(undefined)).toBeUndefined();
+    expect(parseActivityCaseId(null)).toBeUndefined();
+  });
+
+  it('normalizes whitespace around a valid id', () => {
+    expect(parseActivityCaseId(' claim-A ')).toBe('claim-A');
+    expect(parseActivityCaseId('claim-A_conclusion-C-2')).toBe('claim-A_conclusion-C-2');
+  });
+
+  it('rejects empty and non-string input', () => {
+    for (const bad of ['', '   ', 42, {}, []]) {
+      expect(() => parseActivityCaseId(bad)).toThrowError(/caseId filter/);
+    }
+  });
+
+  it('rejects charset violations before any graph work', () => {
+    for (const bad of ['claim A', '../etc', 'claim;A', 'claim"A', 'claim$A', 'a+b']) {
+      expect(() => parseActivityCaseId(bad)).toThrowError(/letters, digits, underscores, and hyphens/);
+    }
+  });
+
+  it('rejects oversized ids with the shared length bound', () => {
+    expect(() => parseActivityCaseId('a'.repeat(MAX_ACTIVITY_CASE_ID_LEN + 1))).toThrowError(
+      /characters or fewer/,
+    );
+    expect(parseActivityCaseId('a'.repeat(MAX_ACTIVITY_CASE_ID_LEN))).toBe('a'.repeat(MAX_ACTIVITY_CASE_ID_LEN));
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * assembleActivityEvents — M7 per-case filter (additive, read-only)
+ * ------------------------------------------------------------------ */
+
+describe('assembleActivityEvents — caseId filter (M7 Priority D)', () => {
+  it('narrows review decisions with a parameterized $caseId and reads nothing else', async () => {
+    const { session, reads } = buildFakeSession({
+      decisions: [DECISION_REVIEW_NEEDED], // caseId claim-A
+      notices: [NOTICE_RETRACTION],
+      runs: [RUN_COMPLETED],
+    });
+    const events = await assembleActivityEvents(session, { caseId: 'claim-A' });
+
+    // Only the review decision recorded against this case, and only one
+    // graph read (notices/runs are not case-scoped — they are never
+    // laundered into case events).
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: 'review_decision', targetId: 'claim-A' });
+    expect(reads).toHaveLength(1);
+    const { cypher, params } = reads[0];
+    expect(cypher).toContain('$caseId');
+    expect(cypher).toContain('WHERE d.caseId = $caseId');
+    expect(cypher).not.toContain("'claim-A'");
+    expect(cypher).not.toMatch(/['"]/); // no inline literals
+    expect(() => assertParameterized(cypher, params)).not.toThrow();
+    expect(params).toEqual({ caseId: 'claim-A' });
+  });
+
+  it('returns an empty array (honest) when the case has no recorded decisions', async () => {
+    const { session } = buildFakeSession({ decisions: [] });
+    const events = await assembleActivityEvents(session, { caseId: 'claim-A' });
+    expect(events).toEqual([]);
+  });
+
+  it('decisions recorded against other cases drop out of the filtered view', async () => {
+    const { session } = buildFakeSession({ decisions: [DECISION_NOT_AFFECTED] }); // conclusion-C
+    const events = await assembleActivityEvents(session, { caseId: 'claim-A' });
+    expect(events).toEqual([]);
   });
 });
 
@@ -418,5 +510,89 @@ describe('createActivityHandler — HTTP', () => {
     const res = await handler(requestFor());
     expect(res.status).toBe(429);
     expect(reads).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * createActivityHandler — M7 caseId filter (HTTP level)
+ * ------------------------------------------------------------------ */
+
+describe('createActivityHandler — ?caseId= filter', () => {
+  it('forwards a valid caseId to the assemble op and returns the filtered events', async () => {
+    const received = [];
+    const handler = createActivityHandler({
+      env: envWithGraph(),
+      layer: buildFakeLayer(buildFakeSession().session),
+      assemble: (session, options) => {
+        received.push(options);
+        return Promise.resolve([
+          { id: 'dec-1', type: 'review_decision', action: 'revision_needed', timestamp: '2026-01-02T00:00:00.000Z' },
+        ]);
+      },
+    });
+    const res = await handler(new Request('http://localhost/activity?caseId=claim-A%20'));
+    expect(res.status).toBe(200);
+    expect(received).toHaveLength(1);
+    expect(received[0]).toEqual({ caseId: 'claim-A' }); // normalized (spaces trimmed)
+    const body = await jsonOf(res);
+    expect(body).toHaveLength(1);
+    expect(body[0].id).toBe('dec-1');
+  });
+
+  it('no caseId param → the assemble op receives an undefined filter (full timeline)', async () => {
+    const received = [];
+    const handler = createActivityHandler({
+      env: envWithGraph(),
+      layer: buildFakeLayer(buildFakeSession().session),
+      assemble: (session, options) => {
+        received.push(options);
+        return Promise.resolve([]);
+      },
+    });
+    const res = await handler(requestFor());
+    expect(res.status).toBe(200);
+    expect(received[0]).toEqual({ caseId: undefined });
+  });
+
+  it('returns 400 and reads nothing for a malformed caseId (charset)', async () => {
+    const reads = [];
+    const session = {
+      graphName: GRAPH_NAME,
+      async roQuery(cypher) {
+        reads.push(cypher);
+        return { data: [] };
+      },
+      async close() {},
+    };
+    const handler = createActivityHandler({
+      env: envWithGraph(),
+      layer: buildFakeLayer(session),
+    });
+    for (const bad of ['claim%20A', 'claim;A', '../probe', 'a+b']) {
+      const res = await handler(new Request(`http://localhost/activity?caseId=${bad}`));
+      expect(res.status).toBe(400);
+      const body = await jsonOf(res);
+      expect(body.error).toBe('invalid-request');
+    }
+    expect(reads).toHaveLength(0); // validated before any graph I/O
+  });
+
+  it('returns 400 for an oversized caseId before any graph I/O', async () => {
+    let consulted = false;
+    const session = {
+      graphName: GRAPH_NAME,
+      async roQuery() {
+        consulted = true;
+        return { data: [] };
+      },
+      async close() {},
+    };
+    const handler = createActivityHandler({
+      env: envWithGraph(),
+      layer: buildFakeLayer(session),
+    });
+    const res = await handler(new Request(`http://localhost/activity?caseId=${'a'.repeat(101)}`));
+    expect(res.status).toBe(400);
+    expect(consulted).toBe(false);
   });
 });

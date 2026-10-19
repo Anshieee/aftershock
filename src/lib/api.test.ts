@@ -907,6 +907,107 @@ describe('api client — activity (GET /activity)', () => {
       'export_generated',
     ]);
   });
+
+  /* M7 Priority D — additive wire fields: distinct date kinds and the
+   * per-case filter. Everything below notes nothing is merged or guessed. */
+
+  it('keeps the server-shaped notice fields distinct (never merged, nulls → not reported)', async () => {
+    // Wire shape exactly as GET /activity assembles it from the graph.
+    const wire = {
+      id: 'notice-mehra-retraction-2020-06-04',
+      type: 'source_notice' as const,
+      action: 'published',
+      timestamp: '2020-06-04',
+      targetId: 'pub-mehra-2020',
+      targetType: 'Publication',
+      description: 'retraction notice for Mehra et al. 2020',
+      noticeRecordedDate: '2020-06-05',
+      detectedAt: '2026-10-18T00:00:00.000Z',
+      lastVerifiedAt: '2026-10-18T00:00:00.000Z',
+      provenanceKind: 'source_verified',
+    };
+    stubFetchByRoute(() => ({ status: 200, body: [wire] }));
+    const outcome = await getActivity();
+    expect(outcome.available).toBe(true);
+    if (!outcome.available) return;
+    const [event] = outcome.data;
+    expect(event?.noticeRecordedDate).toBe('2020-06-05'); // ≠ timestamp — kept distinct
+    expect(event?.timestamp).toBe('2020-06-04');
+    expect(event?.detectedAt).toBe('2026-10-18T00:00:00.000Z');
+    expect(event?.lastVerifiedAt).toBe('2026-10-18T00:00:00.000Z');
+    expect(event?.targetId).toBe('pub-mehra-2020');
+    expect(event?.targetType).toBe('Publication');
+    expect(event?.provenanceKind).toBe('source_verified');
+  });
+
+  it('flattens recorded state blobs to readable before/after strings without repainting', async () => {
+    const wire = {
+      id: 'dec-1',
+      type: 'review_decision' as const,
+      action: 'revision_needed',
+      timestamp: '2026-01-02T00:00:00.000Z',
+      targetId: 'claim-A',
+      targetType: 'case',
+      beforeState: { reviewState: 'awaiting_review', flags: [] },
+      afterState: { reviewState: 'review_recorded', flags: ['revision_pending'] },
+    };
+    stubFetchByRoute(() => ({ status: 200, body: [wire] }));
+    const outcome = await getActivity();
+    expect(outcome.available).toBe(true);
+    if (!outcome.available) return;
+    const [event] = outcome.data;
+    expect(event?.targetType).toBe('case');
+    expect(event?.beforeState).toBe('awaiting_review');
+    expect(event?.afterState).toBe('review_recorded · revision_pending');
+  });
+
+  it('a state field with no usable shape drops to undefined — never an invented state', async () => {
+    const wire = {
+      id: 'dec-2',
+      type: 'review_decision' as const,
+      action: 'not_affected',
+      timestamp: '2026-01-05T00:00:00.000Z',
+      beforeState: 42,
+      afterState: { unrelated: 'blob' },
+    };
+    stubFetchByRoute(() => ({ status: 200, body: [wire] }));
+    const outcome = await getActivity();
+    expect(outcome.available).toBe(true);
+    if (!outcome.available) return;
+    const [event] = outcome.data;
+    expect(event?.beforeState).toBeUndefined();
+    expect(event?.afterState).toBeUndefined();
+  });
+
+  it('analysis runs keep their recorded window as distinct fields', async () => {
+    const wire = {
+      id: 'run-1',
+      type: 'analysis_run' as const,
+      action: 'completed',
+      timestamp: '2026-02-01T01:30:00.000Z',
+      targetId: 'ver-demo-manuscript-v1',
+      targetType: 'DocumentVersion',
+      startedAt: '2026-02-01T00:00:00.000Z',
+      completedAt: '2026-02-01T01:30:00.000Z',
+    };
+    stubFetchByRoute(() => ({ status: 200, body: [wire] }));
+    const outcome = await getActivity();
+    expect(outcome.available).toBe(true);
+    if (!outcome.available) return;
+    const [event] = outcome.data;
+    expect(event?.startedAt).toBe('2026-02-01T00:00:00.000Z');
+    expect(event?.completedAt).toBe('2026-02-01T01:30:00.000Z');
+  });
+
+  it('appends ?caseId= as an encoded query param for the per-case view', async () => {
+    const calls = stubFetchByRoute(() => ({ status: 200, body: [] }));
+    const outcome = await getActivity({ caseId: 'claim A/2' });
+    expect(outcome.available).toBe(true);
+    expect(calls[0]?.url).toBe(
+      `/.netlify/functions${apiRoutes.activity}?caseId=${encodeURIComponent('claim A/2')}`,
+    );
+    expect(calls[0]?.init?.method).toBeUndefined(); // still a plain GET
+  });
 });
 
 describe('api client — evidence-find (P4)', () => {
