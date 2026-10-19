@@ -118,7 +118,16 @@ query params (e.g. `/unimplemented?for=document&id=…`), never by fabricated da
 - `POST /export/report` — Evidence Impact Report (PDF).
 - `POST /export/revision-pack` — Revision Pack (DOCX).
 - `POST /export/annotated-manuscript` — Annotated Manuscript.
-- `GET /activity` — timeline events.
+- `GET /activity` — timeline events. **Additive (M7, 2026-10-19, read-only only):** (1) events may carry
+  `noticeRecordedDate` (SourceNotice indexing-system record date — PubMed/PMC/Crossref) and
+  `startedAt`/`completedAt` (AnalysisRun window) alongside the existing `timestamp` and the previously
+  documented `detectedAt`/`lastVerifiedAt`. All timestamps stay distinct per the fixture `dateDistinctions`
+  rule and are never merged; absent fields serialize as `null` and mean "not recorded". (2) New optional
+  query filter `?caseId=<id>` (charset `[A-Za-z0-9_-]`, ≤100 chars, otherwise `400 invalid-request` before
+  any graph I/O; parameterized `$caseId`). When present the response contains **only** `review_decision`
+  events recorded against that caseId: source notices (publication-scoped) and analysis runs
+  (document-version-scoped) carry no case linkage, so they can never appear in a case-filtered response —
+  an empty array is the honest answer. No new nodes/edges/properties are introduced by either addition.
 - `GET /independence-groups` — read-only "independence groups": every publication whose
   `CITATION_USE_SUPPORTS_CLAIM` + `role='supporting'` links support more than one visible claim, plus an
   all-zero summary when none do (honest empties). Deploy path = function filename; no query params.
