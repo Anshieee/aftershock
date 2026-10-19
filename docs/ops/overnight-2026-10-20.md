@@ -31,9 +31,32 @@ Two parallel tracks, strictly separated:
 | v4 investigator's desk | experiment/home-v4-investigators-desk | aftershock-ui-v4 | mimo-v2.6-flash-free | **done+pushed** | (thesis `0682c2d`, 3 commits) | pending alias deploy |
 | v5 editorial | experiment/home-v5-editorial | aftershock-ui-v5 | glm-5.3-flash-free | **done+pushed** | (thesis `5e818fd`, assets `4e926d7`) | pending alias deploy |
 
-## QA phase (independent reviewer — mimo)
-- Consolidated QA agent reviews all five variants: boundary compliance (diff name-status), seed-machine preservation, ImportPanel reuse, integrity copy, similarity check (any two too-alike → name weaker + fix), rubric scoring, per-variant fix lists.
-- After must-fix items resolved → 5 alias draft deploys (`aftershock-home-v1..v5`) + URL verification + comparison package + morning handoff.
+## QA phase (complete)
+- Independent QA agent (mimo) reviewed all five variants: boundary audit, seed-machine byte-identity, ImportPanel reuse, integrity copy, similarity check, rubric scoring. 4 must-fixes found.
+- All must-fixes resolved + re-verified on-branch: v3 `package.json` reverted (`8111b7a`); v5 brand contract restored + focus ring 2px #524A78 + labels canonical + mobile action y642 (`ecaf767`); v2/v4 mobile CTA above fold (y705 / y757, commits `a17ba80` / `bc84d11`); v1 disclosure hit-target + focus ring (`b1001c3`, orchestrator-applied).
+- Similarity (QA): only v1↔v2 at risk; v3/v4/v5 structurally distinct.
+- Rubric (aids, not proof): v1 8.03 · v3 7.90 · v4 7.80 · v2 7.60 · v5 6.95.
+
+## Previews (live, draft alias deploys — NEVER --prod)
+| Variant | URL |
+|---|---|
+| v1 | https://aftershock-home-v1--aftershock-demo.netlify.app/ |
+| v2 | https://aftershock-home-v2--aftershock-demo.netlify.app/ |
+| v3 | https://aftershock-home-v3--aftershock-demo.netlify.app/ |
+| v4 | https://aftershock-home-v4--aftershock-demo.netlify.app/ |
+| v5 | https://aftershock-home-v5--aftershock-demo.netlify.app/ |
+
+Verified: all five HTTP 200; per-variant bundle markers present; `/health` live on each; **0 credential hits** in all five served bundles (audit greps matched only React internals/input type tokens). Site ID used for alias deploy: `b1bb72a1-23de-46c4-8af8-ad4c5010f041`.
+
+## Final SHAs
+v1 `b1001c3` · v2 `a17ba80` · v3 `8111b7a` · v4 `bc84d11` · v5 `ecaf767` — all pushed to GitHub on their experiment branches.
+
+## Comparison package
+`docs/design/home-experiments/2026-10-20/comparison.md` on main (rubric, fix ledger, recommendation directions, how-to-choose). Morning report to the user references it.
+
+## Next actions queue (remaining night)
+1. OPTIONAL remaining M7 capacity: wave 3 (graph explorer) was NOT dispatched — provider capacity went to the 5-variant experiment + QA + fix wave. If resuming M7 work later tonight, dispatch wave-3 explore agent first (read-only inventory of KnowledgeGraphPage needs) before implementation wave.
+2. Keep ledger updated; human chooses winner; integration is a separate approved task (rebase onto latest main + reviewed PR).
 
 ## Next actions queue
 1. Design-research note (bounded) → create 5 worktrees/branches from baseline → dispatch variant agents in batches of 2.
