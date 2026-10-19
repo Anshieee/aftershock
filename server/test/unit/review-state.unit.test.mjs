@@ -179,7 +179,11 @@ describe('recordReviewDecision — op', () => {
 
     expect(decisions).toHaveLength(1);
     expect(decisions[0].provenanceKind).toBe('human_confirmed');
-    expect(decisions[0].seeded).toBe(true);
+    // Audit invariant: a decision node is a human-audit artifact, NOT fixture
+    // content — seeded:false keeps it out of the reseed wipe scope and out of
+    // the seeded-count idempotency accounting (a seeded:true decision would
+    // make every later guided-seed see "drift" and erase audit history).
+    expect(decisions[0].seeded).toBe(false);
     expect(getState().reviewState).toBe('review_recorded');
     expect(getState().text).toBe('Original claim text.'); // immutability
   });
@@ -284,7 +288,9 @@ describe('createRevisionProposal — op', () => {
     });
     expect(proposals).toHaveLength(1);
     expect(proposals[0].provenanceKind).toBe('human_confirmed');
-    expect(proposals[0].seeded).toBe(true);
+    // Audit invariant (same as decisions): revision proposals are human-audit
+    // records, never fixture content — seeded:false survives reseeds.
+    expect(proposals[0].seeded).toBe(false);
     // Immutability: case text unchanged by the proposal.
     expect(getState().text).toBe('Original claim text.');
     expect(getState().reviewState).toBe('awaiting_review'); // proposal does not record a decision

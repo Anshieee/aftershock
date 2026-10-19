@@ -315,7 +315,11 @@ export async function recordReviewDecision(session, input) {
     prov: 'human_confirmed',
     av: SEED_ANALYSIS_VERSION,
     ts: decidedAt,
-    seeded: true,
+    // Audit artifact, not fixture content: audit history must survive reseeds,
+    // and seeded=true would corrupt idempotency accounting (seed.mjs
+    // seededCountsMatch) — a recorded decision would look like fixture drift
+    // and trigger a full wipe/reseed of the seeded subgraph.
+    seeded: false,
   };
   assertParameterized(decisionCypher, decisionParams);
   await session.writeQuery(decisionCypher, decisionParams);
@@ -333,7 +337,9 @@ export async function recordReviewDecision(session, input) {
     ts: decidedAt,
     av: SEED_ANALYSIS_VERSION,
     seedState: SEED_EDGE_REVIEW_STATE,
-    seeded: true,
+    // Same audit-artifact rule as the decision node: runtime linkage edge,
+    // never fixture content.
+    seeded: false,
     primaryState: afterState.reviewState,
     flags: afterState.flags,
   };
@@ -385,7 +391,9 @@ export async function createRevisionProposal(session, input) {
     ts: createdAt,
     prov: 'human_confirmed',
     av: SEED_ANALYSIS_VERSION,
-    seeded: true,
+    // Same audit-artifact rule as review decisions: proposals are human-audit
+    // records, not seeded fixture content.
+    seeded: false,
   };
   assertParameterized(proposalCypher, proposalParams);
   await session.writeQuery(proposalCypher, proposalParams);
