@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  DEMO_MANUSCRIPT_DOCUMENT_ID,
   ApiClientError,
   ApiHttpError,
   ApiNetworkError,
@@ -32,7 +33,9 @@ interface SeedInfo {
  * and flag counts span the whole returned graph and are therefore attached
  * ONLY when a single document was returned (the seeded demo case);
  * otherwise the card says plainly that passage-level attribution is not
- * derivable from the returned edges. Nothing is ever estimated.
+ * derivable from the returned edges. Nothing is ever estimated. The demo
+ * manuscript card additionally links the M7 read-only Evidence Reader
+ * (one affordance; no other structure change).
  */
 interface InvestigationCard {
   id: string;
@@ -336,6 +339,16 @@ export default function InvestigationsPage() {
                   >
                     Review Queue
                   </Link>
+                  {card.id === DEMO_MANUSCRIPT_DOCUMENT_ID && (
+                    <Link
+                      to="/reader"
+                      data-testid={`open-evidence-reader-${card.id}`}
+                      aria-label="Open the read-only evidence reader for the guided-demo manuscript"
+                      className="rounded-lg px-2 py-2 text-sm text-ink-muted no-underline hover:text-ink"
+                    >
+                      Open evidence reader
+                    </Link>
+                  )}
                 </div>
               </li>
             ))}
