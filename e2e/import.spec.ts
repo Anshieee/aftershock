@@ -332,4 +332,148 @@ test.describe('M4 import flow', () => {
       ).not.toMatch(new RegExp(`${fileName}[^\\n]{0,80}(uploaded successfully|imported|analysis started)`, 'i'));
     });
   }
+
+  test.describe('Wave 3 — extraction disclosure (deterministic route stub)', () => {
+    /**
+     * NO real-file E2E dependence and NO live backend dependence: the import
+     * function route is stubbed with small deterministic payloads (synthetic
+     * fixture DOIs only), then the page's honest rendering is asserted.
+     * Every payload keeps contentStored:false — extraction content is
+     * UNVERIFIED candidate references and must never shadow the primary
+     * metadata-only disclosure.
+     */
+    const PRIMARY_DISCLOSURE =
+      'The document was registered; its text content is not stored in this build.';
+    const CAVEAT =
+      'Detected by pattern matching on a bounded excerpt; unverified — presence in the file proves nothing about claim support or reference validity.';
+
+    const stubImport = (page: Page, body: unknown) =>
+      page.route('**/.netlify/functions/import-document*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(body),
+        }),
+      );
+
+    test('txt import with extraction payload: candidates render as unverified, contentStored disclosure stays primary', async ({
+      page,
+    }) => {
+      await stubImport(page, {
+        documentId: 'doc-e2e-w3',
+        versionId: 'ver-e2e-w3',
+        contentStored: false,
+        disclosure: PRIMARY_DISCLOSURE,
+        extraction: {
+          attempted: true,
+          format: 'txt',
+          byteSelection: { scannedBytes: 96, maxBytes: 524288, truncated: false },
+          dois: [
+            {
+              doi: '10.9999/e2e-fixture-alpha',
+              occurrences: 2,
+              snippet: 'prior work with doi 10.9999/e2e-fixture-alpha in the reference list',
+            },
+            { doi: '10.9999/e2e-fixture-beta', occurrences: 1 },
+          ],
+          caveat: CAVEAT,
+        },
+      });
+
+      await page.goto('/');
+      const input = page.locator('[data-testid="import-input"]');
+      await expect(input).toBeAttached();
+
+      // In-memory synthetic fixture — no real file, no real upload.
+      await input.setInputFiles({
+        name: 'e2e-w3-detections.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from(
+          'Synthetic fixture referring to 10.9999/e2e-fixture-alpha twice and 10.9999/e2e-fixture-beta once.\n',
+        ),
+      });
+
+      const result = page.locator('[data-testid="import-result"]');
+      await expect(result).toBeVisible({ timeout: 10_000 });
+      // PRIMARY: the pre-existing honest contentStored:false disclosure.
+      await expect(result.getByText(/content stored: no/i)).toBeVisible();
+
+      const section = page.locator('[data-testid="import-extraction"]');
+      await expect(
+        section.getByText(/Detected in your file — unverified candidate references \(2\)/),
+      ).toBeVisible();
+      await expect(section.getByText(CAVEAT, { exact: false })).toBeVisible();
+      await expect(section).toContainText('10.9999/e2e-fixture-alpha');
+      await expect(section).toContainText('10.9999/e2e-fixture-beta');
+      const doiItems = section.getByTestId('import-extraction-doi');
+      await expect(doiItems).toHaveCount(2);
+
+      const mainText = await page.locator('main').innerText();
+      expect(mainText, 'no fabricated content alongside the candidates').not.toMatch(FABRICATED);
+      // Honest framing present; never a verified-references claim.
+      expect(mainText).toContain('unverified candidate references');
+      expect(mainText).not.toMatch(/verified (references?|citations?)/i);
+      expect(mainText, 'never claims stored content').not.toMatch(
+        /content stored: yes|content (?:is|was) stored\b/i,
+      );
+    });
+
+    test('attempted:false payload: one honest muted reason line, no candidate section', async ({
+      page,
+    }) => {
+      const reason = 'Text extraction for PDF is not implemented in the demo tier.';
+      await stubImport(page, {
+        documentId: 'doc-e2e-w3-nope',
+        versionId: 'ver-e2e-w3-nope',
+        contentStored: false,
+        disclosure: PRIMARY_DISCLOSURE,
+        extraction: { attempted: false, format: 'pdf', reason },
+      });
+
+      await page.goto('/');
+      const input = page.locator('[data-testid="import-input"]');
+      await expect(input).toBeAttached();
+      await input.setInputFiles({
+        name: 'e2e-w3-skip.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 synthetic e2e fixture'),
+      });
+
+      const result = page.locator('[data-testid="import-result"]');
+      await expect(result).toBeVisible({ timeout: 10_000 });
+      await expect(result.getByText(/content stored: no/i)).toBeVisible();
+
+      await expect(page.locator('[data-testid="import-extraction-skipped"]')).toHaveText(reason);
+      await expect(page.locator('[data-testid="import-extraction"]')).toHaveCount(0);
+      await expect(page.locator('[data-testid="import-extraction-doi"]')).toHaveCount(0);
+      const mainText = await page.locator('main').innerText();
+      expect(mainText, 'no fabricated content').not.toMatch(FABRICATED);
+    });
+
+    test('older-deploy tolerance: import 200 without an extraction member renders neither section', async ({
+      page,
+    }) => {
+      await stubImport(page, {
+        documentId: 'doc-e2e-w3-legacy',
+        versionId: 'ver-e2e-w3-legacy',
+        contentStored: false,
+        disclosure: PRIMARY_DISCLOSURE,
+      });
+
+      await page.goto('/');
+      const input = page.locator('[data-testid="import-input"]');
+      await expect(input).toBeAttached();
+      await input.setInputFiles({
+        name: 'e2e-w3-legacy.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('Synthetic legacy fixture with no extraction payload.\n'),
+      });
+
+      const result = page.locator('[data-testid="import-result"]');
+      await expect(result).toBeVisible({ timeout: 10_000 });
+      await expect(result.getByText(/content stored: no/i)).toBeVisible();
+      await expect(page.locator('[data-testid="import-extraction"]')).toHaveCount(0);
+      await expect(page.locator('[data-testid="import-extraction-skipped"]')).toHaveCount(0);
+    });
+  });
 });

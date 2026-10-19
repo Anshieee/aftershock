@@ -225,6 +225,12 @@ export default function ImportPanel() {
   const registered = importFlow.phase === 'registered' ? importFlow : null;
   const isDemoManuscript = registered?.info.versionId === DEMO_MANUSCRIPT_VERSION_ID;
   const analyzeEnabled = Boolean(registered && isDemoManuscript && analysisFlow.phase !== 'starting');
+  // Wave 3 — unverified candidate-reference extraction. UNVERIFIED
+  // pattern-match output only: never verified citations, never support for
+  // any claim, never content stored anywhere. Absent member (older deploys)
+  // → nothing rendered at all.
+  const extraction = registered?.info.extraction;
+  const detectedDois = extraction?.attempted === true ? (extraction.dois ?? []) : [];
 
   return (
     <div data-testid="import-panel">
@@ -305,6 +311,67 @@ export default function ImportPanel() {
               <blockquote className="mt-2 border-l-2 border-review-border bg-review-surface px-3 py-2 text-review-text">
                 {registered.info.disclosure}
               </blockquote>
+            )}
+            {extraction?.attempted === false && (
+              <p
+                data-testid="import-extraction-skipped"
+                className="mt-2 text-xs text-ink-muted"
+              >
+                {extraction.reason ??
+                  'Reference detection was not attempted for this import; the server did not report a reason.'}
+              </p>
+            )}
+            {detectedDois.length > 0 && (
+              <section
+                data-testid="import-extraction"
+                aria-label="Detected in your file — unverified candidate references"
+                className="mt-3 rounded border border-ink-border px-3 py-2"
+              >
+                <p data-testid="import-extraction-heading" className="font-medium text-ink">
+                  Detected in your file — unverified candidate references (
+                  {detectedDois.length})
+                </p>
+                <p
+                  data-testid="import-extraction-caveat"
+                  className="mt-1 text-xs leading-5 text-ink-muted"
+                >
+                  {extraction?.caveat ??
+                    'Detected by pattern matching on a bounded excerpt; unverified — presence in the file proves nothing about claim support or reference validity.'}
+                </p>
+                {extraction?.byteSelection?.truncated && (
+                  <p className="mt-1 text-xs text-ink-muted" data-testid="import-extraction-truncated">
+                    The scan covered only the first{' '}
+                    {extraction.byteSelection.scannedBytes.toLocaleString('en-US')} bytes of the
+                    file; matches beyond that excerpt were not looked for.
+                  </p>
+                )}
+                <ul data-testid="import-extraction-dois" className="mt-2 space-y-1">
+                  {detectedDois.map((candidate, index) => (
+                    <li
+                      key={candidate.doi || `candidate-${index}`}
+                      data-testid="import-extraction-doi"
+                      className="text-xs leading-5"
+                    >
+                      <a
+                        href={`https://doi.org/${candidate.doi}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="break-all font-mono text-brand underline underline-offset-2 hover:text-brand-deep"
+                      >
+                        {candidate.doi}
+                      </a>
+                      <span className="ml-2 text-ink-muted">
+                        ({candidate.occurrences}{' '}
+                        {candidate.occurrences === 1 ? 'occurrence' : 'occurrences'} in the
+                        scanned excerpt)
+                      </span>
+                      {candidate.snippet && (
+                        <span className="ml-1 text-ink-muted">— “{candidate.snippet}”</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
           </div>
         )}
