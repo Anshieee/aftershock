@@ -43,17 +43,10 @@
   pointer-events: none; /* art layer itself never intercepts controls */
 }
 
-/* The svg re-engages pointer events only for hover-drift feedback; it has
-   no handlers and sits under the z-10 content layer, so no control is ever
-   blocked and no click target is introduced. */
 .landing-v3 .motif-layer .motif-svg {
-  pointer-events: auto;
-}
-
-/* The svg re-engages pointer events only for hover-drift feedback; it has
-   no handlers and sits under the z-10 content layer, so no control is ever
-   blocked and no click target is introduced. */
-.landing-v3 .motif-layer .motif-svg {
+  /* The svg re-engages pointer events only for hover-drift feedback; it
+     has no handlers and sits under the z-10 content layer, so no control
+     is ever blocked and no click target is introduced. */
   pointer-events: auto;
 }
 
@@ -83,14 +76,20 @@
   pointer-events: auto;
 }
 
-/* <md — scaled + cropped (never crowded): a smaller constellation peeks
-   from the top-right corner behind the wordmark; lavender-on-paper stays
-   quiet enough for ink text to read over it. */
+/* <md — hard-cropped corner accent: on a phone the text column spans the
+   full viewport, so there is no glyph-free right column to hold the
+   constellation. The artwork is therefore reduced to its origin burst and
+   a band of the inner ripple, confined to the short strip between the app
+   shell and the wordmark (the one zone no glyph occupies): it is pushed
+   hard to the right (past -12rem) and bottom-clipped by max-height so no
+   node, hairline, or arc reaches the wordmark, the lede, or the caption. */
 @media (max-width: 767.98px) {
   .landing-v3 .motif-layer {
-    top: -2.75rem;
-    right: -8.5rem;
-    width: 24rem;
+    top: -1rem;
+    right: -12.5rem;
+    width: 21rem;
+    max-height: 2rem;
+    overflow: clip;
   }
 }
 
@@ -131,17 +130,22 @@
   line-height: 1.5;
 }
 
-/* — Focus ring in amber (#E9B867) for everything focusable on THIS page —
-   the deliberate color signature of the variant. Offset 2–3px keeps the
-   ring visible on cream and on white launcher surfaces alike. */
+/* — Focus ring for everything focusable on THIS page: a 2px deep-indigo
+   ring (#524A78 ≈ 5.5:1 vs white cards, > 5:1 vs paper) clears the WCAG
+   2.4.13 focus-appearance contrast floor of 3:1 against both the white
+   launcher card and the paper background — the old amber ring (~1.8:1 /
+   1.66:1) did not. Amber survives only as a faint INNER glow inside the
+   ring, secondary, so the variant's color signature is still legible
+   without carrying the visibility burden. */
 .landing-v3 a:focus-visible,
 .landing-v3 button:focus-visible,
 .landing-v3 summary:focus-visible,
 .landing-v3 input:focus-visible,
 .landing-v3 [tabindex]:focus-visible {
-  outline: 2px solid #e9b867;
+  outline: 2px solid #524a78;
   outline-offset: 3px;
   border-radius: 3px;
+  box-shadow: inset 0 0 0 2px rgba(233, 184, 103, 0.35);
 }
 
 /* — Editorial reading-guide rules: hairline dividers instead of cards. — */

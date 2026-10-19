@@ -36,14 +36,17 @@ as a dashboard, not as a chat box, not as a marketing site.
 seed state machine — the handler body is byte-identical to the design-of-record page (`AbortController`
 guard, `ensureDemoSeed()`, honest submitting / unavailable / cooldown / not-wired / api-error /
 rejected states, `aria-live` region, navigate to `/results` on real success). Only presentation
-changed: the label (`Start the guided investigation`) and a signature focus ring in amber.
+changed: the label (`Start the guided investigation`) and the focus ring.
 
 The motif itself is *non-interactive by intent*: the art layer is `aria-hidden`,
 `pointer-events-none`, and sits fully outside the controls layer. The only motif motion is a subtle
 transform shift of a handful of nodes when the artwork itself (not the page) is hovered —
-transform/opacity only, disabled under `prefers-reduced-motion`. The CTA's focus ring in amber
-(`#E9B867`) is the single deliberate color exception on an otherwise indigo/paper page; it answers
-"where should I look" for keyboard users, and it never animates.
+transform/opacity only, disabled under `prefers-reduced-motion`. The CTA's focus ring is a 2px
+deep-indigo outline (`#524A78`, 3px offset) with a faint amber inner glow. The ring color was
+corrected during QA review: the original all-amber ring measures only ~1.8:1 against a white card
+and ~1.7:1 against paper — below the 3:1 focus-appearance floor — while the deep indigo samples at
+8.0:1 vs white and 7.3:1 vs paper. The amber glow is secondary and never carries visibility; the
+ring never animates.
 
 ## Composition — ripple + network motif
 
@@ -85,7 +88,7 @@ marks (< 2% of the artwork's stroke area, sub-tags of the palette, no semantic r
 | Centered single column, `max-w-2xl` | Asymmetric: text block left, motif constellation right; crop past the fold |
 | Hero asks a question ("What would you like to investigate?") | Hero states a promise (`Trace the evidence.`) and surfaces the wordmark into the hero |
 | No artwork, no motif | Ripple + network SVG layer, honest decorative caption |
-| CTA `Explore guided investigation` | CTA `Start the guided investigation`, amber focus ring |
+| CTA `Explore guided investigation` | CTA `Start the guided investigation`, deep-indigo focus ring (amber inner glow) |
 | Toggle `Choose a document` | `Have a document? Register a file (metadata only)` — reveals the same untouched `<ImportPanel/>` |
 | 3 shortcuts (Library, Review Claims, Evidence Graph) | 4: Investigations · Library · Review Queue · Knowledge Graph |
 | Featured investigation question mark card | Same real record card, verbatim copy, moved below an integrity strip that states the flag rule |
@@ -122,3 +125,19 @@ the guided-demo disclosure, the quiet integrity line, the featured-record facts.
   the product's evidence-review tone (not a "crypto-tech" gradient planet).
 - The five-variant brief's hard rules (integrity captions, honest labels, non-overlap of art and
   controls, reduced-motion + mobile degradation).
+
+## QA-fix note (post-review, 2026-10-20)
+
+- **Focus ring (M4)**: corrected from amber `#E9B867` (~1.8:1 on white / ~1.7:1 on paper) to a 2px
+  deep-indigo `#524A78` outline, 3px offset, amber kept only as a faint inset glow. Rendered-ring
+  pixel sampling (Playwright, dev server, no mocks): 8.05:1 vs white, 7.27:1 vs paper — above the
+  3:1 floor against both backgrounds.
+- **Mobile crop**: on ≤767px the artwork is pushed past −12.5rem and bottom-clipped to the
+  glyph-free strip between the app shell and the wordmark, so no node, hairline, or arc reaches the
+  wordmark, tagline, lede, or caption at 390px (verified by rendered-rect intersection + the 390
+  full-page shot).
+- Capture honesty: `home-1440-full.png` was re-captured as a genuine picker-CLOSED full-page shot
+  (the previous file was byte-duplicate of the picker-expanded shot). The redundant
+  `home-1440-reduced-motion.png` capture was removed: prefers-reduced-motion — motif drift is
+  disabled via the shell rule; static-at-rest equals the initial frame (no separate meaningful
+  capture).
