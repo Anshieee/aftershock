@@ -158,6 +158,42 @@ describe('LibraryPage — imported documents section', () => {
     );
   });
 
+  it('discloses honest bounds when the imported cohort exceeds the server cap', async () => {
+    // Server-side bound: newest 3 shown of 25 total, `truncated:true`. The UI
+    // must reveal the cut instead of presenting the page as complete.
+    const many = Array.from({ length: 3 }, (_, i) => ({
+      ...importedDocument,
+      id: `user-${i + 2}`,
+      fileName: `bounded-notes-${i + 1}.txt`,
+    }));
+    stubBoth(
+      { documents: [demoDocument] },
+      { documents: many, importedTotal: 25, truncated: true },
+    );
+    render(
+      <MemoryRouter>
+        <LibraryPage />
+      </MemoryRouter>,
+    );
+
+    const importedList = await waitFor(() => screen.getByTestId('library-imported-list'));
+    expect(importedList.textContent).toContain('bounded-notes-1.txt');
+    const note = screen.getByTestId('library-imported-truncated');
+    expect(note.textContent).toContain('Showing the newest 3 of 25 registered imports');
+    expect(note.textContent).toContain('older registrations exist but are not shown');
+  });
+
+  it('renders no truncation note when the cohort fits the cap (bounded envelope absent-safe)', async () => {
+    stubBoth({ documents: [demoDocument] }, { documents: [importedDocument] });
+    render(
+      <MemoryRouter>
+        <LibraryPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => screen.getByTestId('library-imported-list'));
+    expect(screen.queryByTestId('library-imported-truncated')).toBeNull();
+  });
+
   it('shows an honest empty state for the imported section when there are no imports', async () => {
     stubBoth({ documents: [demoDocument] }, { documents: [] });
     render(

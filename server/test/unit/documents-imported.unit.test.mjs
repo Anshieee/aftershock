@@ -94,9 +94,14 @@ function buildFakeSession({ documents = [], fail = false } = {}) {
       const seeded = params.seeded;
       // Mirror readDocuments' actual query semantics: coalesce(n.seeded,false)
       // buckets "absent property" together with "explicitly false" (legacy
-      // ghost imports must resolve in the imported cohort).
-      const data = documents.filter((d) => /** @type {boolean} */ ((d.seeded ?? false)) === seeded).map((d) => ({ row: d }));
-      return { data };
+      // ghost imports must resolve in the imported cohort). The bounded count
+      // query answers with the honest total; the list query honors LIMIT.
+      const cohort = documents.filter((d) => /** @type {boolean} */ ((d.seeded ?? false)) === seeded);
+      if (cypher.includes('count(n) AS c')) {
+        return { data: [{ c: cohort.length }] };
+      }
+      const limited = typeof params.limit === 'number' ? cohort.slice(0, params.limit) : cohort;
+      return { data: limited.map((d) => ({ row: d })) };
     },
     async close() {},
   };
@@ -225,6 +230,66 @@ describe('readDocuments — seeded filter', () => {
     const { session } = buildFakeSession({ documents: [IMPORTED_DOC], fail: true });
     await expect(readDocuments(session, { seeded: false })).rejects.toThrow(ConnectionError);
   });
+
+  describe('bounded imported-cohort read (bounded: true)', () => {
+    it('caps the list at IMPORTED_DOCUMENTS_LIMIT and discloses the honest total + truncation', async () => {
+      const many = Array.from({ length: 25 }, (_, i) => ({
+        ...IMPORTED_DOC,
+        id: `doc-imported-${i}`,
+        importedAt: `2026-05-${String((i % 28) + 1).padStart(2, '0')}T00:00:00.000Z`,
+      }));
+      const { session, reads } = buildFakeSession({ documents: [...many, SEeded_DOC] });
+      const result = await readDocuments(session, { seeded: false, bounded: true });
+      expect(result.documents).toHaveLength(20);
+      expect(result.importedTotal).toBe(25); // cohort-only count (seeded doc excluded)
+      expect(result.truncated).toBe(true);
+      expect(result.seedVersion).toBeNull(); // no SeedMeta node in this fake
+      // 3 reads: meta + bounded list + honest cohort count.
+      expect(reads).toHaveLength(3);
+      const listRead = reads[1];
+      expect(listRead.params.limit).toBe(20);
+      expect(listRead.params.seeded).toBe(false);
+      expect(listRead.cypher).toContain('ORDER BY n.importedAt DESC');
+      expect(listRead.cypher).toContain('coalesce(n.seeded, false)');
+      const countRead = reads[2];
+      expect(countRead.params).toEqual({ seeded: false });
+      for (const { cypher, params } of reads) {
+        expect(() => assertParameterized(cypher, params ?? {})).not.toThrow();
+      }
+    });
+
+    it('reports truncated:false and the real total when the cohort fits the cap', async () => {
+      const { session, reads } = buildFakeSession({ documents: [IMPORTED_DOC, LEGACY_GHOST_DOC] });
+      const result = await readDocuments(session, { seeded: false, bounded: true });
+      expect(result.documents).toHaveLength(2);
+      expect(result.importedTotal).toBe(2);
+      expect(result.truncated).toBe(false);
+      expect(reads).toHaveLength(3);
+    });
+
+    it('returns honest zero bounds for an empty cohort', async () => {
+      const { session } = buildFakeSession({ documents: [SEeded_DOC] });
+      const result = await readDocuments(session, { seeded: false, bounded: true });
+      expect(result.documents).toEqual([]);
+      expect(result.importedTotal).toBe(0);
+      expect(result.truncated).toBe(false);
+    });
+
+    it('returns honest zero bounds when the graph does not exist (bounded mode)', async () => {
+      const session = {
+        graphName: GRAPH_NAME,
+        async graphExists() {
+          return false;
+        },
+        async roQuery() {
+          throw new Error('roQuery must not be called when the graph does not exist');
+        },
+        async close() {},
+      };
+      const result = await readDocuments(session, { seeded: false, bounded: true });
+      expect(result).toEqual({ documents: [], seedVersion: null, importedTotal: 0, truncated: false });
+    });
+  });
 });
 
 /* ------------------------------------------------------------------ *
@@ -247,6 +312,28 @@ describe('createImportedDocumentsHandler — HTTP', () => {
     expect(body.documents).toHaveLength(1);
     expect(body.documents[0].id).toBe('doc-imported-1');
     expect(body.documents[0].isSynthetic).toBe(false);
+    // Honest bounds travel with the list (never a silently-cut complete list).
+    expect(body.importedTotal).toBe(1);
+    expect(body.truncated).toBe(false);
+  });
+
+  it('surfaces the honest bound envelope when the cohort exceeds the cap', async () => {
+    const many = Array.from({ length: 23 }, (_, i) => ({
+      ...IMPORTED_DOC,
+      id: `doc-imported-bulk-${i}`,
+    }));
+    const { session } = buildFakeSession({ documents: many });
+    const handler = createImportedDocumentsHandler({
+      env: envWithGraph(),
+      layer: buildFakeLayer(session),
+      readDocuments,
+    });
+    const res = await handler(requestFor());
+    expect(res.status).toBe(200);
+    const body = await jsonOf(res);
+    expect(body.documents).toHaveLength(20);
+    expect(body.importedTotal).toBe(23);
+    expect(body.truncated).toBe(true);
   });
 
   it('returns 405 for non-GET methods with an Allow header', async () => {

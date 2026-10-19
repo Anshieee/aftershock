@@ -548,20 +548,46 @@ export async function readGraphRecords(session, { limit, nodeId = null, depth = 
  * user-imported documents for `GET /documents-imported`. An honest empty
  * array is returned when none match — nothing is fabricated.
  *
+ * `bounded: true` (imported cohort only) caps the surface: the newest
+ * `IMPORTED_DOCUMENTS_LIMIT` documents (importedAt DESC) plus the honest
+ * cohort total and a `truncated` flag. Demo-traffic metadata accumulates on
+ * the free-tier graph (every honest import since M4, now that ghost nodes
+ * resolve), so an unbounded list would grow forever; the bound discloses
+ * exactly what was cut instead of pretending the list is complete.
+ *
  * @param {import('./graphClient.mjs').GraphSession} session
- * @param {{seeded?: boolean}} [options] `seeded=true` (default) → seeded
- *        documents only; `seeded=false` → non-seeded/user-imported documents.
- * @returns {Promise<{documents: Record<string, unknown>[], seedVersion: string | null}>}
+ * @param {{seeded?: boolean, bounded?: boolean}} [options] `seeded=true`
+ *        (default) → seeded documents; `seeded=false` + `bounded=true` →
+ *        bounded newest list with `{importedTotal, truncated}`.
+ * @returns {Promise<{documents: Record<string, unknown>[], seedVersion: string | null, importedTotal?: number, truncated?: boolean}>}
  */
-export async function readDocuments(session, { seeded = true } = {}) {
+export async function readDocuments(session, { seeded = true, bounded = false } = {}) {
   if (!(await session.graphExists())) {
-    return { documents: [], seedVersion: null };
+    return bounded
+      ? { documents: [], seedVersion: null, importedTotal: 0, truncated: false }
+      : { documents: [], seedVersion: null };
   }
   const meta = await readSeedMeta(session);
-  // coalesce: nodes from LEGACY imports may carry no `seeded` property at all
-  // (the M4 registration predates explicit stamping). openCypher
-  // `n.seeded = false` would skip them — the coalesce buckets "absent" with
-  // "explicitly false" so legacy user imports resolve in the imported cohort.
+  if (bounded) {
+    // Newest first, capped; the count stays honest and visible so the cap
+    // never masquerades as the complete cohort.
+    const [listRes, countRes] = await Promise.all([
+      session.roQuery(
+        'MATCH (n:ResearchDocument) WHERE coalesce(n.seeded, false) = $seeded\n     RETURN properties(n) AS row ORDER BY n.importedAt DESC LIMIT $limit',
+        { seeded, limit: IMPORTED_DOCUMENTS_LIMIT },
+      ),
+      session.roQuery(
+        'MATCH (n:ResearchDocument) WHERE coalesce(n.seeded, false) = $seeded RETURN count(n) AS c',
+        { seeded },
+      ),
+    ]);
+    const documents = /** @type {Array<Record<string, unknown>>} */ (listRes.data ?? [])
+      .map((r) => toWireNode(r.row))
+      .filter((node) => typeof node.id === 'string');
+    const importedTotal = Number(countRes.data?.[0]?.c ?? documents.length);
+    const truncated = importedTotal > documents.length;
+    return { documents, seedVersion: meta.seedVersion, importedTotal, truncated };
+  }
   const res = await session.roQuery(
     'MATCH (n:ResearchDocument) WHERE coalesce(n.seeded, false) = $seeded\n     RETURN properties(n) AS row',
     { seeded },
@@ -575,6 +601,13 @@ export async function readDocuments(session, { seeded = true } = {}) {
 /* ------------------------------------------------------------------ *
  * Public constants shared with handlers/tests
  * ------------------------------------------------------------------ */
+
+/**
+ * Cap for the bounded imported-documents read (`bounded: true`, imported
+ * cohort only). deliberately NOT client-configurable — no unbounded-read
+ * surface exists; the honest total + truncated flag disclose the cut.
+ */
+export const IMPORTED_DOCUMENTS_LIMIT = 20;
 
 /** Wire limits: `limit` query param bounds for /graph/edges (client-visible). */
 export const EDGES_LIMIT = Object.freeze({ min: 1, max: 200, default: 40 });

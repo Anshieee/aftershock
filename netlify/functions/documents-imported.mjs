@@ -68,10 +68,17 @@ export function createImportedDocumentsHandler(deps = {}) {
       const result = await withSession(
         layer,
         demoGraphName(env),
-        (session) => readList(session, { seeded: false }),
+        (session) => readList(session, { seeded: false, bounded: true }),
         { timeoutMs: READ_BUDGET_MS },
       );
-      return jsonResponse(200, { documents: result.documents });
+      return jsonResponse(200, {
+        documents: result.documents,
+        // Honest bounds: demo-traffic metadata accumulates over the graph's
+        // lifetime; the response always discloses the real cohort size and
+        // whether the list was cut (never pretends completeness).
+        importedTotal: result.importedTotal ?? result.documents.length,
+        truncated: result.truncated ?? false,
+      });
     } catch (err) {
       const { status, body } = errorBodyFor(err);
       return jsonResponse(status, body);

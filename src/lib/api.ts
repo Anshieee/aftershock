@@ -664,11 +664,20 @@ export async function getDemoDocuments(options?: RequestOptions): Promise<ApiOut
 /**
  * GET /documents-imported — user-imported documents (non-seeded,
  * contentStored: false). These do not appear in the seeded /documents list.
+ * The read is honestly BOUNDED server-side: `documents` carries at most the
+ * newest arrivals; `importedTotal` / `truncated` disclose the real cohort
+ * size and whether the list was cut (absent on older deploys → undefined).
  * 404/501 resolve to `available: false` ("not available yet", never an error).
  */
+export interface ImportedDocumentsPage {
+  documents: DocumentSummary[];
+  importedTotal?: number;
+  truncated?: boolean;
+}
+
 export async function getImportedDocuments(
   options?: RequestOptions,
-): Promise<ApiOutcome<DocumentSummary[]>> {
+): Promise<ApiOutcome<ImportedDocumentsPage>> {
   let data: unknown;
   try {
     data = await request({
@@ -682,8 +691,11 @@ export async function getImportedDocuments(
     }
     throw error;
   }
-  return outcome(data, (payload) =>
-    asObjectList(payload).map((element, index) => ({
+  return outcome(data, (payload) => {
+    const source = payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : null;
+    const documents: DocumentSummary[] = asObjectList(payload).map((element, index) => ({
       id: stringField(element.id) ?? `document-${index}`,
       title: stringField(element.title),
       fileName: stringField(element.fileName),
@@ -696,8 +708,14 @@ export async function getImportedDocuments(
       isSynthetic: typeof element.isSynthetic === 'boolean' ? element.isSynthetic : undefined,
       syntheticLabel: stringField(element.syntheticLabel),
       sizeBytes: typeof element.sizeBytes === 'number' ? element.sizeBytes : undefined,
-    })),
-  );
+    }));
+    const page: ImportedDocumentsPage = {
+      documents,
+      importedTotal: source && typeof source.importedTotal === 'number' ? source.importedTotal : undefined,
+      truncated: source && typeof source.truncated === 'boolean' ? source.truncated : undefined,
+    };
+    return page;
+  });
 }
 
 /**

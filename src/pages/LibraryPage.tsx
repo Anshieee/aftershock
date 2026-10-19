@@ -17,7 +17,13 @@ import {
 
 type ListState =
   | { phase: 'loading' }
-  | { phase: 'loaded'; documents: DocumentSummary[] }
+  | {
+      phase: 'loaded';
+      documents: DocumentSummary[];
+      /** Honest bounds for the imported cohort (undefined on older deploys). */
+      importedTotal?: number;
+      truncated?: boolean;
+    }
   | { phase: 'unavailable' }
   | { phase: 'failed'; detail: string };
 
@@ -96,7 +102,12 @@ export default function LibraryPage() {
       .then((result) => {
         if (controller.signal.aborted) return;
         if (result.available) {
-          setImportedState({ phase: 'loaded', documents: result.data });
+          setImportedState({
+            phase: 'loaded',
+            documents: result.data.documents,
+            importedTotal: result.data.importedTotal,
+            truncated: result.data.truncated,
+          });
         } else {
           setImportedState({ phase: 'unavailable' });
         }
@@ -362,6 +373,13 @@ export default function LibraryPage() {
             User imports — real content you uploaded. These are registered without stored text
             (contentStored: false), so analysis is not available for them.
           </p>
+          {importedState.truncated === true && importedState.importedTotal !== undefined && (
+            <p className="mb-3 text-sm text-ink-muted" data-testid="library-imported-truncated">
+              Showing the newest {importedState.documents.length} of{' '}
+              {importedState.importedTotal} registered imports — older registrations exist but
+              are not shown in this bounded view.
+            </p>
+          )}
           <ul className="space-y-4">
             {importedState.documents.map((doc) => {
               return (

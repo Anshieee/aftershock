@@ -224,8 +224,8 @@ describe('api client — imported documents (GET /documents-imported)', () => {
     const outcome = await getImportedDocuments();
     expect(outcome.available).toBe(true);
     if (outcome.available) {
-      expect(outcome.data).toHaveLength(1);
-      expect(outcome.data[0]).toEqual({
+      expect(outcome.data.documents).toHaveLength(1);
+      expect(outcome.data.documents[0]).toEqual({
         id: 'doc-user-1',
         title: undefined,
         fileName: 'field-notes.pdf',
@@ -238,6 +238,9 @@ describe('api client — imported documents (GET /documents-imported)', () => {
         syntheticLabel: undefined,
         sizeBytes: 12345,
       });
+      // Older deploys omit the bounded envelope — tolerant defaults.
+      expect(outcome.data.importedTotal).toBeUndefined();
+      expect(outcome.data.truncated).toBeUndefined();
     }
     const call = calls[0];
     expect(call?.url).toBe('/.netlify/functions' + apiRoutes.documentsImported);
