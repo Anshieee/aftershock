@@ -41,3 +41,14 @@ Running log for the autonomous session started 2026-10-19 ~04:45 UTC. Orchestrat
 3. Wave 3 doc intelligence: metadata-only tier reality (server/importAnalyze.mjs: content NEVER stored; analysis only for seeded fixture). Candidate: bounded in-memory reference/DOI extraction returned in import response (NOT persisted), honest scope.
 4. Wave 4 hardening: envcheck diagnostic gating; AnalysisRun stage-enum alignment; rate-limit windows tuning; netlify.toml test tidy.
 5. Mobile E2E + typecheck loops after each merge; BUILD_STATUS/KNOWN_LIMITATIONS refresh at wave end.
+
+## P4 DEPLOYED + verified (06:20 UTC block)
+- **KG filter-init race fixed at root** (`edcf151` → merge `61c26df`): filter sets + filtersReady now initialize inside load()'s success handler in the same React batch as phase:'ready' — previously a separate effect ran one tick after the canvas first rendered, and a filter change landing in that window was clobbered by the initializer (this was the intermittent KnowledgeGraphPage test failure under full-suite parallel load; also an in-principle user race). Full vitest 439/13-skip/0-fail across THREE consecutive runs; typecheck clean.
+- **Production deploy `6ad5aeeb5d9eeb73735e1bf2`** from main `61c26df` (netlify CLI manual deploy).
+- **Find Evidence live-verified on production:**
+  - Prepare mode HTTP 200: claim context + suggestedQuery + provider roster + 5 honest caveats, no external fetch.
+  - Search mode HTTP 200: 8 real Crossref candidates, each `retractionStatus:unknown / evidenceRelationship:unverified / independence:unknown / fullTextAvailability:unknown`; `providersStatus:[{id:'crossref',status:'ok'}]`.
+  - Rate design observed working: back-to-back second call → honest 429 rate-limited (per-IP cooldown 60 s, ≤10/10 min — by design, tighter than write routes).
+- **E2E vs production: 74 passed / 0 failed / 4 skipped** (desktop + mobile + find-evidence), 48.7 s.
+- **Docs:** BUILD_STATUS (P4 row + verification section + blocker refresh), MILESTONES (M7 shipped bullet), KNOWN_LIMITATIONS (Find Evidence v1 section), decisions/0002-find-evidence-design.md (new ADR).
+- Next: Wave 3 — bounded in-memory reference/DOI extraction for imports (metadata-only tier; NEVER persisted to graph), TXT-first honest PDF limits, synthetic fixtures only.

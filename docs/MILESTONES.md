@@ -27,6 +27,7 @@
 
 ## M7 — P1 enhancements (as feasible)
 - Find Evidence assessment, grouped shared-data deps, richer revision pack, graph explorer, replay, full reflow, expanded export. Only after P0 passes.
+- **Shipped 2026-10-19: Find Evidence v1 (P4)** — Crossref-backed evidence search from the review queue (`POST /evidence-find`), prepare/search modes, honest unknown/unverified fields, no graph writes, rate budget tighter than write routes. Design: `docs/decisions/0002-find-evidence-design.md`; limitations: `docs/KNOWN_LIMITATIONS.md`. Remaining M7 candidates: grouped shared-data dependencies, richer revision pack, graph explorer, replay, full reflow, expanded export.
 
 ## M8 — Independent final audit
 - Hosted E2E, synthetic-vs-real attribution, graph/data verification, security/privacy, a11y, smoke under graph reset, limitations documented.
