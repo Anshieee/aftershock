@@ -132,9 +132,10 @@ describe('EvidenceReaderPage — read-only ordered reflow of returned passage re
     expect(within(claimA).getByTestId('reader-flag-claim-A').textContent).toBe(
       'evidence review needed',
     );
-    // Each flagged passage links its Review Queue case.
+    // Each flagged passage links its Review Queue case (?case=<id> — wave-2
+    // makes that destination real on the queue page).
     expect(within(claimA).getByTestId('reader-queue-link').getAttribute('href')).toBe(
-      '/review-queue',
+      '/review-queue?case=claim-A',
     );
 
     const conclusion = screen.getByTestId('reader-passage-conclusion-C');
@@ -276,5 +277,102 @@ describe('EvidenceReaderPage — read-only ordered reflow of returned passage re
     );
     expect(screen.queryByTestId('reader-passage-claim-A')).toBeNull();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * M7 wave-2 — cross-surface cohesion in the reader: a "Find evidence
+ * for this passage" affordance on flagged passages (DemoResultsPage
+ * overlay pattern, origin context sent to the panel) and the upgraded
+ * ?case=<id> review-queue destination link. Read-only throughout.
+ * ------------------------------------------------------------------ */
+
+const READER_EVIDENCE_PREPARE = {
+  mode: 'prepare' as const,
+  claimId: 'claim-A',
+  claimText:
+    'Agent P-9 was selected on the strength of the registry analysis we cite (Mehra et al., 2020), which we read as establishing a drug-treatment mortality signal in the target cohort.',
+  label: 'Claim',
+  manuscriptId: 'doc-demo-manuscript',
+  concern: {
+    summary: 'The supporting citation use points at a publication with a verified retraction notice.',
+    direction: 'direct' as const,
+  },
+  suggestedQuery: 'registry analysis drug-treatment mortality cohort P-9',
+  queryEditable: true,
+  providers: [],
+  caveats: ['This search does not modify citations, review states, or the manuscript.'],
+};
+
+function stubReaderRoutesWithEvidenceFind(overviewBody: unknown) {
+  return stubFetchByRoute((url) => {
+    if (url.includes('evidence-find')) return { status: 200, body: READER_EVIDENCE_PREPARE };
+    if (url.includes('graph-edges')) return { status: 200, body: overviewBody };
+    if (url.includes('graph-probe')) {
+      return { status: 200, body: { exists: true, seedVersion: 'seed-1', nodeCount: 17 } };
+    }
+    return undefined;
+  });
+}
+
+describe('EvidenceReaderPage — wave-2: Find Evidence affordance on flagged passages', () => {
+  it('flagged passages offer "Find evidence for this passage"; non-flagged ones do not', async () => {
+    stubReaderRoutes({ status: 200, body: buildReaderOverviewRecord() });
+    renderReader();
+    await waitReady();
+
+    expect(screen.getByTestId('reader-find-evidence-claim-A')).toBeTruthy();
+    // Indirect conclusion inherits the affordance; historical + unresolved never do.
+    expect(screen.getByTestId('reader-find-evidence-conclusion-C')).toBeTruthy();
+    expect(screen.queryByTestId('reader-find-evidence-claim-B')).toBeNull();
+    expect(screen.queryByTestId('reader-find-evidence-cu-A-supporting')).toBeNull();
+    expect(screen.queryByTestId('reader-find-evidence-ref-lee-2020')).toBeNull();
+  });
+
+  it('opens the Find Evidence panel with claimId = node id and the reader origin label; close returns', async () => {
+    stubReaderRoutesWithEvidenceFind(buildReaderOverviewRecord());
+    renderReader();
+    await waitReady();
+
+    fireEvent.click(screen.getByTestId('reader-find-evidence-claim-A'));
+    const dialog = await screen.findByTestId('find-evidence-dialog');
+    expect(dialog.getAttribute('role')).toBe('dialog');
+
+    const origin = within(dialog).getByTestId('find-evidence-origin-label');
+    expect(origin.textContent).toBe('Evidence reader — Claim claim-A');
+    const title = document.getElementById('find-evidence-title');
+    expect(title).toBeTruthy();
+    expect(dialog.contains(title!)).toBe(true);
+    expect(title!.textContent).toContain('claim-A');
+
+    // Close returns to the reader exactly as it was.
+    fireEvent.click(within(dialog).getByTestId('find-evidence-close'));
+    expect(screen.queryByTestId('find-evidence-dialog')).toBeNull();
+    expect(screen.getByTestId('reader-passage-claim-A')).toBeTruthy();
+
+    // Opening the panel changed nothing in the reader.
+    expect(screen.queryByTestId('review-item-claim-A')).toBeNull();
+  });
+
+  it('the origin return link restores the focus deep-link when the reader was opened with focus params', async () => {
+    stubReaderRoutesWithEvidenceFind(buildReaderOverviewRecord());
+    renderReader('/reader?focus=claim-B');
+    await waitReady();
+
+    fireEvent.click(screen.getByTestId('reader-find-evidence-claim-A'));
+    const dialog = await screen.findByTestId('find-evidence-dialog');
+    const back = within(dialog).getByTestId('find-evidence-origin-return') as HTMLAnchorElement;
+    expect(back.getAttribute('href')).toBe('/reader?focus=claim-B');
+  });
+
+  it('without focus params the origin return link is plain /reader', async () => {
+    stubReaderRoutesWithEvidenceFind(buildReaderOverviewRecord());
+    renderReader();
+    await waitReady();
+
+    fireEvent.click(screen.getByTestId('reader-find-evidence-claim-A'));
+    const dialog = await screen.findByTestId('find-evidence-dialog');
+    const back = within(dialog).getByTestId('find-evidence-origin-return') as HTMLAnchorElement;
+    expect(back.getAttribute('href')).toBe('/reader');
   });
 });

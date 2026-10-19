@@ -12,6 +12,7 @@ import {
   type GraphOverview,
 } from '../lib/api';
 import { deriveDemoImpact, orderRecordedEntries, type DemoImpact, type ReaderOrderedEntry } from '../lib/demoImpact';
+import FindEvidencePanel, { type FindEvidenceOrigin } from '../components/FindEvidencePanel';
 
 /**
  * M7 Priority A — read-only Evidence Reader.
@@ -209,6 +210,14 @@ export default function EvidenceReaderPage() {
   const [graph, setGraph] = useState<ReaderLoad>({ phase: 'loading' });
   const [selected, setSelected] = useState<PassageInfo | null>(null);
   const [focusTarget, setFocusTarget] = useState<string | null>(null);
+  /**
+   * M7 wave-2 — the flagged passage whose "Find evidence for this passage"
+   * panel is open (DemoResultsPage overlay pattern: a read-only external
+   * metadata search that changes no reader state and no review state).
+   */
+  const [evidenceCase, setEvidenceCase] = useState<{ id: string; origin: FindEvidenceOrigin } | null>(
+    null,
+  );
   const controllerRef = useRef<AbortController | null>(null);
   const seedCheckRef = useRef<AbortController | null>(null);
   const focusAppliedRef = useRef<string | null>(null);
@@ -329,6 +338,13 @@ export default function EvidenceReaderPage() {
   const inSession = typeof historyIndex === 'number' && historyIndex > 0;
 
   const closeInspector = useCallback(() => setSelected(null), []);
+
+  /**
+   * Back target for the Find-evidence panel origin: it carries the current
+   * focus deep-link params when present (so returning restores the reading
+   * position) and is plain /reader otherwise.
+   */
+  const readerBackHref = `/reader${routeLocation.search}${routeLocation.hash}`;
 
   if (!ready) {
     return (
@@ -472,6 +488,15 @@ export default function EvidenceReaderPage() {
                   highlighted={focusTarget === entry.id}
                   onInspect={() => setSelected(entry.item)}
                   selected={selected?.id === entry.item.id}
+                  onFindEvidence={() =>
+                    setEvidenceCase({
+                      id: entry.item.id,
+                      origin: {
+                        label: `Evidence reader — ${entry.item.kindLabel} ${entry.item.id}`,
+                        backHref: readerBackHref,
+                      },
+                    })
+                  }
                 />
               ))}
             </ul>
@@ -499,6 +524,15 @@ export default function EvidenceReaderPage() {
                   highlighted={focusTarget === entry.id}
                   onInspect={() => setSelected(entry.item)}
                   selected={selected?.id === entry.item.id}
+                  onFindEvidence={() =>
+                    setEvidenceCase({
+                      id: entry.item.id,
+                      origin: {
+                        label: `Evidence reader — ${entry.item.kindLabel} ${entry.item.id}`,
+                        backHref: readerBackHref,
+                      },
+                    })
+                  }
                 />
               ))}
             </ul>
@@ -518,6 +552,18 @@ export default function EvidenceReaderPage() {
         overview={ready ? graph.overview : undefined}
         onClose={closeInspector}
       />
+
+      {/* M7 wave-2 — Find Evidence overlay (same pattern as DemoResultsPage):
+          a read-only external-metadata search for this passage; closing
+          returns to the reader exactly as it was. */}
+      {evidenceCase && (
+        <FindEvidencePanel
+          claimId={evidenceCase.id}
+          open
+          onClose={() => setEvidenceCase(null)}
+          origin={evidenceCase.origin}
+        />
+      )}
     </div>
   );
 }
@@ -608,11 +654,13 @@ function PassageRow({
   entry,
   highlighted,
   onInspect,
+  onFindEvidence,
   selected,
 }: {
   entry: ReaderOrderedEntry<PassageInfo>;
   highlighted: boolean;
   onInspect: () => void;
+  onFindEvidence: () => void;
   selected: boolean;
 }) {
   const passage = entry.item;
@@ -706,13 +754,24 @@ function PassageRow({
         <div className="mt-3 flex flex-wrap items-center gap-3">
           {flagged && (
             <Link
-              to="/review-queue"
+              to={`/review-queue?case=${passage.id}`}
               data-testid="reader-queue-link"
               aria-label={`Track the review state of ${passage.kindLabel} ${passage.id} in the Review Queue`}
               className="text-sm text-brand-deep underline"
             >
               Track review in Review Queue
             </Link>
+          )}
+          {flagged && (
+            <button
+              type="button"
+              onClick={onFindEvidence}
+              data-testid={`reader-find-evidence-${passage.id}`}
+              aria-label={`Find evidence for ${passage.kindLabel} ${passage.id} — opens a read-only bibliographic search; nothing is recorded and no review state changes`}
+              className="rounded-lg border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
+            >
+              Find evidence for this passage
+            </button>
           )}
           <button
             type="button"

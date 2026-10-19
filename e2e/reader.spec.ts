@@ -34,6 +34,25 @@ import { buildDemoOverviewRecord } from '../src/test/graphFixtures';
 /** Same verdict-language guard as e2e/review-queue.spec.ts — never weakened. */
 const VERDICT_LANGUAGE = /\b(disproven|debunked|proven false|claim is false|claims? (?:is|are) false|verified false)\b/i;
 
+/** Deterministic prepare-mode answer for the reader's Find Evidence panel
+ * (wave-2: the affordance opens the panel with claimId = node id). */
+const READER_EVIDENCE_PREPARE = {
+  mode: 'prepare',
+  claimId: 'claim-A',
+  claimText:
+    'Agent P-9 was selected on the strength of the registry analysis we cite (Mehra et al., 2020), which we read as establishing a drug-treatment mortality signal in the target cohort.',
+  label: 'Claim',
+  manuscriptId: 'doc-demo-manuscript',
+  concern: {
+    summary: 'The supporting citation use points at a publication with a verified retraction notice.',
+    direction: 'direct',
+  },
+  suggestedQuery: 'registry analysis drug-treatment mortality cohort P-9',
+  queryEditable: true,
+  providers: [],
+  caveats: ['This search does not modify citations, review states, or the manuscript.'],
+};
+
 /** Location metadata per node, mirroring server/fixtures/demo-fixture.json.
  * `ref-lee-2020` arrives as the seed-time JSON STRING (offset null). */
 const LOCATIONS: Record<string, unknown> = {
@@ -70,6 +89,15 @@ async function installStubs(page: Page, overview: () => Record<string, unknown> 
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ exists: true, seedVersion: 'seed-1', nodeCount: 17 }),
+      });
+      return;
+    }
+    if (url.pathname.endsWith('/evidence-find')) {
+      // Prepare-mode body ({}): the panel auto-loads the prepared read.
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(READER_EVIDENCE_PREPARE),
       });
       return;
     }
@@ -135,7 +163,7 @@ test.describe('M7 Evidence Reader (deterministic stubs, read-only)', () => {
         .getByTestId('reader-passage-claim-A')
         .getByTestId('reader-queue-link')
         .first(),
-    ).toHaveAttribute('href', '/review-queue');
+    ).toHaveAttribute('href', '/review-queue?case=claim-A');
 
     // Indirect: conclusion shows the exact dependency path.
     const conclusion = page.getByTestId('reader-passage-conclusion-C');
@@ -266,5 +294,57 @@ test.describe('M7 Evidence Reader (deterministic stubs, read-only)', () => {
       innerWidth: window.innerWidth,
     }));
     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth);
+  });
+
+  test('wave-2: flagged passages offer "Find evidence for this passage"; the panel opens with the reader origin and closes back', async ({
+    page,
+  }) => {
+    await installStubs(page);
+    await page.goto('/reader');
+
+    // Affordance exists on the flagged claim and the indirect conclusion —
+    // and nowhere else (historical mention + unresolved reference excluded).
+    await expect(page.getByTestId('reader-find-evidence-claim-A')).toBeVisible();
+    await expect(page.getByTestId('reader-find-evidence-conclusion-C')).toBeVisible();
+    expect(await page.getByTestId('reader-find-evidence-claim-B').count()).toBe(0);
+    expect(await page.getByTestId('reader-find-evidence-cu-A-supporting').count()).toBe(0);
+    expect(await page.getByTestId('reader-find-evidence-ref-lee-2020').count()).toBe(0);
+
+    await page.getByTestId('reader-find-evidence-claim-A').click();
+    const dialog = page.getByTestId('find-evidence-dialog');
+    await expect(dialog).toBeVisible();
+    // claimId = node id is visible in the heading; the origin label says where it came from.
+    await expect(dialog).toContainText('Find evidence — claim-A');
+    await expect(dialog.getByTestId('find-evidence-origin')).toBeVisible();
+    await expect(dialog.getByTestId('find-evidence-origin-label')).toHaveText(
+      'Evidence reader — Claim claim-A',
+    );
+    // Plain /reader mount: the origin return link is plain /reader.
+    await expect(dialog.getByTestId('find-evidence-origin-return')).toHaveAttribute(
+      'href',
+      '/reader',
+    );
+
+    // Close returns to the reader exactly as it was (read-only; nothing changed).
+    await dialog.getByTestId('find-evidence-close').click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTestId('reader-passage-claim-A')).toBeVisible();
+    expect(await page.getByTestId('reader-root').innerText()).not.toMatch(VERDICT_LANGUAGE);
+  });
+
+  test('wave-2: with focus params present, the panel origin return restores the reading position', async ({
+    page,
+  }) => {
+    await installStubs(page);
+    await page.goto('/reader?focus=claim-B');
+
+    await page.getByTestId('reader-find-evidence-claim-A').click();
+    const dialog = page.getByTestId('find-evidence-dialog');
+    await expect(dialog).toBeVisible();
+    // The deep-link params survive in the return target.
+    await expect(dialog.getByTestId('find-evidence-origin-return')).toHaveAttribute(
+      'href',
+      '/reader?focus=claim-B',
+    );
   });
 });

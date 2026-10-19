@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import type { GraphEdge, GraphNode } from '../lib/api';
 import { nodePrimaryLabel } from './GraphCanvas';
 
@@ -20,6 +21,10 @@ interface ContextInspectorProps {
  * state, synthetic-vs-real attribution and source pointer (handoff §3).
  * No interpretation beyond what the record itself states.
  */
+
+/** Node kinds the read-only Evidence Reader can reflow as passages (M7
+ * wave-2: these get an honest "Open in evidence reader" hop). */
+const READER_COVERED_KINDS = new Set(['Claim', 'Conclusion', 'CitationUse', 'ReferenceOccurrence']);
 export default function ContextInspector({ node, edges, onClose, focusActive, focusedPath, focusedPathActive, isFocusedPath }: ContextInspectorProps) {
   const pathActive = !!(focusActive || focusedPath || focusedPathActive || isFocusedPath);
   useEffect(() => {
@@ -119,6 +124,20 @@ export default function ContextInspector({ node, edges, onClose, focusActive, fo
           </dd>
         </div>
       </dl>
+
+      {/* M7 wave-2 — reader hop for reader-covered kinds only. Navigation
+          only: it opens /reader?focus=<nodeId>, where the reader honestly
+          handles an unknown focus id (highlights nothing). */}
+      {READER_COVERED_KINDS.has(node.kind) && (
+        <Link
+          to={`/reader?focus=${node.id}`}
+          data-testid="inspector-reader-link"
+          aria-label={`Open ${node.kind} ${node.id} in the evidence reader`}
+          className="mt-3 inline-block text-sm text-brand-deep underline hover:text-brand"
+        >
+          Open in evidence reader
+        </Link>
+      )}
 
       {connected.length > 0 ? (
         <div className="mt-4 border-t border-ink-border pt-3">
