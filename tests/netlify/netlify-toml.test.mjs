@@ -97,15 +97,13 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
   });
 
   /**
-   * W4 pairing seam: the frontend half of Wave 4 carries the client route
-   * `independenceGroups` (`GET /.netlify/functions/independence-groups`,
-   * fixed contract with the parallel W4 server wave), while the server
-   * half's branch carries `netlify/functions/independence-groups.mjs`.
-   * Once that file lands (either by this branch rebasing on main or the
-   * server branch merging), STRICT strictness resumes — remove the entry
-   * from this set in the amendment that lands the function file.
+   * W4 pairing seam RETIRED (2026-10-19): both Wave 4 halves are merged on
+   * main — `netlify/functions/independence-groups.mjs` exists, so strict
+   * existence checking resumes with NO pending entries (the set must stay
+   * empty; a non-empty entry here means a route points at a function file
+   * that is missing from the repo).
    */
-  const PENDING_FUNCTION_FILES = new Set(['independence-groups']);
+  const PENDING_FUNCTION_FILES = new Set([]);
 
   for (const [key, { route, sourceLine }] of ROUTES) {
     describe(`route ${key} = ${route}`, () => {
