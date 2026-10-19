@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import KnowledgeGraphPage from './KnowledgeGraphPage';
 import { stubFetchByRoute } from '../test/mockFetch';
@@ -80,6 +80,28 @@ describe('KnowledgeGraphPage — renders exactly the records the API returned', 
     expect(syntheticNote.className).not.toContain('text-review-');
     // Connected edges are shown with relation type + provenance.
     expect(inspector.textContent).toContain('CONCLUSION_DEPENDS_ON_CLAIM');
+  });
+
+  it('M7 wave-2: a reader-covered kind gets an "Open in evidence reader" hop with the focus param', async () => {
+    stubFetchByRoute((url) =>
+      url.includes('graph-edges') ? { status: 200, body: buildDemoOverviewRecord() } : undefined,
+    );
+    renderGraph();
+    await screen.findByTestId('graph-node-claim-A');
+
+    fireEvent.click(screen.getByTestId('graph-node-claim-A'));
+    const inspector = await screen.findByTestId('context-inspector');
+
+    const link = within(inspector).getByTestId('inspector-reader-link') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/reader?focus=claim-A');
+    expect(link.textContent).toContain('Open in evidence reader');
+
+    // A kind the reader does not reflow (Publication) gets no such link.
+    fireEvent.click(screen.getByTestId('graph-node-pub-mehra-2020'));
+    await waitFor(() =>
+      expect(screen.getByTestId('inspector-id').textContent).toBe('pub-mehra-2020'),
+    );
+    expect(screen.queryByTestId('inspector-reader-link')).toBeNull();
   });
 
   it('Escape clears the selection and removes the inspector', async () => {

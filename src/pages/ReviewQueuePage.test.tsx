@@ -8,9 +8,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderQueue() {
+function renderQueue(initialEntry = '/review-queue') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <ReviewQueuePage />
     </MemoryRouter>,
   );
@@ -1116,5 +1116,69 @@ describe('ReviewQueuePage — independence panel mount (W4, read-only)', () => {
     // The queue itself is untouched and fully interactive.
     expect(await screen.findByTestId('review-item-claim-A')).toBeTruthy();
     expect(screen.getByTestId('find-evidence-claim-A')).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * M7 wave-2 — `?case=<caseId>` deep-link. Arrives from the reader's
+ * "Track review in Review Queue" link. Three honest paths: requested
+ * case present (anchor + brief highlight), param absent (byte-compatible
+ * queue, no anchor artifacts), requested case unknown (honest inline
+ * note, no fabricated card).
+ * ------------------------------------------------------------------ */
+
+describe('ReviewQueuePage — ?case=<caseId> deep-link (wave-2 cohesion)', () => {
+  /** Queue routes with an empty activity feed (history loads once ready). */
+  function stubQueueForCase() {
+    return stubFetchByRoute((url) => {
+      if (url.includes('graph-edges')) return { status: 200, body: buildDemoOverviewRecord() };
+      if (url.includes('/activity')) return { status: 200, body: [] };
+      return undefined;
+    });
+  }
+
+  it('param absent: the queue renders without any ?case artifacts (byte-compatible)', async () => {
+    stubQueueForCase();
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    expect(screen.queryByTestId('queue-case-anchor')).toBeNull();
+    expect(screen.queryByTestId('queue-case-missing')).toBeNull();
+    expect(screen.getByTestId('review-item-claim-A').className).not.toContain('ring-2');
+  });
+
+  it('requested case present: "Requested case" label on the matching card + brief focus-ring highlight', async () => {
+    stubQueueForCase();
+    renderQueue('/review-queue?case=claim-A');
+
+    const item = await screen.findByTestId('review-item-claim-A');
+    const anchor = screen.getByTestId('queue-case-anchor');
+    expect(anchor.textContent).toBe('Requested case');
+    // The anchor labels exactly the requested card, no other one.
+    expect(anchor.closest('li')).toBe(item);
+    expect(screen.queryByTestId('review-item-conclusion-C')!.querySelector('[data-testid="queue-case-anchor"]')).toBeNull();
+
+    // Brief highlight window: focus ring while active, removed afterwards.
+    await waitFor(() => expect(item.className).toContain('ring-2'));
+    await waitFor(() => expect(item.className).not.toContain('ring-2'), { timeout: 4000 });
+
+    // The sibling cards never carry highlight styling.
+    expect(screen.getByTestId('review-item-conclusion-C').className).not.toContain('ring-2');
+  });
+
+  it('requested case unknown: honest inline note, queue renders normally, nothing fabricated', async () => {
+    stubQueueForCase();
+    renderQueue('/review-queue?case=claim-not-here');
+
+    const note = await screen.findByTestId('queue-case-missing');
+    expect(note.textContent).toContain('Case claim-not-here is not in the currently returned review queue');
+    expect(note.textContent).toContain('(it may have no flag, or the request may be stale)');
+
+    // The queue still renders normally — and no card is invented for the id.
+    expect(screen.getByTestId('review-item-claim-A')).toBeTruthy();
+    expect(screen.getByTestId('review-item-conclusion-C')).toBeTruthy();
+    expect(screen.queryByTestId('review-item-claim-not-here')).toBeNull();
+    expect(screen.queryByTestId('queue-case-anchor')).toBeNull();
+    expect(screen.getByTestId('review-item-claim-A').className).not.toContain('ring-2');
   });
 });

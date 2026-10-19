@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ApiClientError,
   ApiHttpError,
@@ -179,6 +179,15 @@ function describeApiFailure(error: unknown, noun: string): string {
 }
 
 export default function ReviewQueuePage() {
+  const [searchParams] = useSearchParams();
+  /**
+   * M7 wave-2 — `?case=<caseId>` deep-link (arrives from the reader and other
+   * surfaces). When present, the matching queue card is scrolled into view and
+   * briefly highlighted (focus-ring + a "Requested case" text label — never a
+   * color-only cue). When the requested id is absent from the returned queue,
+   * an honest note says so and nothing is fabricated.
+   */
+  const requestedCaseId = searchParams.get('case');
   const [state, setState] = useState<QueueLoad>({ phase: 'loading' });
   const controllerRef = useRef<AbortController | null>(null);
   /** Human decisions recorded this session, keyed by case/item id. */
@@ -187,6 +196,13 @@ export default function ReviewQueuePage() {
   const [openRevisionId, setOpenRevisionId] = useState<string | null>(null);
   /** P4 — the case whose "Find evidence" panel is open (read-only search; never mutates the case). */
   const [openEvidenceId, setOpenEvidenceId] = useState<string | null>(null);
+  /** Whether the requested-case highlight window is active (one apply per param value). */
+  const [caseHighlightActive, setCaseHighlightActive] = useState(false);
+  const requestAnchorRef = useRef<HTMLLIElement | null>(null);
+  const requestAppliedRef = useRef<string | null>(null);
+  /** Highlight-window timer — armed once, cleared only on unmount (effect
+   * re-runs must not cancel a pending window). */
+  const highlightTimerRef = useRef<number | null>(null);
 
   /** Background server-state refresh — never wipes dialogs or selection. */
   const [refreshing, setRefreshing] = useState(false);
@@ -305,6 +321,47 @@ export default function ReviewQueuePage() {
   }, [state.phase, loadHistory]);
 
   const items = state.phase === 'ready' ? deriveReviewItems(state.overview) : [];
+
+  /**
+   * `?case=<caseId>` — once the queue is ready and the requested case is
+   * actually present in the returned queue, scroll its card into view
+   * (reduced motion scrolls with `behavior: 'auto'`) and run a brief
+   * highlight window. Applied once per param value; the never-fabricated
+   * "Requested case" label itself stays while the param names this card.
+   */
+  useEffect(() => {
+    if (state.phase !== 'ready' || !requestedCaseId) return;
+    const present = items.some((item) => item.id === requestedCaseId);
+    if (!present) return;
+    if (requestAppliedRef.current === requestedCaseId) return;
+    requestAppliedRef.current = requestedCaseId;
+    const element = requestAnchorRef.current;
+    if (!element) return;
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // jsdom does not implement scrollIntoView — the highlight still applies;
+    // the real browser scrolls here.
+    if (typeof element.scrollIntoView === 'function') {
+      element.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    }
+    setCaseHighlightActive(true);
+    highlightTimerRef.current = window.setTimeout(
+      () => setCaseHighlightActive(false),
+      reduceMotion ? 1200 : 2000,
+    );
+  }, [state.phase, requestedCaseId, items]);
+
+  // The highlight timer is armed once per requested id; only unmount cancels it.
+  useEffect(
+    () => () => {
+      if (highlightTimerRef.current !== null) window.clearTimeout(highlightTimerRef.current);
+    },
+    [],
+  );
 
   function itemReview(item: ReviewItem) {
     const decision = decisions[item.id];
@@ -437,6 +494,17 @@ export default function ReviewQueuePage() {
             automatically clears an inherited concern on a dependent conclusion.
           </p>
 
+          {requestedCaseId && !items.some((item) => item.id === requestedCaseId) && (
+            <p
+              role="note"
+              data-testid="queue-case-missing"
+              className="rounded-xl border border-uncertain-border bg-paper-raised px-4 py-3 text-base text-ink"
+            >
+              Case <span className="break-all font-mono">{requestedCaseId}</span> is not in the
+              currently returned review queue (it may have no flag, or the request may be stale).
+            </p>
+          )}
+
           <section aria-labelledby="review-flagged-heading" className="rounded-xl border border-ink-border bg-paper-raised p-6">
             <h2 id="review-flagged-heading" className="text-lg font-semibold text-ink">
               Flagged for review ({items.length})
@@ -453,15 +521,20 @@ export default function ReviewQueuePage() {
                 {items.map((item) => {
                   const { decision, decisionRecorded, reviewed, revisionPending, investigationPending } =
                     itemReview(item);
+                  const isRequested = requestedCaseId === item.id;
                   return (
                     <li
                       key={item.id}
+                      ref={isRequested ? requestAnchorRef : undefined}
                       data-testid={`review-item-${item.id}`}
                       data-review-state={reviewed ? 'reviewed' : 'needs-review'}
                       className={
-                        reviewed
+                        (reviewed
                           ? 'rounded-xl border border-reviewed bg-reviewed-surface p-4 text-base text-reviewed-text'
-                          : 'rounded-xl border border-review-border bg-review-surface p-4 text-base'
+                          : 'rounded-xl border border-review-border bg-review-surface p-4 text-base') +
+                        (isRequested && caseHighlightActive
+                          ? ' ring-2 ring-brand-surface ring-offset-2 ring-offset-paper'
+                          : '')
                       }
                     >
                       <header className="flex flex-wrap items-baseline justify-between gap-2">
@@ -485,6 +558,14 @@ export default function ReviewQueuePage() {
                         >
                           {reviewed ? 'Review recorded' : 'Needs review'}
                         </span>
+                        {isRequested && (
+                          <span
+                            data-testid="queue-case-anchor"
+                            className="inline-flex shrink-0 items-center rounded border border-brand bg-brand-surface px-2 py-0.5 text-xs font-medium text-brand-deep"
+                          >
+                            Requested case
+                          </span>
+                        )}
                         {decisionRecorded && !item.reviewed && (
                           <p className="w-full text-xs text-ink-muted" data-testid={`review-item-${item.id}-server-note`}>
                             After the server refresh, the returned record does not yet carry a recorded
