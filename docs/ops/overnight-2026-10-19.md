@@ -83,3 +83,10 @@ Running log for the autonomous session started 2026-10-19 ~04:45 UTC. Orchestrat
 - **Gates on merged main:** root 472/13-skip/0-fail; server 260; typecheck + build clean; **production E2E 88 passed / 0 failed / 4 skipped** (was 80 pre-W4).
 - Docs: BUILD_STATUS (W4 row + verification section + ghost-drift finding), KNOWN_LIMITATIONS (independence scope), this checkpoint.
 - Commit message hygiene note: bash interpolated `$seeded` inside one commit message (`274cc75`) — body fragments lost; bullets remain accurate; NOT amended (no force-push main).
+
+## Session wrap-up block (12:15–12:20 UTC)
+- Page-attached rate budget for independence-groups shipped (`04e362c`): 1 s anti-hammer gap + 30/10 min window (real abuse bound), typed 429 unchanged. Deviation from the activity-mirror default is deliberate and documented in-code (the panel fetches on every queue page load; a reviewer navigating between pages must not see honest-but-annoying 429s). New handler tests: different-IP isolation, realistic navigation burst (fake timers), window-exhaustion refusal. Server 260; root 474/13-skip/0-fail.
+- Deploy `6ad5be2ceeaad83914613fb6`; live check: 3 rapid calls all HTTP 200.
+- a11y: critical-violation axe scan extended to all five remaining primary pages (review-queue/library/activity/investigations/export) — zero criticals vs production (`8666a2d` parent `8e2e219`).
+- Final production sweep: **89 passed / 0 failed / 4 skipped** — the only flake is the pre-existing `/library` empty-states flake (retries green; bounded-diagnostics constraint keeps it from deeper chasing).
+- MILESTONES.md updated (W3 + W4 shipped bullets). BUILD_STATUS current. Checkpoint file current.
