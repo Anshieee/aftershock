@@ -169,7 +169,7 @@ export default function LandingPage() {
               disabled={seeding}
               aria-busy={seeding}
               data-testid="guided-seed-button"
-              className="v5-focus w-full rounded-md bg-brand px-6 py-3.5 text-base font-semibold tracking-tight text-white no-underline hover:bg-brand-deep disabled:cursor-progress disabled:opacity-80"
+              className="v5-focus w-full rounded-md bg-brand px-4 py-3 text-[15px] font-semibold tracking-tight text-white no-underline hover:bg-brand-deep disabled:cursor-progress disabled:opacity-80"
               onMouseEnter={() => setCtaEmphasis(true)}
               onMouseLeave={() => setCtaEmphasis(false)}
               onFocus={() => setCtaEmphasis(true)}
