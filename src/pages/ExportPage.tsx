@@ -180,9 +180,9 @@ export default function ExportPage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-3xl">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="font-display text-3xl text-ink">Export</h1>
+        <h1 className="font-display text-3xl tracking-tight text-ink">Export</h1>
         <p className="text-xs text-ink-muted">
           Generate a shareable output for a case. Outputs are derived from the
           returned graph records only — nothing is simulated.
@@ -192,7 +192,7 @@ export default function ExportPage() {
       {/* Scientific-integrity disclosure — synthetic demo content up front. */}
       <section
         aria-labelledby="export-disclosure-heading"
-        className="mt-6 rounded-lg border border-uncertain-border bg-uncertain-surface p-6"
+        className="mt-6 rounded-xl border border-uncertain-border bg-uncertain-surface p-6"
       >
         <h2 id="export-disclosure-heading" className="text-lg font-semibold text-uncertain-text">
           FICTIONAL / GUIDED DEMO — no scientific validation implied
@@ -207,7 +207,7 @@ export default function ExportPage() {
       </section>
 
       {/* Review coverage — honest counts from the graph, never inferred. */}
-      <section aria-labelledby="export-coverage-heading" className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6">
+      <section aria-labelledby="export-coverage-heading" className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6">
         <h2 id="export-coverage-heading" className="text-lg font-semibold text-ink">Review coverage</h2>
         {coverage.phase === 'loading' && (
           <p className="mt-2 text-sm text-ink-muted" role="status">
@@ -241,7 +241,7 @@ export default function ExportPage() {
             <button
               type="button"
               onClick={loadCoverage}
-              className="mt-3 rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
+              className="mt-3 rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
             >
               Retry coverage
             </button>
@@ -254,11 +254,11 @@ export default function ExportPage() {
         handleGenerate();
       }}>
         <fieldset disabled={phase === 'generating'}>
-          <legend className="mt-6 text-lg font-semibold text-ink">What to export</legend>
+          <legend className="mt-6 text-xs font-semibold uppercase tracking-wide text-ink-muted">What to export</legend>
 
           <div className="mt-4 space-y-3" role="radiogroup" aria-label="Export type">
             {EXPORT_TYPES.map((type) => (
-              <div key={type.kind} className="flex items-start gap-3 rounded border border-ink-border bg-paper-raised p-3">
+              <div key={type.kind} className="flex items-start gap-3 rounded-lg border border-ink-border bg-paper-raised p-3">
                 <input
                   id={`export-type-${type.kind}`}
                   type="radio"
@@ -287,7 +287,7 @@ export default function ExportPage() {
               id="export-case-id"
               value={caseId}
               onChange={(event) => setCaseId(event.target.value)}
-              className="mt-1 block w-full rounded border border-ink-border bg-paper-raised px-3 py-2 text-sm text-ink"
+              className="mt-1 block w-full rounded-lg border border-ink-border bg-paper-raised px-3 py-2 text-sm text-ink"
               data-testid="export-case-id"
             >
               <option value={DEMO_MANUSCRIPT_DOCUMENT_ID}>
@@ -305,7 +305,7 @@ export default function ExportPage() {
               type="submit"
               disabled={phase === 'generating'}
               data-testid="export-generate"
-              className="rounded border border-ink-border bg-paper px-5 py-2.5 text-sm font-medium text-ink hover:bg-paper-deep disabled:opacity-60 disabled:cursor-not-allowed"
+              className="rounded-lg bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-deep disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {phase === 'generating' ? 'Generating…' : `Generate ${selectedType.label}`}
             </button>
@@ -314,7 +314,7 @@ export default function ExportPage() {
                 type="button"
                 onClick={reset}
                 data-testid="export-retry"
-                className="rounded border border-ink-border bg-paper px-5 py-2.5 text-sm font-medium text-ink hover:bg-paper-deep"
+                className="rounded-lg border border-ink-border bg-paper px-5 py-2.5 text-sm font-medium text-ink hover:bg-paper-deep"
               >
                 Retry
               </button>
@@ -331,7 +331,7 @@ export default function ExportPage() {
         {phase === 'failure' && error && (
           <section
             aria-labelledby="export-error-heading"
-            className="mt-4 rounded-lg border border-notice-border bg-notice-surface p-6"
+            className="mt-4 rounded-xl border border-notice-border bg-notice-surface p-6"
             data-testid="export-error"
           >
             <h3 id="export-error-heading" className="text-sm font-semibold text-notice-text">
@@ -345,7 +345,7 @@ export default function ExportPage() {
 
         {phase === 'done' && downloadedFile && (
           <section
-            className="mt-4 rounded-lg border border-reviewed bg-reviewed-surface p-6"
+            className="mt-4 rounded-xl border border-reviewed bg-reviewed-surface p-6"
             data-testid="export-done"
           >
             <h3 className="text-sm font-semibold text-reviewed-text">Download started</h3>
@@ -357,7 +357,7 @@ export default function ExportPage() {
             <button
               type="button"
               onClick={reset}
-              className="mt-3 rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
+              className="mt-3 rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
             >
               Generate another export
             </button>
@@ -368,7 +368,7 @@ export default function ExportPage() {
       {/* Honest limitations — never presented as capability. */}
       <section
         aria-labelledby="export-limitations-heading"
-        className="mt-6 rounded-lg border border-uncertain-border bg-uncertain-surface p-6"
+        className="mt-6 rounded-xl border border-uncertain-border bg-uncertain-surface p-6"
       >
         <h2 id="export-limitations-heading" className="text-lg font-semibold text-uncertain-text">
           Limitations

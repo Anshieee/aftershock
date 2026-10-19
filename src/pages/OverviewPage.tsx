@@ -62,12 +62,12 @@ export default function OverviewPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="font-display text-3xl text-ink">Overview</h1>
+      <h1 className="font-display text-3xl tracking-tight text-ink">Overview</h1>
 
       {probe.phase === 'seeded' ? (
         <section
           aria-labelledby="overview-continue"
-          className="mt-8 rounded-lg border border-ink-border bg-paper-raised p-6 md:p-8"
+          className="mt-8 rounded-2xl border border-ink-border bg-paper-raised p-6 md:p-8"
           data-testid="continue-card"
         >
           <h2 id="overview-continue" className="text-lg font-semibold text-ink">
@@ -92,13 +92,13 @@ export default function OverviewPage() {
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               to="/results"
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
             >
               View guided results
             </Link>
             <Link
               to="/review-queue"
-              className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
+              className="rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
             >
               Review Queue
             </Link>
@@ -110,7 +110,7 @@ export default function OverviewPage() {
         </p>
       ) : probe.phase === 'failure' ? (
         <p
-          className="mt-8 rounded border border-notice-border bg-notice-surface px-4 py-3 text-base text-ink"
+          className="mt-8 rounded-lg border border-notice-border bg-notice-surface px-4 py-3 text-base text-ink"
           role="note"
           data-testid="overview-probe-failure"
         >
@@ -126,7 +126,7 @@ export default function OverviewPage() {
       ) : (
         <section
           aria-labelledby="overview-attention"
-          className="mt-8 rounded-lg border border-ink-border bg-paper-raised p-6 md:p-8"
+          className="mt-8 rounded-2xl border border-ink-border bg-paper-raised p-6 md:p-8"
           data-testid="import-first-card"
         >
           <h2 id="overview-attention" className="text-lg font-semibold text-ink">
@@ -142,13 +142,13 @@ export default function OverviewPage() {
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               to="/"
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
             >
               Try guided example
             </Link>
             <Link
               to="/"
-              className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
+              className="rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
             >
               Import a document
             </Link>
@@ -159,7 +159,7 @@ export default function OverviewPage() {
       {/* Secondary destination — deliberately quieter than the primary card. */}
       <section
         aria-labelledby="overview-graph"
-        className="mt-6 rounded-lg border border-ink-border bg-paper p-6"
+        className="mt-6 rounded-xl border border-ink-border bg-paper p-6"
         data-testid="overview-graph-card"
       >
         <h2 id="overview-graph" className="text-base font-semibold text-ink">
@@ -173,7 +173,7 @@ export default function OverviewPage() {
         </p>
         <Link
           to="/graph"
-          className="mt-4 inline-block rounded border border-ink-border bg-paper-raised px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
+          className="mt-4 inline-block rounded-lg border border-ink-border bg-paper-raised px-4 py-2 text-sm text-ink no-underline hover:bg-paper-deep"
         >
           Open the Knowledge Graph
         </Link>

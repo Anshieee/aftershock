@@ -131,7 +131,7 @@ function EventItem({ event }: { event: ActivityEvent }) {
   return (
     <li
       data-testid={`activity-event-${event.id}`}
-      className={`group rounded-lg ${info.border} ${info.surface} p-4 md:p-5`}
+      className={`group rounded-xl ${info.border} ${info.surface} p-4 md:p-5`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
@@ -259,7 +259,7 @@ export default function ActivityPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="font-display text-3xl text-ink">Activity</h1>
+        <h1 className="font-display text-3xl tracking-tight text-ink">Activity</h1>
         {feed.phase === 'ready' && (
           <p className="text-xs text-ink-muted" data-testid="activity-counts">
             {events.length} event{events.length !== 1 ? 's' : ''} recorded
@@ -276,7 +276,7 @@ export default function ActivityPage() {
       {feed.phase === 'missing' && (
         <section
           aria-labelledby="activity-missing-heading"
-          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6"
+          className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6"
           data-testid="activity-missing"
         >
           <h2 id="activity-missing-heading" className="text-lg font-semibold text-ink">
@@ -292,11 +292,11 @@ export default function ActivityPage() {
             <button
               type="button"
               onClick={load}
-              className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
+              className="rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
             >
               Retry
             </button>
-            <Link to="/" className="rounded px-4 py-2 text-sm text-ink-muted no-underline hover:text-ink">
+            <Link to="/" className="rounded-lg px-4 py-2 text-sm text-ink-muted no-underline hover:text-ink">
               Back to landing
             </Link>
           </div>
@@ -306,7 +306,7 @@ export default function ActivityPage() {
       {feed.phase === 'failure' && (
         <section
           aria-labelledby="activity-failure-heading"
-          className="mt-6 rounded-lg border border-notice-border bg-notice-surface p-6"
+          className="mt-6 rounded-xl border border-notice-border bg-notice-surface p-6"
           data-testid="activity-failure"
         >
           <h2 id="activity-failure-heading" className="text-lg font-semibold text-notice-text">
@@ -319,11 +319,11 @@ export default function ActivityPage() {
             <button
               type="button"
               onClick={load}
-              className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
+              className="rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
             >
               Retry
             </button>
-            <Link to="/" className="rounded px-4 py-2 text-sm text-ink-muted no-underline hover:text-ink">
+            <Link to="/" className="rounded-lg px-4 py-2 text-sm text-ink-muted no-underline hover:text-ink">
               Back to landing
             </Link>
           </div>
@@ -353,7 +353,7 @@ export default function ActivityPage() {
                 <React.Fragment key={`activity-group-${groupIndex}`}>
                   <h3
                     id={`activity-group-${groupIndex}`}
-                    className="mt-3 text-xs font-semibold text-ink-muted tracking-wider"
+                    className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink-muted"
                   >
                     {group.label}
                   </h3>

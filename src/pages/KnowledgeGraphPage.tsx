@@ -128,7 +128,7 @@ export default function KnowledgeGraphPage() {
   return (
     <div className="mx-auto max-w-7xl overflow-x-hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="font-display text-3xl text-ink">Knowledge Graph</h1>
+        <h1 className="font-display text-3xl tracking-tight text-ink">Knowledge Graph</h1>
         {overview && (
           <p className="text-xs text-ink-muted" data-testid="graph-counts">
             {overview.seedVersion ? `seed ${overview.seedVersion} · ` : ''}
@@ -147,7 +147,7 @@ export default function KnowledgeGraphPage() {
       {state.phase === 'missing' && (
         <section
           aria-labelledby="graph-missing-heading"
-          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6 md:p-8"
+          className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6 md:p-8"
           data-testid="graph-missing"
         >
           <p className="mb-3 inline-flex items-center gap-2 rounded border border-uncertain-border bg-uncertain-surface px-2 py-0.5 text-xs font-medium text-uncertain-text">
@@ -167,7 +167,7 @@ export default function KnowledgeGraphPage() {
           </p>
           <Link
             to="/"
-            className="mt-4 inline-block rounded bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
+            className="mt-4 inline-block rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
           >
             Try guided example
           </Link>
@@ -177,7 +177,7 @@ export default function KnowledgeGraphPage() {
       {state.phase === 'failure' && (
         <section
           aria-labelledby="graph-failure-heading"
-          className="mt-6 rounded-lg border border-notice-border bg-notice-surface p-6"
+          className="mt-6 rounded-xl border border-notice-border bg-notice-surface p-6"
           data-testid="graph-failure"
         >
           <h2 id="graph-failure-heading" className="text-lg font-semibold text-notice-text">
@@ -189,7 +189,7 @@ export default function KnowledgeGraphPage() {
           <button
             type="button"
             onClick={load}
-            className="mt-4 rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
+            className="mt-4 rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
           >
             Retry
           </button>
@@ -206,15 +206,15 @@ export default function KnowledgeGraphPage() {
           </p>
 
           {nodes.length === 0 ? (
-            <p className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6 text-base text-ink-muted" data-testid="graph-empty">
+            <p className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6 text-base text-ink-muted" data-testid="graph-empty">
               The graph API answered, but returned no records. An empty graph is shown as
               empty — nothing is illustrated with placeholder structure.
             </p>
           ) : (
             <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_18rem]">
               <div className="min-w-0 space-y-4">
-                <section data-testid="graph-filters" className="rounded-lg border border-ink-border bg-paper-raised p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink">Filters (client-side over returned records)</p>
+                <section data-testid="graph-filters" className="rounded-xl border border-ink-border bg-paper-raised p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Filters (client-side over returned records)</p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <fieldset data-testid="node-kind-filter">
                       <legend className="text-xs font-medium text-ink">Node kind</legend>
@@ -276,7 +276,7 @@ export default function KnowledgeGraphPage() {
                     type="button"
                     data-testid="focus-dependency-path"
                     onClick={() => setFocusActive((v) => !v)}
-                    className="rounded border border-brand bg-brand-surface px-3 py-1.5 text-xs font-medium text-brand-deep hover:bg-paper-deep"
+                    className="rounded-lg border border-brand bg-brand-surface px-3 py-1.5 text-xs font-medium text-brand-deep hover:bg-paper-deep"
                   >
                     {focusActive ? 'Clear focused path' : 'Focus dependency path'}
                   </button>
