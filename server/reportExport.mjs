@@ -37,6 +37,90 @@ export const SYNTHETIC_LABEL = 'FICTIONAL / GUIDED DEMO';
 /** Wall-clock budget (ms) for export assembly — below the client's 10 s abort. */
 export const EXPORT_READ_BUDGET_MS = 8_000;
 
+/**
+ * Single source of truth for the Revision Pack's section labels and honest
+ * notes. The DOCX renderer (netlify/functions/export-revision-pack.mjs)
+ * imports these so assembly and rendering never drift apart.
+ */
+export const REVISION_PACK_LABELS = Object.freeze({
+  originalHeading: 'Original passage (recorded; immutable)',
+  originalNote: 'Verbatim recorded text — immutable; this export never modifies recorded passages.',
+  proposedHeading: 'Proposed revision (draft)',
+  proposedNote: 'Draft only — copying is not applying; no acceptance record exists, so this must never be read as applied.',
+  noProposalNote: 'No proposed revision (draft) is recorded for this case; none is invented here.',
+  rationaleHeading: 'Rationale (recorded with the draft proposal)',
+  noRationaleNote: '(No draft proposal is recorded for this case; rationale applies to proposals only.)',
+  acceptanceHeading: 'Acceptance status (draft disposition — copying is not applying)',
+  reviewTrailHeading: 'Review decision trail (all recorded decisions, ordered by decidedAt)',
+  noDecisionNote: 'No review decision recorded for this case; evidence review needed before any conclusion about this passage.',
+  unresolvedHeading: 'Unresolved reference occurrences (graph-wide at snapshot time; disclosure, never propagation)',
+  unresolvedCountLabel: 'Unresolved occurrences in this snapshot:',
+});
+
+/**
+ * Honest display strings for a snapshot's review-state status. A "complete"
+ * review workflow is never a scientific validation, so both states carry an
+ * explicit qualifier (KNOWN_LIMITATIONS §Review/exports/history).
+ */
+export const EXPORT_STATUS_DISPLAY = Object.freeze({
+  incomplete: 'INCOMPLETE — open review items remain at snapshot time',
+  complete: 'COMPLETE — review-workflow snapshot only; not a scientific validation or verdict',
+});
+
+/**
+ * Honest per-item display for a notice-verification flag — never a bare
+ * boolean. "Verified" says only that a verification was recorded for the
+ * notice record itself at last verification; it never says any passage,
+ * claim or conclusion was validated. Same in-family phrasing policy as
+ * `exportStatusDisplay` / `acceptanceStatusDisplay`.
+ * @param {boolean} verified
+ * @returns {string}
+ */
+export function noticeVerifiedDisplay(verified) {
+  return verified === true
+    ? 'Verified — details recorded at last verification'
+    : 'Not verified — no verified check is recorded';
+}
+
+/**
+ * @param {string} status
+ * @returns {string} guard-clean display string for the snapshot status value.
+ */
+export function exportStatusDisplay(status) {
+  return EXPORT_STATUS_DISPLAY[status]
+    ?? `${String(status).toUpperCase()} — review state at snapshot time; not a scientific verdict`;
+}
+
+/**
+ * Honest display for a revision proposal's acceptance status. In this tier no
+ * acceptance mechanism exists, so a draft NEVER reads as applied: `applied`
+ * is false for every status.
+ * @param {string} status raw proposal status ('draft' | 'none' | other)
+ * @returns {{label: string, applied: false, note: string}}
+ */
+export function acceptanceStatusDisplay(status) {
+  switch (status) {
+    case 'draft':
+      return {
+        label: 'DRAFT — not applied (awaiting human acceptance)',
+        applied: false,
+        note: 'A draft proposal is a proposal only. No acceptance mechanism exists in this tier, so a draft must never be read as applied to the manuscript.',
+      };
+    case 'none':
+      return {
+        label: 'NONE — no draft revision recorded',
+        applied: false,
+        note: 'No RevisionProposal exists for this case in the snapshot; none is invented here.',
+      };
+    default:
+      return {
+        label: `${String(status).toUpperCase()} — not applied (no human-acceptance record is available in this snapshot)`,
+        applied: false,
+        note: 'Displaying the recorded status verbatim; without a human-acceptance record this must never be read as applied.',
+      };
+  }
+}
+
 /** Case-id safe charset, mirroring reviewState.mjs before any graph I/O. */
 const CASE_ID_RE = /^[A-Za-z0-9_-]+$/;
 
@@ -482,11 +566,22 @@ export async function assembleExportReport(session, { caseId = null, format = 'p
 
 /**
  * Assemble the Revision Pack data structure: original text, proposed text,
- * evidence concern, publication/notice, acceptance status, rationale.
+ * evidence concern, publication/notice, acceptance status, rationale,
+ * full review-decision trail and graph-wide unresolved-reference disclosure.
+ *
+ * Additive structured members (data contract unchanged, existing fields keep
+ * their names/shapes):
+ * - `textPair` — labeled "Original passage (recorded; immutable)" vs
+ *   "Proposed revision (draft)" blocks (original text verbatim).
+ * - `reviewDecisions` — the FULL decision trail for the case from
+ *   `getReviewDecisionsForCase`, ordered by decidedAt (not latest-only).
+ * - `acceptanceDisplay` — honest acceptance-status framing; a draft proposal
+ *   NEVER reads as applied (`applied: false` for every status).
+ * - `unresolvedReferences` — graph-wide unresolved occurrences (count + list).
  *
  * @param {import('./graphClient.mjs').GraphSession} session
  * @param {{caseId: string}} options
- * @returns {Promise<{snapshot, integrity, case, originalText, proposedText, rationale, acceptanceStatus, evidenceConcern, publication, notice, limitations}>}
+ * @returns {Promise<{snapshot, integrity, case, originalText, proposedText, rationale, acceptanceStatus, acceptanceDisplay, textPair, evidenceConcern, reviewDecisions, publication, notice, unresolvedReferences, limitations}>}
  */
 export async function assembleRevisionPack(session, { caseId }) {
   const { caseId: normalizedCaseId } = validateExportCaseId({ caseId });
@@ -504,6 +599,7 @@ export async function assembleRevisionPack(session, { caseId }) {
   const verifiedNotices = await readVerifiedNotices(session);
   const directClaims = await readDirectAffectedClaims(session);
   const flaggedClaimIds = [...new Set(directClaims.map((c) => c.claim.id))];
+  const unresolvedRefs = await readUnresolvedReferences(session);
 
   // Evidence concern: tie the case to its verified-notice context if it is a
   // flagged claim, otherwise disclose that no direct evidence concern is
@@ -520,6 +616,31 @@ export async function assembleRevisionPack(session, { caseId }) {
   };
 
   const acceptanceStatus = proposal ? proposal.status : 'none';
+  const acceptanceDisplay = acceptanceStatusDisplay(acceptanceStatus);
+
+  // Labeled original-vs-proposed pair. The original passage is verbatim
+  // recorded text and is immutable; the proposed text is a draft until (and
+  // unless) a human accepts it — it never reads as applied here.
+  const textPair = {
+    original: {
+      label: REVISION_PACK_LABELS.originalHeading,
+      text: caseState.text,
+      immutable: true,
+      note: REVISION_PACK_LABELS.originalNote,
+    },
+    proposed: proposal
+      ? {
+          label: REVISION_PACK_LABELS.proposedHeading,
+          text: proposal.proposedText,
+          proposalId: proposal.proposalId,
+          status: proposal.status,
+          immutable: false,
+          note: REVISION_PACK_LABELS.proposedNote,
+        }
+      : null,
+    ...(proposal ? {} : { noProposalNote: REVISION_PACK_LABELS.noProposalNote }),
+  };
+
   const openTaskCount =
     (proposal && proposal.status === 'draft' ? 1 : 0) +
     (reviewDecisions.filter((d) => d.outcome === 'revision_needed' || d.outcome === 'more_evidence_needed').length);
@@ -538,6 +659,7 @@ export async function assembleRevisionPack(session, { caseId }) {
     'A revision proposal is status "draft" until a human accepts it; copying is not applying.',
     'A review flag means "needs human review" — never "disproven/proven".',
     'This pack is a snapshot at generation time; it is not re-verified after generation.',
+    'Unresolved references listed in this pack are graph-wide at snapshot time rather than case-scoped; they are disclosed as unresolved and never propagate into claims or conclusions.',
   ];
 
   return {
@@ -554,9 +676,19 @@ export async function assembleRevisionPack(session, { caseId }) {
     proposedText: proposal ? proposal.proposedText : null,
     rationale: proposal ? proposal.rationale : null,
     acceptanceStatus,
+    acceptanceDisplay,
+    textPair,
     evidenceConcern,
+    // Full decision trail (ordered by decidedAt via getReviewDecisionsForCase),
+    // deliberately not latest-only.
+    reviewDecisions: reviewDecisions ?? [],
     publication: verifiedNotices.length > 0 ? verifiedNotices[0].publication : null,
     notice: verifiedNotices.length > 0 ? verifiedNotices[0].notice : null,
+    unresolvedReferences: {
+      count: unresolvedRefs.length,
+      scopeNote: REVISION_PACK_LABELS.unresolvedHeading,
+      items: unresolvedRefs,
+    },
     limitations,
   };
 }
