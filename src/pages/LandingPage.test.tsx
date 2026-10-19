@@ -22,40 +22,51 @@ function renderWithRoutes(initialPath = '/') {
   );
 }
 
-describe('LandingPage (Wave U1 entry experience)', () => {
-  it('renders the centered editorial hero with the exact research question and subtitle — no wordmark in the hero', () => {
+describe('LandingPage (V2 — the research studio)', () => {
+  it('renders the hero studio composition: wordmark, eyebrow, the exact research question, and the lede', () => {
     renderWithRoutes();
 
-    // One h1 only: the research question in display serif.
+    // One h1 only: the research question the tool answers, in display serif.
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
     expect(
-      screen.getByRole('heading', { name: 'What would you like to investigate?' }),
+      screen.getByRole('heading', {
+        name: 'What happened to this research after it was published?',
+      }),
     ).toBeTruthy();
-    expect(screen.getByText('Follow the evidence. Understand what changed.')).toBeTruthy();
-    // The Aftershock. wordmark stays in the sidebar, never in the hero.
-    expect(screen.queryByText(/Aftershock\./)).toBeNull();
+    // V2 composition: the wordmark opens the hero (deliberate diff vs the
+    // sidebar-only U1 hero), over the small-caps eyebrow.
+    expect(screen.getAllByText('Aftershock.')).toHaveLength(1);
+    expect(screen.getByText('Trace the evidence.')).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Aftershock is an evidence-integrity workspace\. It follows a publication through the public record/,
+      ),
+    ).toBeTruthy();
   });
 
-  it('exposes ONE primary seed trigger in the launcher card (no duplicated CTAs, no fake extras)', () => {
+  it('exposes ONE primary seed trigger in the launcher (no duplicated CTAs, no fake extras)', () => {
     renderWithRoutes();
 
-    // The single launcher card holds the primary flow (sr-only heading so
-    // no implementation-status copy surfaces in the hero zone).
+    // The single launcher holds the primary flow under its small-caps label.
     expect(screen.getByTestId('investigation-launcher')).toBeTruthy();
-    expect(
-      screen.getByRole('heading', { name: 'Start an investigation' }),
-    ).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Research launcher' })).toBeTruthy();
     // Single visible seed control reachable through both testids.
     expect(screen.getAllByTestId('guided-seed-button')).toHaveLength(1);
     // Legacy hero contract: the hero-guided-action hook wraps the CTA.
     expect(screen.getAllByTestId('hero-guided-action')).toHaveLength(1);
     expect(screen.getByTestId('hero-guided-action').textContent).toContain(
-      'Explore guided investigation',
+      'Start the guided investigation',
     );
     // No fake chat box, no fake DOI search: exactly two real actions.
-    expect(screen.getAllByRole('button', { name: 'Explore guided investigation' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Choose a document' })).toHaveLength(1);
+    expect(
+      screen.getAllByRole('button', { name: 'Start the guided investigation' }),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByRole('button', {
+        name: 'Have a document? Register a file (metadata only)',
+      }),
+    ).toHaveLength(1);
   });
 
   it('shows the quiet integrity line without expansion and keeps the document picker collapsed by default', () => {
@@ -69,7 +80,9 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     ).toBeTruthy();
     // The document picker starts collapsed: no import panel in the DOM.
     expect(screen.queryByTestId('import-panel')).toBeNull();
-    const toggle = screen.getByRole('button', { name: 'Choose a document' });
+    const toggle = screen.getByRole('button', {
+      name: 'Have a document? Register a file (metadata only)',
+    });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
 
     // Expanding reveals the real import flow untouched.
@@ -126,13 +139,15 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     expect(resultsLink.getAttribute('href')).toBe('/results');
   });
 
-  it('keeps exactly three quiet, real workspace shortcuts (no duplicated summaries)', () => {
+  it('keeps exactly four quiet, real workspace shortcuts (no duplicated summaries)', () => {
     renderWithRoutes();
     const shortcuts = screen.getByRole('navigation', { name: 'Workspace areas' });
     const links = Array.from(shortcuts.querySelectorAll('a[href]'));
     const hrefs = links.map((a) => a.getAttribute('href'));
     // Real destinations only; no /overview summary re-introduced here.
-    expect(hrefs).toEqual(['library', 'review-queue', 'graph'].map((p) => `/${p}`));
+    expect(hrefs).toEqual(
+      ['investigations', 'library', 'review-queue', 'graph'].map((p) => `/${p}`),
+    );
   });
 
   it('renders the collapsed document area with the honestly disabled Bibliography/DOI row behind the toggle', () => {
@@ -143,7 +158,11 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     expect(screen.queryByTestId('import-panel')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Bibliography' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Choose a document' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Have a document? Register a file (metadata only)',
+      }),
+    );
 
     expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('import-input')).toBeTruthy();
@@ -173,7 +192,11 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     );
     renderWithRoutes();
     // The picker lives in the collapsible document area — expand first.
-    fireEvent.click(screen.getByRole('button', { name: 'Choose a document' }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Have a document? Register a file (metadata only)',
+      }),
+    );
     const input = screen.getByTestId('import-input') as HTMLInputElement;
 
     const file = new File(['%PDF-1.4 minimal'], 'field-notes.pdf', { type: 'application/pdf' });

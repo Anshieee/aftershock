@@ -1,0 +1,157 @@
+/*
+ * VARIANT 02 — THE RESEARCH STUDIO (design experiment).
+ *
+ * Landing-local styles only. The frozen design-of-record palette
+ * (docs/design/2026-10-19-redesign-spec.md §1) is re-declared here as
+ * variables because Tailwind 3.4 does not expose tokens as CSS custom
+ * properties; the hex values are verbatim from tailwind.config.js.
+ * Everything below is either a fluid type scale, a hairline rule, or a
+ * clearly-decorative editorial texture (ruled-paper baseline grid, serif
+ * drop-cap). No gradients, no glass.
+ */
+
+:root {
+  /* Frozen design-of-record palette — verbatim from tailwind.config.js. */
+  --paper: #f7f3ea;
+  --paper-deep: #f1ebdc;
+  --ink: #27283b;
+  --ink-muted: #5b5c6d;
+  --ink-border: #dfd8c9;
+  --brand: #665c91;
+  --brand-deep: #524a78;
+  --brand-surface: #ded6fa;
+  --review-text: #8a5a05;
+  --review-surface: #f9f0dc;
+  --review-border: #e9b867;
+  --uncertain-text: #3d5c86;
+  --uncertain-surface: #e5edf6;
+  --uncertain-border: #bfcfe2;
+  --notice-text: #8f3b36;
+  --notice-surface: #f7e7e4;
+  --notice-border: #e5c0bb;
+}
+
+.landing-v2 {
+  /* Faint ruled-paper baseline grid — decorative only, clearly not data.
+     The 2rem period matches the section rhythm so text baselines settle
+     near the rules. ~4% ink keeps it a texture, not a feature. */
+  --rule: rgba(39, 40, 59, 0.045);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(2rem - 1px),
+    var(--rule) calc(2rem - 1px),
+    var(--rule) 2rem
+  );
+  background-attachment: local;
+}
+
+/* Eyebrow labels — small-caps style: uppercase, wide tracking, muted. */
+.landing-v2 .eyebrow {
+  font-size: 0.75rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* Display headline — Source Serif 4 via font-display, fluid clamp scale. */
+.landing-v2 .hero-headline {
+  font-family: 'Source Serif 4 Variable', Georgia, serif;
+  font-size: clamp(2.375rem, 5.4vw, 3.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* Intro lede — the drop-cap is a decorative editorial cue only. */
+.landing-v2 .lede::first-letter {
+  font-family: 'Source Serif 4 Variable', Georgia, serif;
+  font-weight: 600;
+  font-size: 3.4em;
+  line-height: 0.82;
+  float: left;
+  padding-right: 0.12em;
+  padding-top: 0.06em;
+  color: var(--ink);
+}
+
+/* The RESEARCH LAUNCHER — hairline rules instead of a heavy card. */
+.landing-v2 .launcher-rule {
+  border-color: var(--ink-border);
+}
+
+/* The single dominant CTA — indigo #665C91, deep #524A78 on hover.
+   Fluid scale keeps it confident from phone to desktop. */
+.landing-v2 .launcher-cta {
+  background-color: var(--brand);
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+.landing-v2 .launcher-cta:hover:not(:disabled) {
+  background-color: var(--brand-deep);
+}
+.landing-v2 .launcher-cta:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.landing-v2 .launcher-cta:focus-visible {
+  outline: 2px solid var(--brand-deep);
+  outline-offset: 3px;
+}
+
+/* Secondary text toggle — a quiet link, never a competing button. */
+.landing-v2 .text-toggle {
+  color: var(--brand-deep);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 150ms ease;
+}
+.landing-v2 .text-toggle:hover {
+  color: var(--brand);
+}
+
+/* Shortcuts row — plain text links with hairline dividers. The divider
+   only makes sense while the row is a single line (sm+); on small
+   screens the links wrap and stack without rules. */
+@media (min-width: 40rem) {
+  .landing-v2 .shortcut + .shortcut {
+    border-left: 1px solid var(--ink-border);
+  }
+}
+
+/* Hero wordmark — center the optical axis of the compressed mark. */
+.landing-v2 .wordmark {
+  transform-origin: center;
+}
+
+/* Integrity lines — quiet, hairline separated. */
+.landing-v2 .integrity-item + .integrity-item {
+  border-top: 1px solid var(--ink-border);
+}
+
+/* Featured record — the single sanctioned amber badge. */
+.landing-v2 .record-badge {
+  border-color: var(--review-border);
+  background-color: var(--review-surface);
+  color: var(--review-text);
+}
+
+/* Honest status regions — quiet lavender surface, never a "success" color. */
+.landing-v2 .status-surface {
+  border-color: var(--brand-surface);
+  background-color: var(--brand-surface);
+  color: var(--brand-deep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-v2 .launcher-cta,
+  .landing-v2 .text-toggle {
+    transition: none;
+  }
+  .landing-v2 .launcher-cta:active:not(:disabled) {
+    transform: none;
+  }
+}
