@@ -43,8 +43,8 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
   await expect(status).toContainText('manuscript.txt');
   const statusText = await status.textContent();
   // Never fabricate analysis/extraction/verification claims.
-  await expect(statusText).not.toContainText(/analyzed|extracted citation|verified/i);
-  await expect(statusText).not.toContainText(/imported successfully|analysis complete|registered successfully/i);
+  expect(statusText).not.toMatch(/analyzed|extracted citation|verified/i);
+  expect(statusText).not.toMatch(/imported successfully|analysis complete|registered successfully/i);
 });
 
 test('secondary Bibliography / Single DOI are honestly gated, not faked', async ({ page }) => {
