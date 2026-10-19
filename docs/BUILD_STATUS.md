@@ -57,8 +57,15 @@ Last updated: 2026-10-19 (**UX redesign U1–U3 approved by the user and DEPLOYE
 - **Integration gate:** root suite **514 passed / 13 skipped**; server suite **297 passed**; typecheck + build clean; `npm run check` against the real graph OK; temporary static-pin harness (`#static` + netlify dev :8889, graph env) ran the full hosted sweep: **111 passed / 0 failed / 1 flaky (documented /library empty-state) / 4 skipped (51 s)**; toml pin reverted byte-identical and guard re-run green. (Lesson learned: an output-pipe `head -n` killed the harness server mid-sweep on the first attempt — harness/runs methodology unchanged.)
 - **Production verification (post-deploy):** `/health` real graph seeded; `/activity?caseId=claim-A` returns the recorded decision with `targetId/targetType` and before/after states; malformed `?caseId=bad%40id` → honest `400 invalid-request`; served bundle contains reader root + basis + honest date labels; production screenshots of `/reader` (desktop + full-page) and `/activity` inspected against the spec (disclosures, flag semantics, date-kind chips, per-case view).
 
-## Environment (verified 2026-10-18)
+## Production verification (2026-10-20, M7 wave 2 — main `4d51305`, deploy `6ad664b8e279155d504a8084`)
+- **Wave E (cohesion) merged + deployed:** ReviewQueuePage `?case=<id>` deep-link (scroll + ring highlight + "Requested case" text label; honest `queue-case-missing` note when absent — never a fabricated card); EvidenceReader flagged passages gain "Find evidence for this passage" (origin context labels, backHref preserving reading position), flagged queue links upgraded to case-targeted `/review-queue?case=`; KnowledgeGraph ContextInspector gains "Open in evidence reader" (`/reader?focus=<nodeId>`) for Claim/Conclusion/CitationUse/ReferenceOccurrence. No endpoints changed; FindEvidencePanel untouched (consumed via its existing optional `origin` prop).
+- Provenance: implemented by a glm-5.3 agent cut off mid-run by a provider rate limit (work preserved, uncommitted), completed + verified by the fallback `mimo-v2.6-flash-free` coder (commit `18e4320`); predates that, an independent reviewer fixed wave-2 wording/a11y pre-merge in wave 1's cycle.
+- Gates at merge: root **522/13-skip**; server 297; tsc+build clean; hosted sweep (static-pin harness, real `aftershock:demo` graph) **114 passed / 0 failed / 2 known import-timing flakes / 4 skipped**; toml pin reverted byte-identical + guard 200-green.
+- Live-verified: served bundle contains `Requested case`, `Open in evidence reader`, and `Find evidence for this passage`; main pushed to GitHub (`10cfa98..4d51305`).
 
+
+
+## Environment (verified 2026-10-18)
 - Repo: /home/ansh/Projects/aftershock → GitHub `Anshieee/aftershock` (main), synced.
 - FalkorDB: cloud `instance-ky5pnxl21` (ap-south-1) — `npm run check` passes with real credentials: connect + list (`test_hosting` present) + create/read/delete smoke graph. Existing graphs: `test_hosting` (other project — do not touch). Aftershock graph: `aftershock:demo` (to seed). Post-M3-live-run verified read-only: `db.list() = ["test_hosting"]` (smoke graph deleted).
 - Netlify MCP reachable; free team `RiotisWeird` (`nf_team_dev`); GitHub connected on the account. Existing sites belong to other projects; untouched. Aftershock site: to be created as `aftershock-demo`.
