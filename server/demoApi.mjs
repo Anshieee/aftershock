@@ -558,8 +558,12 @@ export async function readDocuments(session, { seeded = true } = {}) {
     return { documents: [], seedVersion: null };
   }
   const meta = await readSeedMeta(session);
+  // coalesce: nodes from LEGACY imports may carry no `seeded` property at all
+  // (the M4 registration predates explicit stamping). openCypher
+  // `n.seeded = false` would skip them — the coalesce buckets "absent" with
+  // "explicitly false" so legacy user imports resolve in the imported cohort.
   const res = await session.roQuery(
-    'MATCH (n:ResearchDocument) WHERE n.seeded = $seeded\n     RETURN properties(n) AS row',
+    'MATCH (n:ResearchDocument) WHERE coalesce(n.seeded, false) = $seeded\n     RETURN properties(n) AS row',
     { seeded },
   );
   const documents = /** @type {Array<Record<string, unknown>>} */ (res.data ?? [])

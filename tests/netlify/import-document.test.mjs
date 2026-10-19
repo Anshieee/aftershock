@@ -160,13 +160,21 @@ describe('import-document handler — metadata-only registration', () => {
     expect(versionWrite.params.sourceHash).toBe(expectedHash);
     expect(versionWrite.params.id).toBe(body.versionId);
     expect(docWrite.params.id).toBe(body.documentId);
+    // User content is stamped `seeded: false` EXPLICITLY (document + version):
+    // read surfaces bucket the seeded cohort by this property, and openCypher
+    // `n.seeded = false` skips ABSENT properties — without the stamp, imports
+    // are ghosts invisible to `/documents` AND `/documents-imported`.
+    expect(docWrite.cypher).toMatch(/d\.seeded = \$seeded/);
+    expect(docWrite.params.seeded).toBe(false);
+    expect(versionWrite.cypher).toMatch(/v\.seeded = \$seeded/);
+    expect(versionWrite.params.seeded).toBe(false);
+    // Reseed wipes target `seeded = true` nodes only — the explicit false
+    // stamp keeps user documents outside the wipe scope while making them
+    // visible to the imported-documents read cohort.
+    expect(edgeWrite.params).not.toHaveProperty('seeded');
     expect(edgeWrite.cypher).toContain('DOCUMENT_HAS_VERSION');
     expect(edgeWrite.params.provenanceKind).toBe('observed');
     expect(typeof edgeWrite.params.rationale).toBe('string');
-    // No `seeded` flag: reseed wipes must never touch user documents.
-    for (const { params } of session.writes) {
-      expect(Object.keys(params)).not.toContain('seeded');
-    }
   });
 
   it('uses the real registerDocumentImport op with the real sha256 helper', async () => {

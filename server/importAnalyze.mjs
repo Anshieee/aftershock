@@ -114,12 +114,17 @@ export async function registerDocumentImport(session, { fileName, format, sizeBy
   const versionId = randomUUID();
 
   // Metadata only: no content bytes, no extracted text, no page claims.
+  // `seeded: false` is STAMPED EXPLICITLY: read surfaces bucket documents by
+  // the seeded property (`/documents` = seeded cohort, `/documents-imported` =
+  // user imports), and openCypher `n.seeded = false` does NOT match a node
+  // whose `seeded` property is ABSENT — without this stamp user imports would
+  // be invisible to both cohorts (regression: legacy imports were ghosts).
   await session.writeQuery(
     `CREATE (d:ResearchDocument)
      SET d.id = $id, d.title = $fileName, d.fileName = $fileName, d.format = $format,
          d.sizeBytes = $sizeBytes, d.sourceHash = $sourceHash, d.importedAt = $ts,
          d.versionId = $versionId, d.contentStored = $contentStored, d.isSynthetic = $isSynthetic,
-         d.provenanceKind = $provenanceKind, d.analysisVersion = $analysisVersion,
+         d.seeded = $seeded, d.provenanceKind = $provenanceKind, d.analysisVersion = $analysisVersion,
          d.createdAt = $ts, d.updatedAt = $ts`,
     {
       id: documentId,
@@ -131,6 +136,7 @@ export async function registerDocumentImport(session, { fileName, format, sizeBy
       versionId,
       contentStored: false,
       isSynthetic: false,
+      seeded: false,
       provenanceKind: 'observed',
       analysisVersion: IMPORT_ANALYSIS_VERSION,
     },
@@ -139,7 +145,7 @@ export async function registerDocumentImport(session, { fileName, format, sizeBy
   await session.writeQuery(
     `CREATE (v:DocumentVersion)
      SET v.id = $id, v.documentId = $documentId, v.label = $label, v.sourceHash = $sourceHash,
-         v.contentStored = $contentStored, v.isSynthetic = $isSynthetic,
+         v.contentStored = $contentStored, v.isSynthetic = $isSynthetic, v.seeded = $seeded,
          v.provenanceKind = $provenanceKind, v.analysisVersion = $analysisVersion,
          v.createdAt = $ts, v.updatedAt = $ts`,
     {
@@ -149,6 +155,7 @@ export async function registerDocumentImport(session, { fileName, format, sizeBy
       sourceHash,
       contentStored: false,
       isSynthetic: false,
+      seeded: false,
       provenanceKind: 'observed',
       analysisVersion: IMPORT_ANALYSIS_VERSION,
       ts,

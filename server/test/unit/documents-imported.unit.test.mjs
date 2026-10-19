@@ -60,6 +60,20 @@ const IMPORTED_DOC_2 = {
   isSynthetic: false,
 };
 
+/** Legacy M4 import: `seeded` property ABSENT (ghost node — regresses to true). */
+const LEGACY_GHOST_DOC = {
+  id: 'doc-imported-legacy',
+  title: 'Legacy Import (no seeded stamp)',
+  fileName: 'legacy.pdf',
+  format: 'pdf',
+  sizeBytes: 2048,
+  importedAt: '2026-02-01T00:00:00.000Z',
+  versionId: 'ver-imported-legacy-v1',
+  provenanceKind: 'human_confirmed',
+  analysisVersion: 'seed-1',
+  isSynthetic: false,
+};
+
 /* ------------------------------------------------------------------ *
  * Test doubles: scripted fake session + layer
  * ------------------------------------------------------------------ */
@@ -78,7 +92,10 @@ function buildFakeSession({ documents = [], fail = false } = {}) {
       reads.push({ cypher, params });
       if (fail) throw new ConnectionError('graph is down');
       const seeded = params.seeded;
-      const data = documents.filter((d) => d.seeded === seeded).map((d) => ({ row: d }));
+      // Mirror readDocuments' actual query semantics: coalesce(n.seeded,false)
+      // buckets "absent property" together with "explicitly false" (legacy
+      // ghost imports must resolve in the imported cohort).
+      const data = documents.filter((d) => /** @type {boolean} */ ((d.seeded ?? false)) === seeded).map((d) => ({ row: d }));
       return { data };
     },
     async close() {},
@@ -168,6 +185,24 @@ describe('readDocuments — seeded filter', () => {
     const { session } = buildFakeSession({ documents: [SEeded_DOC] });
     const result = await readDocuments(session, { seeded: false });
     expect(result.documents).toEqual([]);
+  });
+
+  it('resolves LEGACY imports whose seeded property is absent in the imported cohort (regression)', async () => {
+    // Regression for the production drift: M4-era registrations carried no
+    // `seeded` property, and openCypher `n.seeded = false` skips absent
+    // properties — user imports were invisible to BOTH read cohorts. The
+    // coalesce bucket treats absent as false.
+    const { session, reads } = buildFakeSession({
+      documents: [SEeded_DOC, IMPORTED_DOC, LEGACY_GHOST_DOC],
+    });
+    const imported = await readDocuments(session, { seeded: false });
+    expect(imported.documents.map((d) => d.id)).toEqual(['doc-imported-1', 'doc-imported-legacy']);
+    // The seeded cohort never includes the ghost.
+    const seededCohort = await readDocuments(session, { seeded: true });
+    expect(seededCohort.documents.map((d) => d.id)).toEqual(['doc-demo-manuscript']);
+    for (const { cypher, params } of reads) {
+      expect(() => assertParameterized(cypher, params ?? {})).not.toThrow();
+    }
   });
 
   it('returns an empty array and seedVersion null when the graph does not exist', async () => {
