@@ -29,13 +29,6 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
   await expect(input).toHaveAttribute('type', 'file');
   await expect(input).toHaveAttribute('accept', /\.pdf|\.docx|\.txt/);
 
-test('a native file input is present (no fake uploader)', async ({ page }) => {
-  await page.goto('/');
-  const input = page.locator('[data-testid="import-input"]');
-  await expect(input).toBeAttached();
-  await expect(input).toHaveAttribute('type', 'file');
-  await expect(input).toHaveAttribute('accept', /\.pdf|\.docx|\.txt/);
-
   // Selecting a real file triggers an honest client-side state change:
   // the selection state reflects the file name and never fabricates
   // analysis results. The server may accept, reject, or still be
@@ -52,7 +45,6 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
   // Never fabricate analysis/extraction/verification claims.
   await expect(statusText).not.toContainText(/analyzed|extracted citation|verified/i);
   await expect(statusText).not.toContainText(/imported successfully|analysis complete|registered successfully/i);
-});
 });
 
 test('secondary Bibliography / Single DOI are honestly gated, not faked', async ({ page }) => {
