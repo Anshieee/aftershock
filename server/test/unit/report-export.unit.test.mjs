@@ -17,9 +17,11 @@ import {
 } from '../../graphClient.mjs';
 import {
   createExportReportHandler,
+  buildReportPdfPlan,
 } from '../../../netlify/functions/export-report.mjs';
 import {
   createExportRevisionPackHandler,
+  buildRevisionPackDocxPlan,
 } from '../../../netlify/functions/export-revision-pack.mjs';
 import {
   createExportAnnotatedManuscriptHandler,
@@ -33,6 +35,9 @@ import {
   ExportNotFoundError,
   SYNTHETIC_LABEL,
   EXPORT_ANALYSIS_VERSION,
+  REVISION_PACK_LABELS,
+  exportStatusDisplay,
+  acceptanceStatusDisplay,
 } from '../../reportExport.mjs';
 
 const GRAPH_NAME = 'test-graph';
@@ -209,15 +214,21 @@ function buildFakeSession({ fail = false, caseNode } = {}) {
       if (cypher.includes('WHERE n.id = $caseId')) {
         return { data: state ? [{ id: state.id, text: state.text, kind: state.kind, reviewState: state.reviewState, reviewFlags: state.reviewFlags }] : [] };
       }
-      // Review decisions (getReviewDecisionsForCase)
+      // Review decisions (getReviewDecisionsForCase). The real Cypher orders
+      // by d.decidedAt ASC; the fake mirrors that contract here.
       if (cypher.includes('ReviewDecision') && cypher.includes('WHERE d.caseId')) {
         return {
-          data: decisions.filter((d) => d.caseId === params.caseId).map((d) => ({ ...d, beforeState: JSON.stringify(d.beforeState), afterState: JSON.stringify(d.afterState) })),
+          data: decisions
+            .filter((d) => d.caseId === params.caseId)
+            .slice()
+            .sort((a, b) => String(a.decidedAt).localeCompare(String(b.decidedAt)))
+            .map((d) => ({ ...d, beforeState: JSON.stringify(d.beforeState), afterState: JSON.stringify(d.afterState) })),
         };
       }
-      // Revision proposals
+      // Revision proposals. Graph rows are aliased proposalId; the fake
+      // mirrors that alias from the stored id.
       if (cypher.includes('RevisionProposal') && cypher.includes('WHERE p.caseId = $caseId')) {
-        return { data: proposals.map((p) => ({ ...p })) };
+        return { data: proposals.map((p) => ({ ...p, proposalId: p.id })) };
       }
       return { data: [] };
     },
@@ -249,6 +260,86 @@ function requestFor(url, body) {
 
 async function bufferOf(res) {
   return Buffer.from(await res.arrayBuffer());
+}
+
+/** Builds a ReviewDecision-shaped row for the fake session's decisions array. */
+function decisionRow({ decidedAt, caseId = CASE_ID, outcome = 'revision_needed', explanation = 'Human explanation for this decision.' }) {
+  return {
+    id: `dec-${decidedAt}`,
+    caseId,
+    outcome,
+    explanation,
+    reviewer: 'reviewer-1',
+    decidedAt,
+    beforeState: { reviewState: 'awaiting_review', flags: [] },
+    afterState: { reviewState: 'review_recorded', flags: ['revision_pending'] },
+    provenanceKind: 'human_confirmed',
+    analysisVersion: 'seed-1',
+    createdAt: decidedAt,
+    updatedAt: decidedAt,
+  };
+}
+
+/** Default revision-pack fixture: case node + one draft proposal + two decisions. */
+async function richRevisionPackData() {
+  const fake = buildFakeSession({ caseNode: { id: CASE_ID, text: 'Original claim text.', kind: 'Claim' } });
+  fake.proposals.push({
+    id: 'prop-1', caseId: CASE_ID, originalText: 'Original claim text.',
+    proposedText: 'Revised claim text.', rationale: 'More precise.',
+    status: 'draft', createdAt: '2026-10-03T08:00:00.000Z', updatedAt: '2026-10-03T08:00:00.000Z',
+    provenanceKind: 'human_confirmed', analysisVersion: 'seed-1',
+  });
+  fake.decisions.push(decisionRow({ decidedAt: '2026-10-02T10:00:00.000Z', outcome: 'more_evidence_needed' }));
+  fake.decisions.push(decisionRow({ decidedAt: '2026-10-01T10:00:00.000Z', outcome: 'revision_needed' }));
+  const data = await assembleRevisionPack(fake.session, { caseId: CASE_ID });
+  return { fake, data };
+}
+
+/** Default export-report fixture (flagged claim, decision trail, unresolved refs). */
+async function richExportReportData() {
+  const fake = buildFakeSession();
+  fake.decisions.push(decisionRow({ decidedAt: '2026-10-02T10:00:00.000Z', outcome: 'revision_needed' }));
+  const data = await assembleExportReport(fake.session, { caseId: CASE_ID, format: 'pdf' });
+  return { fake, data };
+}
+
+/**
+ * Verdict vocabulary the e2e suites ban (review-queue.spec VERDICT_LANGUAGE,
+ * plus the claim-statement variants from the export honesty rules). The
+ * verbatim limitation strings quote these words in a negated policy sentence,
+ * so verbatim limitations are exempt from this scan.
+ */
+const BANNED_VERDICT_LANGUAGE = /\b(disproven|debunked|proven false|claim is false|claims? (?:is|are) false|verified false|invalidated|certified|unsupported)\b/i;
+
+/** Collects every user-visible string from a PDF render plan. */
+function planStrings(plan, limitations = []) {
+  /** @type {string[]} */
+  const strings = [];
+  for (const section of plan) {
+    strings.push(section.heading);
+    for (const item of section.items) {
+      if (item.type === 'kv') strings.push(item.k, item.v);
+      else if (item.type === 'entry') strings.push(item.title, ...item.lines);
+      else strings.push(item.text);
+    }
+  }
+  return strings.filter((s) => !limitations.includes(s));
+}
+
+/** Collects every user-visible string from a DOCX render plan. */
+function docxPlanStrings(blocks, limitations = []) {
+  /** @type {string[]} */
+  const strings = [];
+  for (const block of blocks) {
+    if (block.kind === 'table') {
+      for (const [k, v] of block.rows) strings.push(k, v);
+      continue;
+    }
+    if (block.k !== undefined) strings.push(block.k);
+    if (block.v !== undefined) strings.push(block.v);
+    if (block.text !== undefined) strings.push(block.text);
+  }
+  return strings.filter((s) => !limitations.includes(s));
 }
 
 /* ------------------------------------------------------------------ *
@@ -410,6 +501,123 @@ describe('assembleRevisionPack — op', () => {
     const { session } = buildFakeSession({ caseNode: null });
     await expect(assembleRevisionPack(session, { caseId: 'no-such-case' })).rejects.toThrow(ExportNotFoundError);
   });
+
+  it('pairs a labeled immutable original with a labeled draft proposed text', async () => {
+    const { session, proposals } = buildFakeSession({
+      caseNode: { id: CASE_ID, text: 'Original claim text.', kind: 'Claim' },
+    });
+    proposals.push({
+      id: 'prop-1', caseId: CASE_ID, originalText: 'Original claim text.',
+      proposedText: 'Revised claim text.', rationale: 'More precise.',
+      status: 'draft', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      provenanceKind: 'human_confirmed', analysisVersion: 'seed-1',
+    });
+
+    const data = await assembleRevisionPack(session, { caseId: CASE_ID });
+
+    expect(data.textPair.original).toEqual({
+      label: 'Original passage (recorded; immutable)',
+      text: 'Original claim text.',
+      immutable: true,
+      note: expect.any(String),
+    });
+    expect(data.textPair.proposed).toEqual({
+      label: 'Proposed revision (draft)',
+      text: 'Revised claim text.',
+      proposalId: 'prop-1',
+      status: 'draft',
+      immutable: false,
+      note: expect.any(String),
+    });
+    // The original pair text is the recorded case text — verbatim, unmodified.
+    expect(data.textPair.original.text).toBe(data.case.text);
+    expect(data.textPair.original.note).toContain('immutable');
+  });
+
+  it('renders the absent-proposal pair honestly instead of inventing a draft', async () => {
+    const { session } = buildFakeSession({ caseNode: { id: CASE_ID, text: 't', kind: 'Claim' } });
+    const data = await assembleRevisionPack(session, { caseId: CASE_ID });
+    expect(data.textPair.proposed).toBeNull();
+    expect(data.textPair.noProposalNote).toBe('No proposed revision (draft) is recorded for this case; none is invented here.');
+  });
+
+  it('frames acceptance status so a draft proposal never reads as applied', async () => {
+    const { session, proposals } = buildFakeSession({
+      caseNode: { id: CASE_ID, text: 't', kind: 'Claim' },
+    });
+    proposals.push({
+      id: 'prop-1', caseId: CASE_ID, originalText: 't',
+      proposedText: 'Revised.', rationale: undefined,
+      status: 'draft', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      provenanceKind: 'human_confirmed', analysisVersion: 'seed-1',
+    });
+
+    const withDraft = await assembleRevisionPack(session, { caseId: CASE_ID });
+    expect(withDraft.acceptanceDisplay.applied).toBe(false);
+    expect(withDraft.acceptanceDisplay.label).toBe('DRAFT — not applied (awaiting human acceptance)');
+    expect(withDraft.acceptanceDisplay.note).toContain('must never be read as applied');
+
+    const withoutDraft = await assembleRevisionPack(buildFakeSession({ caseNode: { id: CASE_ID, text: 't', kind: 'Claim' } }).session, { caseId: CASE_ID });
+    expect(withoutDraft.acceptanceDisplay.applied).toBe(false);
+    expect(withoutDraft.acceptanceDisplay.label).toBe('NONE — no draft revision recorded');
+  });
+
+  it('surfaces the FULL review decision trail (not latest-only), ordered by decidedAt', async () => {
+    const { session, decisions } = buildFakeSession({
+      caseNode: { id: CASE_ID, text: 't', kind: 'Claim' },
+    });
+    // Inserted out of order — the fake mirrors the query's ORDER BY.
+    decisions.push(decisionRow({ decidedAt: '2026-10-02T10:00:00.000Z', outcome: 'more_evidence_needed' }));
+    decisions.push(decisionRow({ decidedAt: '2026-10-01T10:00:00.000Z', outcome: 'revision_needed' }));
+
+    const data = await assembleRevisionPack(session, { caseId: CASE_ID });
+
+    expect(data.reviewDecisions).toHaveLength(2);
+    expect(data.reviewDecisions.map((d) => d.decidedAt)).toEqual([
+      '2026-10-01T10:00:00.000Z',
+      '2026-10-02T10:00:00.000Z',
+    ]);
+    // Latest decision stays consistent with the trail's last entry.
+    expect(data.evidenceConcern.latestReviewDecision.id).toBe(data.reviewDecisions[1].id);
+  });
+
+  it('discloses graph-wide unresolved reference occurrences with count + list', async () => {
+    const { session } = buildFakeSession({ caseNode: { id: CASE_ID, text: 't', kind: 'Claim' } });
+    const data = await assembleRevisionPack(session, { caseId: CASE_ID });
+    expect(data.unresolvedReferences.count).toBe(1);
+    expect(data.unresolvedReferences.items).toHaveLength(1);
+    expect(data.unresolvedReferences.items[0].occurrence.id).toBe('ref-lee-2020');
+    expect(data.unresolvedReferences.items[0].onlyPossibleMatches).toBe(true);
+    expect(data.unresolvedReferences.scopeNote).toContain('disclosure, never propagation');
+  });
+
+  it('carries the snapshot/version block from assembled values', async () => {
+    const { session } = buildFakeSession({ caseNode: { id: CASE_ID, text: 't', kind: 'Claim' } });
+    const data = await assembleRevisionPack(session, { caseId: CASE_ID });
+    expect(data.snapshot.analysisVersion).toBe(EXPORT_ANALYSIS_VERSION);
+    expect(data.snapshot.format).toBe('docx');
+    expect(data.snapshot.seedVersion).toBe('seed-1'); // fixture value, echoed as assembled
+    expect(data.snapshot.generatedAt).toMatch(ISO_RE);
+    expect(data.snapshot.generatedAt).toBe(data.snapshot.snapshotTakenAt);
+  });
+
+  it('keeps the explicit limitations strings verbatim in the payload', async () => {
+    const { session } = buildFakeSession({ caseNode: { id: CASE_ID, text: 't', kind: 'Claim' } });
+    const data = await assembleRevisionPack(session, { caseId: CASE_ID });
+    expect(data.limitations).toContain('Original claim/conclusion text is immutable; this pack never modifies it.');
+    expect(data.limitations).toContain('A revision proposal is status "draft" until a human accepts it; copying is not applying.');
+    expect(data.limitations).toContain('A review flag means "needs human review" — never "disproven/proven".');
+    expect(data.limitations).toContain('This pack is a snapshot at generation time; it is not re-verified after generation.');
+    expect(data.limitations.some((l) => l.includes('graph-wide at snapshot time'))).toBe(true);
+  });
+
+  it('assertParameterizes every Cypher string it sends', async () => {
+    const { session, reads } = buildFakeSession({ caseNode: { id: CASE_ID, text: 't', kind: 'Claim' } });
+    await assembleRevisionPack(session, { caseId: CASE_ID });
+    for (const { cypher, params } of reads) {
+      expect(() => assertParameterized(cypher, params ?? {})).not.toThrow();
+    }
+  });
 });
 
 /* ------------------------------------------------------------------ *
@@ -450,6 +658,186 @@ describe('assembleAnnotatedManuscript — op', () => {
 
     expect(data.integrity.label).toBe(SYNTHETIC_LABEL);
     expect(data.integrity.fabricatedContent).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Honest status/acceptance display helpers (shared by both renderers)
+ * ------------------------------------------------------------------ */
+
+describe('export status + acceptance display helpers', () => {
+  it('never lets "complete" read as a scientific validation', () => {
+    expect(exportStatusDisplay('complete')).toBe('COMPLETE — review-workflow snapshot only; not a scientific validation or verdict');
+    expect(exportStatusDisplay('incomplete')).toBe('INCOMPLETE — open review items remain at snapshot time');
+    expect(exportStatusDisplay('weird')).toContain('not a scientific verdict');
+  });
+
+  it('keeps every acceptance status "not applied"', () => {
+    for (const status of ['draft', 'none', 'something_else']) {
+      const display = acceptanceStatusDisplay(status);
+      expect(display.applied).toBe(false);
+      expect(display.label === 'NONE — no draft revision recorded' || display.label.includes('not applied')).toBe(true);
+      expect(display.note.length).toBeGreaterThan(0);
+    }
+    expect(acceptanceStatusDisplay('draft').label).toBe('DRAFT — not applied (awaiting human acceptance)');
+    expect(acceptanceStatusDisplay('none').label).toBe('NONE — no draft revision recorded');
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * buildReportPdfPlan — pure renderer structure (deterministic, no binary)
+ * ------------------------------------------------------------------ */
+
+describe('buildReportPdfPlan — render structure', () => {
+  it('keeps a fixed section order covering every data section', async () => {
+    const { data } = await richExportReportData();
+    const plan = buildReportPdfPlan(data);
+    expect(plan.map((s) => s.heading)).toEqual([
+      'Export snapshot',
+      'Scientific integrity (export disclosure)',
+      'Graph overview (at snapshot time)',
+      'Verified source notices',
+      'Affected claims — direct evidence review',
+      'Affected conclusions — indirect evidence review',
+      'Historical-discussion claims (explicitly excluded from flagged set)',
+      'Unresolved reference occurrences (disclosure, never propagation)',
+      'Review decisions for this case',
+      'Revision proposals for this case',
+      'Limitations & coverage',
+    ]);
+  });
+
+  it('renders snapshot/version details from the assembled data, not literals', async () => {
+    const { data } = await richExportReportData();
+    const plan = buildReportPdfPlan(data);
+    const snapshotSection = plan[0];
+    const kv = Object.fromEntries(snapshotSection.items.map((item) => [item.k, item.v]));
+    expect(kv['Analysis version']).toBe(data.snapshot.analysisVersion);
+    expect(kv['Export version']).toBe(data.snapshot.version);
+    expect(kv['Export status']).toBe(exportStatusDisplay(data.snapshot.status));
+    expect(kv['Seed version']).toBe(data.snapshot.seedVersion);
+    expect(kv['Generated at']).toBe(data.snapshot.generatedAt);
+    expect(kv['Snapshot taken at']).toBe(data.snapshot.snapshotTakenAt);
+  });
+
+  it('renders limitations verbatim as bullets', async () => {
+    const { data } = await richExportReportData();
+    const plan = buildReportPdfPlan(data);
+    const limitationsSection = plan[plan.length - 1];
+    expect(limitationsSection.heading).toBe('Limitations & coverage');
+    expect(limitationsSection.items.map((i) => i.text)).toEqual(data.limitations);
+  });
+
+  it('renders the review decision trail and all review-flag messages', async () => {
+    const { data } = await richExportReportData();
+    const plan = buildReportPdfPlan(data);
+    const decisionsSection = plan.find((s) => s.heading === 'Review decisions for this case');
+    expect(decisionsSection.items).toHaveLength(1);
+    expect(decisionsSection.items[0].title).toContain(data.reviewDecisions[0].id);
+    const planText = planStrings(plan, data.limitations).join('\n');
+    expect(planText).toContain('needs human review');
+  });
+
+  it('uses needs-review vocabulary only — no verdict language outside verbatim limitations', async () => {
+    const { data } = await richExportReportData();
+    const scanned = planStrings(buildReportPdfPlan(data), data.limitations);
+    for (const s of scanned) {
+      expect(s).not.toMatch(BANNED_VERDICT_LANGUAGE);
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * buildRevisionPackDocxPlan — pure renderer structure (deterministic)
+ * ------------------------------------------------------------------ */
+
+describe('buildRevisionPackDocxPlan — render structure', () => {
+  it('keeps a fixed heading hierarchy covering every data section', async () => {
+    const { data } = await richRevisionPackData();
+    const blocks = buildRevisionPackDocxPlan(data);
+    expect(blocks.filter((b) => b.kind === 'h1').map((b) => b.text)).toEqual([
+      'Export snapshot',
+      'Scientific integrity (export disclosure)',
+      'Case under review',
+      'Original passage vs proposed revision',
+      'Evidence concern',
+      REVISION_PACK_LABELS.reviewTrailHeading,
+      'Publication & source notice',
+      REVISION_PACK_LABELS.unresolvedHeading,
+      'Limitations & coverage',
+    ]);
+    expect(blocks.filter((b) => b.kind === 'h2').map((b) => b.text)).toEqual([
+      REVISION_PACK_LABELS.originalHeading,
+      REVISION_PACK_LABELS.proposedHeading,
+      REVISION_PACK_LABELS.acceptanceHeading,
+      REVISION_PACK_LABELS.rationaleHeading,
+    ]);
+  });
+
+  it('renders the labeled original/proposed pair with verbatim recorded text', async () => {
+    const { data } = await richRevisionPackData();
+    const blocks = buildRevisionPackDocxPlan(data);
+    const originalIdx = blocks.findIndex((b) => b.kind === 'h2' && b.text === REVISION_PACK_LABELS.originalHeading);
+    const proposedIdx = blocks.findIndex((b) => b.kind === 'h2' && b.text === REVISION_PACK_LABELS.proposedHeading);
+    expect(originalIdx).toBeGreaterThan(-1);
+    expect(proposedIdx).toBeGreaterThan(originalIdx);
+    // Original passage is quoted verbatim (never modified), proposed is quoted as draft.
+    expect(blocks[originalIdx + 1]).toMatchObject({ kind: 'quote', text: data.textPair.original.text });
+    expect(blocks[proposedIdx + 1]).toMatchObject({ kind: 'quote', text: data.textPair.proposed.text, tone: 'amber' });
+  });
+
+  it('renders the absent-proposal case honestly — no draft invented', async () => {
+    const fake = buildFakeSession({ caseNode: { id: CASE_ID, text: 'Original claim text.', kind: 'Claim' } });
+    const data = await assembleRevisionPack(fake.session, { caseId: CASE_ID });
+    const blocks = buildRevisionPackDocxPlan(data);
+    expect(blocks.some((b) => b.kind === 'h2' && b.text === REVISION_PACK_LABELS.proposedHeading)).toBe(false);
+    expect(blocks.some((b) => b.kind === 'note' && b.text === REVISION_PACK_LABELS.noProposalNote)).toBe(true);
+    // Acceptance status still displayed, still never applied.
+    const acceptanceField = blocks.find((b) => b.kind === 'field' && b.k === 'Acceptance status');
+    expect(acceptanceField.v).toBe('NONE — no draft revision recorded');
+  });
+
+  it('renders snapshot/version details in the table from assembled data, not literals', async () => {
+    const { data } = await richRevisionPackData();
+    const blocks = buildRevisionPackDocxPlan(data);
+    const table = blocks.find((b) => b.kind === 'table');
+    const kv = Object.fromEntries(table.rows);
+    expect(kv['Analysis version']).toBe(data.snapshot.analysisVersion);
+    expect(kv['Export version']).toBe(data.snapshot.version);
+    expect(kv['Export status']).toBe(exportStatusDisplay(data.snapshot.status));
+    expect(kv['Seed version']).toBe(data.snapshot.seedVersion);
+    expect(kv['Snapshot taken at']).toBe(data.snapshot.snapshotTakenAt);
+  });
+
+  it('renders the full decision trail ordered by decidedAt', async () => {
+    const { data } = await richRevisionPackData();
+    const blocks = buildRevisionPackDocxPlan(data);
+    const trail = blocks.filter((b) => b.kind === 'field' && b.k.startsWith('Decision '));
+    expect(trail).toHaveLength(2);
+    // Fake session mirrors ORDER BY decidedAt ASC.
+    expect(trail[0].v).toContain(data.reviewDecisions[0].outcome);
+    expect(trail[1].v).toContain(data.reviewDecisions[1].outcome);
+  });
+
+  it('renders unresolved reference count + candidates and limitations verbatim', async () => {
+    const { data } = await richRevisionPackData();
+    const blocks = buildRevisionPackDocxPlan(data);
+    const countField = blocks.find((b) => b.kind === 'field' && b.k === REVISION_PACK_LABELS.unresolvedCountLabel);
+    expect(countField.v).toBe(String(data.unresolvedReferences.count));
+    // Limitations bullets are the payload strings verbatim.
+    const limitationsStart = blocks.findIndex((b) => b.kind === 'h1' && b.text === 'Limitations & coverage');
+    const limitationBullets = blocks.slice(limitationsStart + 1).filter((b) => b.kind === 'bullet').map((b) => b.text);
+    expect(limitationBullets).toEqual(data.limitations);
+  });
+
+  it('uses needs-review vocabulary only — no verdict language outside verbatim limitations', async () => {
+    const { data } = await richRevisionPackData();
+    const scanned = docxPlanStrings(buildRevisionPackDocxPlan(data), data.limitations);
+    for (const s of scanned) {
+      expect(s).not.toMatch(BANNED_VERDICT_LANGUAGE);
+    }
+    const planText = scanned.join('\n');
+    expect(planText).toContain('must never be read as applied');
   });
 });
 
@@ -619,6 +1007,46 @@ describe('createExportAnnotatedManuscriptHandler — HTTP', () => {
 /* ------------------------------------------------------------------ *
  * Rate limiting passthrough (handlers)
  * ------------------------------------------------------------------ */
+
+describe('export handlers — rich fixture render smoke', () => {
+  const base = `http://localhost/${GRAPH_NAME}`;
+
+  it('renders a PDF through the real renderer with a rich decision trail', async () => {
+    const fake = buildFakeSession();
+    fake.decisions.push(decisionRow({ decidedAt: '2026-10-02T10:00:00.000Z', outcome: 'revision_needed' }));
+    const handler = createExportReportHandler({
+      env: envWithGraph(),
+      layer: buildFakeLayer(fake.session),
+      assemble: assembleExportReport,
+    });
+    const res = await handler(requestFor(`${base}/export-report?caseId=${CASE_ID}`, { format: 'pdf' }));
+    expect(res.status).toBe(200);
+    const body = await bufferOf(res);
+    expect(body.slice(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('renders a DOCX through the real renderer with proposal + decision trail', async () => {
+    const fake = buildFakeSession({
+      caseNode: { id: CASE_ID, text: 'Original claim text.', kind: 'Claim' },
+    });
+    fake.proposals.push({
+      id: 'prop-1', caseId: CASE_ID, originalText: 'Original claim text.',
+      proposedText: 'Revised claim text.', rationale: 'More precise.',
+      status: 'draft', createdAt: '2026-10-03T08:00:00.000Z', updatedAt: '2026-10-03T08:00:00.000Z',
+      provenanceKind: 'human_confirmed', analysisVersion: 'seed-1',
+    });
+    fake.decisions.push(decisionRow({ decidedAt: '2026-10-02T10:00:00.000Z', outcome: 'revision_needed' }));
+    const handler = createExportRevisionPackHandler({
+      env: envWithGraph(),
+      layer: buildFakeLayer(fake.session),
+      assemble: assembleRevisionPack,
+    });
+    const res = await handler(requestFor(`${base}/export-revision-pack?caseId=${CASE_ID}`, {}));
+    expect(res.status).toBe(200);
+    const body = await bufferOf(res);
+    expect(body.slice(0, 2).toString()).toBe('PK');
+  });
+});
 
 describe('export handlers — rate limiting', () => {
   const base = `http://localhost/${GRAPH_NAME}`;

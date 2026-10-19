@@ -27,7 +27,7 @@ import {
   textBodyOf,
   withSession,
 } from '../../server/demoApi.mjs';
-import { assembleExportReport, validateExportCaseId } from '../../server/reportExport.mjs';
+import { assembleExportReport, exportStatusDisplay, validateExportCaseId } from '../../server/reportExport.mjs';
 import { PDFDocument } from 'pdfkit';
 
 /** Wall-clock budget: must stay below the client's 10 s abort. */
@@ -37,10 +37,193 @@ const CONTENT_TYPE = 'application/pdf';
 const FILENAME = 'evidence-impact-report.pdf';
 
 /**
- * Render the assembled export report data into a PDF buffer.
- * Professional layout: branding, metadata, executive summary, notices,
- * impacted claims (direct/indirect), historical exclusions, unresolved refs,
- * review decisions, outstanding tasks, limitations, timestamps.
+ * @typedef {{type:'kv', k:string, v:string} |
+ *           {type:'bullet', text:string} |
+ *           {type:'note', text:string} |
+ *           {type:'text', text:string} |
+ *           {type:'entry', title:string, lines:string[], tone?:'alert'}} PlanItem
+ * @typedef {{heading:string, items:PlanItem[]}} PlanSection
+ */
+
+/**
+ * Pure, deterministic structural plan for the Evidence Impact Report (unit-
+ * testable without binary comparison). renderReportPdf consumes this; every
+ * value flows from the assembled `data` (never hardcoded), every data section
+ * is preserved (verified notices, affected direct/indirect, historical
+ * exclusions, unresolved, review decisions, proposals, limitations, integrity
+ * block), and wording stays guard-clean (needs-review vocabulary, no verdict
+ * language).
+ * @param {import('../../server/reportExport.mjs').ReturnType<typeof import('../../server/reportExport.mjs').assembleExportReport>} data
+ * @returns {PlanSection[]}
+ */
+export function buildReportPdfPlan(data) {
+  /** @type {PlanSection[]} */
+  const sections = [];
+
+  sections.push({
+    heading: 'Export snapshot',
+    items: [
+      { type: 'kv', k: 'Generated at', v: data.snapshot.generatedAt },
+      { type: 'kv', k: 'Snapshot taken at', v: data.snapshot.snapshotTakenAt },
+      { type: 'kv', k: 'Case id', v: data.snapshot.caseId },
+      { type: 'kv', k: 'Format', v: data.snapshot.format },
+      { type: 'kv', k: 'Analysis version', v: data.snapshot.analysisVersion },
+      { type: 'kv', k: 'Export version', v: data.snapshot.version },
+      { type: 'kv', k: 'Export status', v: exportStatusDisplay(data.snapshot.status) },
+      { type: 'kv', k: 'Seed version', v: data.snapshot.seedVersion ?? '(none — unseeded graph)' },
+    ],
+  });
+
+  sections.push({
+    heading: 'Scientific integrity (export disclosure)',
+    items: [
+      { type: 'bullet', text: `Content label: ${data.integrity.label}` },
+      { type: 'bullet', text: `Verdict policy: ${data.integrity.verdictPolicy}` },
+      { type: 'bullet', text: `Relation-type policy: ${data.integrity.relationTypePolicy}` },
+      { type: 'bullet', text: `Historical exclusion: ${data.integrity.historicalExclusion}` },
+      { type: 'bullet', text: `Unresolved disclosure: ${data.integrity.unresolvedDisclosure}` },
+      { type: 'bullet', text: `Fabricated content: ${data.integrity.fabricatedContent ? 'yes' : 'no'}` },
+    ],
+  });
+
+  sections.push({
+    heading: 'Graph overview (at snapshot time)',
+    items: [
+      { type: 'kv', k: 'Node count', v: String(data.graph.nodeCount) },
+      { type: 'kv', k: 'Edge count', v: String(data.graph.edgeCount) },
+      ...(data.graph.manuscriptTitle ? [{ type: 'kv', k: 'Manuscript', v: data.graph.manuscriptTitle }] : []),
+    ],
+  });
+
+  sections.push({
+    heading: 'Verified source notices',
+    items: data.verifiedNotices.length === 0
+      ? [{ type: 'note', text: 'No verified source notices recorded in this graph snapshot.' }]
+      : data.verifiedNotices.map((vn) => ({
+          type: 'entry',
+          title: `Notice ${vn.notice.id} — ${vn.notice.noticeType}`,
+          tone: 'alert',
+          lines: [
+            `Publication: ${vn.publication.id} (${vn.publication.doi ?? 'no DOI'})`,
+            `Notice published: ${vn.notice.publishedDate ?? '(not recorded)'}   |   Verified: ${vn.notice.verified}`,
+            `Source: ${vn.notice.sourceUrl ?? '(none recorded)'}   |   Edge provenance: ${vn.edge.provenanceKind ?? '(none)'}`,
+            vn.reviewFlag.message,
+          ],
+        })),
+  });
+
+  sections.push({
+    heading: 'Affected claims — direct evidence review',
+    items: data.affected.claims.length === 0
+      ? [{ type: 'note', text: 'No claims directly supported by a publication carrying a verified status notice.' }]
+      : data.affected.claims.map((c) => ({
+          type: 'entry',
+          title: `Claim ${c.claim.id}`,
+          lines: [
+            `Text: ${c.claim.text ?? '(no text recorded)'}`,
+            `Via publication ${c.publication.id} through citation use ${c.citationUse.id} (role: ${c.citationUse.role}).`,
+            c.claim.reviewFlag.message,
+          ],
+        })),
+  });
+
+  sections.push({
+    heading: 'Affected conclusions — indirect evidence review',
+    items: data.affected.conclusions.length === 0
+      ? [{ type: 'note', text: 'No conclusions depending on a flagged claim.' }]
+      : data.affected.conclusions.map((con) => ({
+          type: 'entry',
+          title: `Conclusion ${con.conclusion.id}`,
+          lines: [
+            `Text: ${con.conclusion.text ?? '(no text recorded)'}`,
+            `Depends on claim ${con.conclusion.viaClaimId}.`,
+            con.conclusion.reviewFlag.message,
+          ],
+        })),
+  });
+
+  sections.push({
+    heading: 'Historical-discussion claims (explicitly excluded from flagged set)',
+    items: data.historical.length === 0
+      ? [{ type: 'note', text: 'No historical-discussion citation uses recorded.' }]
+      : data.historical.map((h) => ({
+          type: 'entry',
+          title: `Claim ${h.claim.id}`,
+          lines: [
+            `Text: ${h.claim.text ?? '(no text recorded)'}`,
+            `Mentions publication ${h.publicationId} historically — not a compromised-support signal.`,
+            h.claim.reviewFlag.message,
+          ],
+        })),
+  });
+
+  sections.push({
+    heading: 'Unresolved reference occurrences (disclosure, never propagation)',
+    items: data.unresolved.length === 0
+      ? [{ type: 'note', text: 'No unresolved reference occurrences recorded.' }]
+      : data.unresolved.map((u) => ({
+          type: 'entry',
+          title: `Reference ${u.occurrence.id}`,
+          lines: [
+            `State: ${u.occurrence.resolutionState}   |   Raw text: ${u.occurrence.text ?? '(none)'}`,
+            `Candidates (POSSIBLE_MATCH only, non-propagating): ${u.candidates.length === 0 ? 'none' : u.candidates.map((c) => c.publicationId).join(', ')}`,
+          ],
+        })),
+  });
+
+  sections.push({
+    heading: 'Review decisions for this case',
+    items: data.reviewDecisions.length === 0
+      ? [{ type: 'note', text: 'No review decisions recorded for this case.' }]
+      : data.reviewDecisions.map((d) => ({
+          type: 'entry',
+          title: `Decision ${d.id} — outcome: ${d.outcome}`,
+          lines: [
+            `Decided at ${d.decidedAt}   |   Reviewer: ${d.reviewer ?? '(not recorded)'}   |   Provenance: ${d.provenanceKind ?? '(none)'}`,
+            `Explanation: ${d.explanation}`,
+          ],
+        })),
+  });
+
+  sections.push({
+    heading: 'Revision proposals for this case',
+    items: data.revisionProposals.length === 0
+      ? [{ type: 'note', text: 'No revision proposals recorded for this case.' }]
+      : data.revisionProposals.map((p) => ({
+          type: 'entry',
+          title: `Proposal ${p.proposalId} — status: ${p.status}`,
+          lines: [
+            `Proposed text: ${p.proposedText ?? '(none)'}`,
+            `Rationale: ${p.rationale ?? '(none)'}   |   Created: ${p.createdAt ?? '(not recorded)'}`,
+          ],
+        })),
+  });
+
+  sections.push({
+    heading: 'Limitations & coverage',
+    items: data.limitations.map((lim) => ({ type: 'bullet', text: lim })),
+  });
+
+  return sections;
+}
+
+/** Consistent heading style for every section heading in the PDF. */
+function sectionHeading(doc, text) {
+  doc.fillColor('#27283B').fontSize(11.5).font('Helvetica-Bold').text(text.toUpperCase(), { characterSpacing: 0.4 });
+  doc.fillColor('#B85F59').lineWidth(0.7).moveTo(54, doc.y + 2).lineTo(doc.page.width - 54, doc.y + 2).stroke();
+  doc.moveDown(0.35);
+}
+
+/** Consistent key/value metadata row style. */
+function kvRow(doc, item) {
+  doc.fillColor('#27283B').font('Helvetica-Bold').text(`${item.k}:`, { continued: true, width: 130 });
+  doc.fillColor('#89857F').font('Helvetica').text(item.v);
+}
+
+/**
+ * Render the assembled export report data into a PDF buffer by walking the
+ * pure plan (buildReportPdfPlan), so hierarchy (heading → entry → lines),
+ * spacing and section ordering stay consistent by construction.
  * @param {import('../../server/reportExport.mjs').ReturnType<typeof import('../../server/reportExport.mjs').assembleExportReport>} data
  * @returns {Promise<Buffer>}
  */
@@ -66,166 +249,34 @@ async function renderReportPdf(data) {
     doc.strokeColor('#B85F59').lineWidth(1).moveTo(54, doc.y).lineTo(doc.page.width - 54, doc.y).stroke();
     doc.moveDown(0.8);
 
-    /* ---------- Snapshot / metadata ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Export snapshot');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    const snapshotRows = [
-      ['Generated at', data.snapshot.generatedAt],
-      ['Snapshot taken at', data.snapshot.snapshotTakenAt],
-      ['Case id', data.snapshot.caseId],
-      ['Format', data.snapshot.format],
-      ['Analysis version', data.snapshot.analysisVersion],
-      ['Export status', data.snapshot.status.toUpperCase()],
-      ['Seed version', data.snapshot.seedVersion ?? '(none — unseeded graph)'],
-    ];
-    for (const [k, v] of snapshotRows) {
-      doc.fillColor('#27283B').font('Helvetica-Bold').text(k + ':', { continued: true, width: 120 });
-      doc.fillColor('#89857F').font('Helvetica').text(v);
-    }
-    doc.moveDown(0.5);
-
-    /* ---------- Scientific integrity ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Scientific integrity (export disclosure)');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    const integrityLines = [
-      `Content label: ${data.integrity.label}`,
-      `Verdict policy: ${data.integrity.verdictPolicy}`,
-      `Relation-type policy: ${data.integrity.relationTypePolicy}`,
-      `Historical exclusion: ${data.integrity.historicalExclusion}`,
-      `Unresolved disclosure: ${data.integrity.unresolvedDisclosure}`,
-      `Fabricated content: ${data.integrity.fabricatedContent ? 'yes' : 'no'}`,
-    ];
-    for (const line of integrityLines) {
-      doc.text('• ' + line, { indent: 14 });
-    }
-    doc.moveDown(0.5);
-
-    /* ---------- Graph overview ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Graph overview (at snapshot time)');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    doc.text(`Node count: ${data.graph.nodeCount}   Edge count: ${data.graph.edgeCount}`);
-    if (data.graph.manuscriptTitle) {
-      doc.text(`Manuscript: ${data.graph.manuscriptTitle}`);
-    }
-    doc.moveDown(0.5);
-
-    /* ---------- Verified notices ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Verified source notices');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    if (data.verifiedNotices.length === 0) {
-      doc.text('No verified source notices recorded in this graph snapshot.', { indent: 14 });
-    } else {
-      for (const vn of data.verifiedNotices) {
-        doc.fillColor('#B85F59').font('Helvetica-Bold').text(`Notice ${vn.notice.id} — ${vn.notice.noticeType}`, { indent: 14 });
-        doc.fillColor('#89857F').font('Helvetica').text(`Publication: ${vn.publication.id} (${vn.publication.doi ?? 'no DOI'})`, { indent: 28 });
-        doc.text(`Notice published: ${vn.notice.publishedDate ?? '(not recorded)'}   |   Verified: ${vn.notice.verified}`, { indent: 28 });
-        doc.text(`Source: ${vn.notice.sourceUrl ?? '(none recorded)'}   |   Edge provenance: ${vn.edge.provenanceKind ?? '(none)'}`, { indent: 28 });
-        doc.text(`${vn.reviewFlag.message}`, { indent: 28 });
-        doc.moveDown(0.3);
+    for (const section of buildReportPdfPlan(data)) {
+      sectionHeading(doc, section.heading);
+      doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
+      for (const item of section.items) {
+        if (item.type === 'kv') {
+          kvRow(doc, item);
+        } else if (item.type === 'bullet') {
+          doc.text('• ' + item.text, { indent: 14 });
+        } else if (item.type === 'note') {
+          doc.fillColor('#89857F').fontSize(8.5).font('Helvetica-Oblique').text(item.text, { indent: 14 });
+          doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
+        } else if (item.type === 'text') {
+          doc.text(item.text, { indent: 14 });
+        } else {
+          // entry: bold title (alert-red for notices) + uniformly indented lines.
+          doc.fillColor(item.tone === 'alert' ? '#B85F59' : '#27283B').fontSize(8.5).font('Helvetica-Bold')
+            .text(item.title, { indent: 14 });
+          doc.fontSize(8.5).font('Helvetica');
+          for (const line of item.lines) {
+            doc.text(line, { indent: 28 });
+          }
+          doc.moveDown(0.3);
+        }
       }
+      doc.moveDown(0.5);
     }
-    doc.moveDown(0.3);
 
-    /* ---------- Affected claims (direct) ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Affected claims — direct evidence review');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    if (data.affected.claims.length === 0) {
-      doc.text('No claims directly supported by a publication carrying a verified status notice.', { indent: 14 });
-    } else {
-      for (const c of data.affected.claims) {
-        doc.fillColor('#27283B').font('Helvetica-Bold').text(`Claim ${c.claim.id}`, { indent: 14 });
-        doc.text(`Text: ${c.claim.text ?? '(no text recorded)'}`, { indent: 28 });
-        doc.text(`Via publication ${c.publication.id} through citation use ${c.citationUse.id} (role: ${c.citationUse.role}).`, { indent: 28 });
-        doc.text(`${c.claim.reviewFlag.message}`, { indent: 28 });
-        doc.moveDown(0.3);
-      }
-    }
     doc.moveDown(0.3);
-
-    /* ---------- Affected conclusions (indirect) ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Affected conclusions — indirect evidence review');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    if (data.affected.conclusions.length === 0) {
-      doc.text('No conclusions depending on a flagged claim.', { indent: 14 });
-    } else {
-      for (const con of data.affected.conclusions) {
-        doc.fillColor('#27283B').font('Helvetica-Bold').text(`Conclusion ${con.conclusion.id}`, { indent: 14 });
-        doc.text(`Text: ${con.conclusion.text ?? '(no text recorded)'}`, { indent: 28 });
-        doc.text(`Depends on claim ${con.conclusion.viaClaimId}.`, { indent: 28 });
-        doc.text(`${con.conclusion.reviewFlag.message}`, { indent: 28 });
-        doc.moveDown(0.3);
-      }
-    }
-    doc.moveDown(0.3);
-
-    /* ---------- Historical discussion (excluded) ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Historical-discussion claims (explicitly excluded from flagged set)');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    if (data.historical.length === 0) {
-      doc.text('No historical-discussion citation uses recorded.', { indent: 14 });
-    } else {
-      for (const h of data.historical) {
-        doc.fillColor('#27283B').font('Helvetica-Bold').text(`Claim ${h.claim.id}`, { indent: 14 });
-        doc.text(`Text: ${h.claim.text ?? '(no text recorded)'}`, { indent: 28 });
-        doc.text(`Mentions publication ${h.publicationId} historically — not a compromised-support signal.`, { indent: 28 });
-        doc.text(`${h.claim.reviewFlag.message}`, { indent: 28 });
-        doc.moveDown(0.3);
-      }
-    }
-    doc.moveDown(0.3);
-
-    /* ---------- Unresolved references ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Unresolved reference occurrences (disclosure, never propagation)');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    if (data.unresolved.length === 0) {
-      doc.text('No unresolved reference occurrences recorded.', { indent: 14 });
-    } else {
-      for (const u of data.unresolved) {
-        doc.fillColor('#27283B').font('Helvetica-Bold').text(`Reference ${u.occurrence.id}`, { indent: 14 });
-        doc.text(`State: ${u.occurrence.resolutionState}   |   Raw text: ${u.occurrence.text ?? '(none)'}`, { indent: 28 });
-        doc.text(`Candidates (POSSIBLE_MATCH only, non-propagating): ${u.candidates.length === 0 ? 'none' : u.candidates.map((c) => c.publicationId).join(', ')}`, { indent: 28 });
-        doc.moveDown(0.3);
-      }
-    }
-    doc.moveDown(0.3);
-
-    /* ---------- Review decisions ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Review decisions for this case');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    if (data.reviewDecisions.length === 0) {
-      doc.text('No review decisions recorded for this case.', { indent: 14 });
-    } else {
-      for (const d of data.reviewDecisions) {
-        doc.fillColor('#27283B').font('Helvetica-Bold').text(`Decision ${d.id} — outcome: ${d.outcome}`, { indent: 14 });
-        doc.text(`Decided at ${d.decidedAt}   |   Reviewer: ${d.reviewer ?? '(not recorded)'}   |   Provenance: ${d.provenanceKind ?? '(none)'}`, { indent: 28 });
-        doc.text(`Explanation: ${d.explanation}`, { indent: 28 });
-        doc.moveDown(0.3);
-      }
-    }
-    doc.moveDown(0.3);
-
-    /* ---------- Revision proposals ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Revision proposals for this case');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    if (data.revisionProposals.length === 0) {
-      doc.text('No revision proposals recorded for this case.', { indent: 14 });
-    } else {
-      for (const p of data.revisionProposals) {
-        doc.fillColor('#27283B').font('Helvetica-Bold').text(`Proposal ${p.proposalId} — status: ${p.status}`, { indent: 14 });
-        doc.text(`Proposed text: ${p.proposedText ?? '(none)'}`, { indent: 28 });
-        doc.text(`Rationale: ${p.rationale ?? '(none)'}   |   Created: ${p.createdAt ?? '(not recorded)'}`, { indent: 28 });
-        doc.moveDown(0.3);
-      }
-    }
-    doc.moveDown(0.3);
-
-    /* ---------- Limitations ---------- */
-    doc.fillColor('#27283B').fontSize(11).font('Helvetica-Bold').text('Limitations & coverage');
-    doc.fillColor('#89857F').fontSize(8.5).font('Helvetica');
-    for (const lim of data.limitations) {
-      doc.text('• ' + lim, { indent: 14 });
-    }
-    doc.moveDown(0.8);
 
     /* ---------- Footer ---------- */
     doc.fillColor('#89857F').fontSize(7.5).font('Helvetica-Oblique');
