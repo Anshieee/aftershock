@@ -81,6 +81,7 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
       'document',
       'documentDetail',
       'documents',
+      'documentsImported',
       'exportAnnotatedManuscript',
       'exportReport',
       'exportRevisionPack',
@@ -103,6 +104,7 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
    */
   const PENDING_FUNCTION_FILES = new Set([
     'activity',
+    'documents-imported',
     'import-document',
     'analyze',
     'analyze-status',
