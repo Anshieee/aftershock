@@ -1,0 +1,52 @@
+/*
+ * landing-v1.css — VARIANT 01 "The Minimalist" landing-local styles.
+ *
+ * Imported ONLY by src/pages/LandingPage.tsx. Nothing here may leak into
+ * other pages: every selector is v1-scoped. The only styling decisions in
+ * this file are (a) the fluid display scale for the hero question and
+ * (b) a single subtle entrance reveal (opacity/transform only, tiny
+ * staggered delays). Everything else uses the frozen Tailwind palette.
+ */
+
+/* Fluid display scale: 40px floor on small phones, 60px cap on desktops.
+   Single source of truth so the hero never re-wraps awkwardly across the
+   tested viewports (1440 / 1366 / 390). */
+.v1-hero-title {
+  font-size: clamp(2.5rem, 1.2rem + 4vw, 3.75rem);
+}
+
+/* Entrance reveal: opacity + transform only (60fps-safe, no layout
+   thrash). Stagger is ~70ms/beat — perceptible calm, never decorative FX.
+   Reduced-motion users get the final frame immediately (the global
+   prefers-reduced-motion rule in src/index.css also nukes the animation;
+   this scoped override guarantees the final state without it). */
+.v1-reveal {
+  opacity: 0;
+  animation: v1-reveal 480ms ease-out forwards;
+}
+
+.v1-reveal-v2 {
+  animation-delay: 70ms;
+}
+
+.v1-reveal-v3 {
+  animation-delay: 140ms;
+}
+
+@keyframes v1-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v1-reveal {
+    animation: none;
+    opacity: 1;
+  }
+}
