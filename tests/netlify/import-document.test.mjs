@@ -287,7 +287,7 @@ describe('import-document handler — wave 3 in-memory extraction (response-only
     expect(body.extraction).toEqual({
       attempted: false,
       format: 'txt',
-      reason: 'Recursive extraction failed; import registered metadata-only.',
+      reason: 'Extraction failed unexpectedly; import registered metadata-only.',
     });
   });
 });
