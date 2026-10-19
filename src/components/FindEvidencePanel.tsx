@@ -37,6 +37,19 @@ type EvidenceFlow =
   | { phase: 'prepare-failed'; message: string }
   | { phase: 'search-failed'; message: string; query: string; previous: EvidenceFindResult | null };
 
+/**
+ * Origin context (M7 Priority B): where this dialog was opened from when it
+ * was NOT opened from the review queue itself. Purely descriptive — it never
+ * changes what the panel does, what it searches, or any review state.
+ * Declared here (not in api.ts); it is a UI-only concern with no wire shape.
+ */
+export interface FindEvidenceOrigin {
+  /** Where the dialog came from, e.g. "Results — affected claim claim-A". */
+  label: string;
+  /** Optional route back to that origin, rendered as "Return to origin". */
+  backHref?: string;
+}
+
 interface FindEvidencePanelProps {
   claimId: string;
   open: boolean;
@@ -49,6 +62,11 @@ interface FindEvidencePanelProps {
     claimId: string,
     opts?: { query?: string; signal?: AbortSignal },
   ) => Promise<EvidenceFindResult>;
+  /**
+   * OPTIONAL, backward-compatible origin context. When absent the panel
+   * renders exactly as before (review-queue usage is untouched).
+   */
+  origin?: FindEvidenceOrigin;
 }
 
 /**
@@ -103,6 +121,7 @@ export default function FindEvidencePanel({
   open,
   onClose,
   findEvidence,
+  origin,
 }: FindEvidencePanelProps) {
   const call = findEvidence ?? realFindEvidence;
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -296,6 +315,43 @@ export default function FindEvidencePanel({
                 Close
               </button>
             </div>
+            {/* M7 Priority B — origin context row. Renders ONLY when the panel
+                was opened with origin context (never from the review queue:
+                the default flow stays byte-compatible). Navigation-only links:
+                they leave the dialog, they never touch any review state. */}
+            {origin && (
+              <div
+                data-testid="find-evidence-origin"
+                className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded border border-ink-border bg-paper-deep px-3 py-2 text-xs"
+              >
+                <p className="text-ink">
+                  <span className="font-medium text-ink-muted">From: </span>
+                  <span data-testid="find-evidence-origin-label">{origin.label}</span>
+                </p>
+                {origin.backHref && (
+                  <a
+                    href={origin.backHref}
+                    onClick={onClose}
+                    data-testid="find-evidence-origin-return"
+                    aria-label={`Return to origin (${origin.label})`}
+                    className="text-brand-deep underline hover:text-brand"
+                  >
+                    Return to origin
+                  </a>
+                )}
+                {/* Same case exists in the review queue (claimId = caseId).
+                    Read-only navigation — implies no state change of any kind. */}
+                <a
+                  href="/review-queue"
+                  onClick={onClose}
+                  data-testid="find-evidence-review-queue"
+                  aria-label={`Open review queue (case ${claimId}) — viewing only; this panel changed no review state, and neither will this link`}
+                  className="text-brand-deep underline hover:text-brand"
+                >
+                  Open review queue
+                </a>
+              </div>
+            )}
             <p className="mb-3 text-xs text-ink-muted">
               External bibliographic search — read-only and exploratory. Results are
               metadata candidates only, not assessed support.

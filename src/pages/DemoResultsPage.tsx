@@ -9,6 +9,7 @@ import {
   getSeedStatus,
 } from '../lib/api';
 import { deriveDemoImpact, type DemoImpact } from '../lib/demoImpact';
+import FindEvidencePanel, { type FindEvidenceOrigin } from '../components/FindEvidencePanel';
 
 type GraphLoad =
   | { phase: 'loading' }
@@ -35,6 +36,14 @@ export default function DemoResultsPage() {
   const [graph, setGraph] = useState<GraphLoad>({ phase: 'loading' });
   const controllerRef = useRef<AbortController | null>(null);
   const seedCheckRef = useRef<AbortController | null>(null);
+  /**
+   * M7 Priority B — the affected row whose Find-Evidence dialog is open.
+   * Opening it starts a read-only prepare read; nothing here records or
+   * changes anything (the panel itself carries those honesty rules).
+   */
+  const [evidenceCase, setEvidenceCase] = useState<{ id: string; origin: FindEvidenceOrigin } | null>(
+    null,
+  );
 
   const load = useCallback(() => {
     controllerRef.current?.abort();
@@ -340,6 +349,27 @@ export default function DemoResultsPage() {
                           <dd className="break-all font-mono text-ink">{item.id}</dd>
                         </div>
                       </dl>
+                      {/* M7 Priority B — read-only hop into Find Evidence for
+                          this affected claim (origin context sent to panel). */}
+                      <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-review-border pt-2 text-xs">
+                        <button
+                          type="button"
+                          data-testid={`results-find-evidence-${item.id}`}
+                          onClick={() =>
+                            setEvidenceCase({
+                              id: item.id,
+                              origin: { label: `Results — affected claim ${item.id}`, backHref: '/results' },
+                            })
+                          }
+                          aria-label={`Find evidence for affected claim ${item.id} — opens a read-only bibliographic search; nothing is recorded and no review state changes`}
+                          className="rounded border border-ink-border bg-paper px-2 py-1 font-medium text-ink hover:bg-paper-deep"
+                        >
+                          Find evidence
+                        </button>
+                        <span className="text-ink-muted">
+                          unverified bibliographic relevance search — read-only metadata candidates only
+                        </span>
+                      </div>
                     </li>
                   ))}
               </ul>
@@ -396,6 +426,27 @@ export default function DemoResultsPage() {
                           <dd className="break-all font-mono text-ink">{item.id}</dd>
                         </div>
                       </dl>
+                      {/* M7 Priority B — read-only hop into Find Evidence for
+                          this affected conclusion (origin context sent to panel). */}
+                      <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-review-border pt-2 text-xs">
+                        <button
+                          type="button"
+                          data-testid={`results-find-evidence-${item.id}`}
+                          onClick={() =>
+                            setEvidenceCase({
+                              id: item.id,
+                              origin: { label: `Results — affected conclusion ${item.id}`, backHref: '/results' },
+                            })
+                          }
+                          aria-label={`Find evidence for affected conclusion ${item.id} — opens a read-only bibliographic search; nothing is recorded and no review state changes`}
+                          className="rounded border border-ink-border bg-paper px-2 py-1 font-medium text-ink hover:bg-paper-deep"
+                        >
+                          Find evidence
+                        </button>
+                        <span className="text-ink-muted">
+                          unverified bibliographic relevance search — read-only metadata candidates only
+                        </span>
+                      </div>
                     </li>
                   ))}
               </ul>
@@ -530,6 +581,17 @@ export default function DemoResultsPage() {
             </ul>
           </section>
         </div>
+      )}
+
+      {/* M7 Priority B — the Find-Evidence dialog opened from an affected row.
+          Read-only: preparing + searching only; closing discards everything. */}
+      {evidenceCase && (
+        <FindEvidencePanel
+          claimId={evidenceCase.id}
+          open
+          onClose={() => setEvidenceCase(null)}
+          origin={evidenceCase.origin}
+        />
       )}
 
       <p className="mt-6 text-sm text-ink-muted">
