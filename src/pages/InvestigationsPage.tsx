@@ -151,7 +151,7 @@ export default function InvestigationsPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="font-display text-3xl text-ink">Investigations</h1>
+        <h1 className="font-display text-3xl tracking-tight text-ink">Investigations</h1>
         {ready && impact && cards.length > 0 && (
           <p className="text-xs text-ink-muted" data-testid="investigations-counts">
             {state.overview.seedVersion ? `seed ${state.overview.seedVersion} · ` : ''}
@@ -177,7 +177,7 @@ export default function InvestigationsPage() {
       {state.phase === 'missing' && (
         <section
           aria-labelledby="investigations-missing-heading"
-          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6"
+          className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6"
           data-testid="investigations-missing"
         >
           <h2 id="investigations-missing-heading" className="text-lg font-semibold text-ink">
@@ -197,7 +197,7 @@ export default function InvestigationsPage() {
       {state.phase === 'failure' && (
         <section
           aria-labelledby="investigations-failure-heading"
-          className="mt-6 rounded-lg border border-notice-border bg-notice-surface p-6"
+          className="mt-6 rounded-xl border border-notice-border bg-notice-surface p-6"
           data-testid="investigations-failure"
         >
           <h2 id="investigations-failure-heading" className="text-lg font-semibold text-notice-text">
@@ -210,11 +210,11 @@ export default function InvestigationsPage() {
             <button
               type="button"
               onClick={load}
-              className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
+              className="rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
             >
               Retry
             </button>
-            <Link to="/" className="rounded px-4 py-2 text-sm text-ink-muted no-underline hover:text-ink">
+            <Link to="/" className="rounded-lg px-4 py-2 text-sm text-ink-muted no-underline hover:text-ink">
               Back to landing
             </Link>
           </div>
@@ -224,7 +224,7 @@ export default function InvestigationsPage() {
       {ready && unseeded && (
         <section
           aria-labelledby="investigations-unseeded-heading"
-          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6"
+          className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6"
           data-testid="investigations-unseeded"
         >
           <h2 id="investigations-unseeded-heading" className="text-lg font-semibold text-ink">
@@ -239,7 +239,7 @@ export default function InvestigationsPage() {
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
               to="/"
-              className="rounded bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
             >
               Try guided example
             </Link>
@@ -249,7 +249,7 @@ export default function InvestigationsPage() {
 
       {ready && !unseeded && cards.length === 0 && (
         <p
-          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6 text-base text-ink-muted"
+          className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6 text-base text-ink-muted"
           data-testid="investigations-empty"
           role="note"
         >
@@ -265,7 +265,7 @@ export default function InvestigationsPage() {
             <p
               role="note"
               data-testid="investigations-multidoc-note"
-              className="rounded-lg border border-uncertain-border bg-uncertain-surface px-4 py-3 text-base text-uncertain-text"
+              className="rounded-xl border border-uncertain-border bg-uncertain-surface px-4 py-3 text-base text-uncertain-text"
             >
               Multiple research documents were returned. Claim, conclusion and review-flag
               counts are not attributable to a single document from the returned edges, so
@@ -278,7 +278,7 @@ export default function InvestigationsPage() {
               <li
                 key={card.id}
                 data-testid={`investigation-${card.id}`}
-                className="rounded-lg border border-ink-border bg-paper-raised p-6"
+                className="rounded-2xl border border-ink-border bg-paper-raised p-6"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-display text-xl font-semibold text-ink">
@@ -326,13 +326,13 @@ export default function InvestigationsPage() {
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link
                     to="/results"
-                    className="rounded bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
+                    className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white no-underline hover:bg-brand-deep"
                   >
                     Open investigation
                   </Link>
                   <Link
                     to="/review-queue"
-                    className="px-2 py-2 text-sm text-ink-muted no-underline hover:text-ink"
+                    className="rounded-lg px-2 py-2 text-sm text-ink-muted no-underline hover:text-ink"
                   >
                     Review Queue
                   </Link>
@@ -346,7 +346,7 @@ export default function InvestigationsPage() {
       {ready && (
         <section
           aria-labelledby="investigations-import-heading"
-          className="mt-6 rounded-lg border border-ink-border bg-paper p-5"
+          className="mt-6 rounded-xl border border-ink-border bg-paper p-5"
           data-testid="investigations-import-hint"
         >
           <h2 id="investigations-import-heading" className="text-base font-semibold text-ink">

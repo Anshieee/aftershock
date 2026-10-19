@@ -158,9 +158,9 @@ export default function LibraryPage() {
   const bothEmpty = seededEmpty && importedEmpty;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-4xl">
       {!loading && !bothEmpty && (
-        <h1 className="font-display text-3xl text-ink">Library</h1>
+        <h1 className="font-display text-3xl tracking-tight text-ink">Library</h1>
       )}
 
       {loading && (
@@ -213,7 +213,7 @@ export default function LibraryPage() {
                 <li
                   key={doc.id}
                   data-testid={`library-doc-${doc.id}`}
-                  className="rounded-lg border border-ink-border bg-paper-raised p-5"
+                  className="rounded-xl border border-ink-border bg-paper-raised p-5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -237,7 +237,7 @@ export default function LibraryPage() {
                       {isDemoManuscript && (
                         <Link
                           to="/results"
-                          className="rounded border border-ink-border bg-paper px-3 py-1 text-xs text-ink no-underline hover:bg-paper-deep"
+                          className="rounded-lg border border-ink-border bg-paper px-3 py-1 text-xs text-ink no-underline hover:bg-paper-deep"
                         >
                           Open investigation
                         </Link>
@@ -272,8 +272,8 @@ export default function LibraryPage() {
                         data-testid={`analyze-${doc.id}`}
                         className={
                           row.phase === 'starting'
-                            ? 'cursor-progress rounded bg-brand px-4 py-2 text-sm font-medium text-white opacity-80'
-                            : 'rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep'
+                            ? 'cursor-progress rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white opacity-80'
+                            : 'rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep'
                         }
                       >
                         {row.phase === 'starting' ? 'Starting analysis…' : 'Analyze'}
@@ -386,7 +386,7 @@ export default function LibraryPage() {
                 <li
                   key={doc.id}
                   data-testid={`library-imported-doc-${doc.id}`}
-                  className="rounded-lg border border-ink-border bg-paper-raised p-5"
+                  className="rounded-xl border border-ink-border bg-paper-raised p-5"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -431,7 +431,7 @@ export default function LibraryPage() {
                       disabled
                       aria-disabled="true"
                       data-testid={`imported-analyze-${doc.id}`}
-                      className="rounded border border-ink-border bg-ink-border px-4 py-2 text-sm font-medium text-ink-muted cursor-not-allowed opacity-60"
+                      className="rounded-lg border border-ink-border bg-ink-border px-4 py-2 text-sm font-medium text-ink-muted cursor-not-allowed opacity-60"
                     >
                       Analyze — content not stored
                     </button>
