@@ -22,8 +22,8 @@ function renderWithRoutes(initialPath = '/') {
   );
 }
 
-describe('LandingPage (action-first P0)', () => {
-  it('renders the editorial hero with the exact research question and subtitle — no wordmark in the hero', () => {
+describe('LandingPage (Wave U1 entry experience)', () => {
+  it('renders the centered editorial hero with the exact research question and subtitle — no wordmark in the hero', () => {
     renderWithRoutes();
 
     // One h1 only: the research question in display serif.
@@ -32,28 +32,51 @@ describe('LandingPage (action-first P0)', () => {
     expect(
       screen.getByRole('heading', { name: 'What would you like to investigate?' }),
     ).toBeTruthy();
-    expect(
-      screen.getByText(
-        'Trace changes in scientific evidence and discover which claims may need review.',
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText('Follow the evidence. Understand what changed.')).toBeTruthy();
     // The Aftershock. wordmark stays in the sidebar, never in the hero.
     expect(screen.queryByText(/Aftershock\./)).toBeNull();
   });
 
-  it('exposes ONE primary seed trigger in the action panel (no duplicated CTAs)', () => {
+  it('exposes ONE primary seed trigger in the launcher card (no duplicated CTAs, no fake extras)', () => {
     renderWithRoutes();
 
-    // Heading; single visible seed control reachable through both testids.
-    expect(screen.getByRole('heading', { name: 'Try guided example' })).toBeTruthy();
+    // The single launcher card holds the primary flow (sr-only heading so
+    // no implementation-status copy surfaces in the hero zone).
+    expect(screen.getByTestId('investigation-launcher')).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { name: 'Start an investigation' }),
+    ).toBeTruthy();
+    // Single visible seed control reachable through both testids.
     expect(screen.getAllByTestId('guided-seed-button')).toHaveLength(1);
     // Legacy hero contract: the hero-guided-action hook wraps the CTA.
     expect(screen.getAllByTestId('hero-guided-action')).toHaveLength(1);
     expect(screen.getByTestId('hero-guided-action').textContent).toContain(
       'Explore guided investigation',
     );
-    // The panel discloses the guarded API path statically (e2e parity).
-    expect(screen.getAllByText(/guarded, rate-limited/i)).toHaveLength(1);
+    // No fake chat box, no fake DOI search: exactly two real actions.
+    expect(screen.getAllByRole('button', { name: 'Explore guided investigation' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Choose a document' })).toHaveLength(1);
+  });
+
+  it('shows the quiet integrity line without expansion and keeps the document picker collapsed by default', () => {
+    renderWithRoutes();
+
+    // Honest synthetic-vs-real distinction visible WITHOUT expanding.
+    expect(
+      screen.getByText(
+        /clearly labeled synthetic content \(FICTIONAL \/ GUIDED DEMO\) alongside real public records — nothing is simulated\./,
+      ),
+    ).toBeTruthy();
+    // The document picker starts collapsed: no import panel in the DOM.
+    expect(screen.queryByTestId('import-panel')).toBeNull();
+    const toggle = screen.getByRole('button', { name: 'Choose a document' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+    // Expanding reveals the real import flow untouched.
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('import-panel')).toBeTruthy();
+    expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
   });
 
   it('runs the guarded seed flow from the primary CTA and navigates to real results on success', async () => {
@@ -112,10 +135,16 @@ describe('LandingPage (action-first P0)', () => {
     expect(hrefs).toEqual(['library', 'review-queue', 'graph'].map((p) => `/${p}`));
   });
 
-  it('renders the quiet import surface and the demoted, honestly disabled Bibliography/DOI row', () => {
+  it('renders the collapsed document area with the honestly disabled Bibliography/DOI row behind the toggle', () => {
     renderWithRoutes();
 
-    expect(screen.getByText('Or start from your own document')).toBeTruthy();
+    // Collapsed by default: the picker and the demoted affordances only
+    // exist after the outline toggle expands the document area.
+    expect(screen.queryByTestId('import-panel')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Bibliography' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a document' }));
+
     expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('import-input')).toBeTruthy();
     const bibliography = screen.getByRole('button', { name: 'Bibliography' }) as HTMLButtonElement;
@@ -143,6 +172,8 @@ describe('LandingPage (action-first P0)', () => {
         : undefined,
     );
     renderWithRoutes();
+    // The picker lives in the collapsible document area — expand first.
+    fireEvent.click(screen.getByRole('button', { name: 'Choose a document' }));
     const input = screen.getByTestId('import-input') as HTMLInputElement;
 
     const file = new File(['%PDF-1.4 minimal'], 'field-notes.pdf', { type: 'application/pdf' });
@@ -169,10 +200,13 @@ describe('LandingPage (action-first P0)', () => {
     expect(screen.queryByText(/parsed/i)).toBeNull();
   });
 
-  it('discloses what the guided seed does before running it', () => {
+  it('discloses what the guided seed does before running it — guarded path, synthetic labeling, idempotent reseed', () => {
     renderWithRoutes();
     fireEvent.click(screen.getByRole('button', { name: /what does that involve/i }));
     const note = screen.getByRole('note');
+    // The guarded, rate-limited API path is disclosed on expansion (the
+    // hero zone stays implementation-free).
+    expect(note.textContent).toContain('guarded, rate-limited');
     expect(note.textContent).toContain('FICTIONAL / GUIDED DEMO');
     expect(note.textContent).toContain('idempotent');
     expect(note.textContent).toContain('synthetic');

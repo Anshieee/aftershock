@@ -2,12 +2,21 @@ import { NavLink, Outlet } from 'react-router-dom';
 import ServiceStatusLine from './ServiceStatusLine';
 
 /**
- * Primary navigation — exactly the five areas from the handoff §3.
- * One additional VISIBLE secondary destination below the divider:
- * Knowledge Graph. Evidence Reader / Export are never a sixth area.
+ * Primary navigation — exactly the five areas from the brief: Home,
+ * Investigations, Library, Review Queue, Activity. One additional VISIBLE
+ * secondary destination below the divider: Knowledge Graph. Evidence
+ * Reader / Export are never a sixth area.
+ *
+ * Wave U1 (2026-10-19 redesign): Overview → Home pointing at '/'; the
+ * active state is the calm lavender surface (brand.surface + brand.deep +
+ * font-medium) with a paper.deep hover; on mobile the primary nav renders
+ * as a horizontally scrollable row (no JS, no burger) with the Explore nav
+ * directly below it, so the full IA stays visible to tests and users.
+ * The standalone "Guided-demo build" status line moved inside the
+ * diagnostics details (honesty preserved, prominence reduced).
  */
 const primaryNav = [
-  { to: '/overview', label: 'Overview' },
+  { to: '/', label: 'Home', end: true },
   { to: '/investigations', label: 'Investigations' },
   { to: '/library', label: 'Library' },
   { to: '/review-queue', label: 'Review Queue' },
@@ -17,15 +26,16 @@ const primaryNav = [
 const secondaryNav = [{ to: '/graph', label: 'Knowledge Graph' }] as const;
 
 const linkBase =
-  'block rounded-md px-3 py-2 text-sm no-underline motion-reduce:transition-none ' +
-  'transition-colors focus-visible:outline-2 focus-visible:outline-offset-2';
+  'block shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm no-underline ' +
+  'motion-reduce:transition-none transition-colors md:whitespace-normal ' +
+  'focus-visible:outline-2 focus-visible:outline-offset-2';
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return (
     linkBase +
     (isActive
-      ? ' bg-brand text-white font-medium'
-      : ' text-ink hover:bg-brand-surface hover:text-brand-deep')
+      ? ' bg-brand-surface text-brand-deep font-medium'
+      : ' text-ink hover:bg-paper-deep')
   );
 }
 
@@ -47,19 +57,23 @@ export default function Layout() {
           >
             Aftershock.
           </NavLink>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-muted md:mt-1">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-muted md:mt-1.5 md:whitespace-nowrap">
             Evidence integrity workspace
           </p>
         </div>
 
-        <nav aria-label="Primary" className="px-2 py-4 md:px-0 md:py-6">
-          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+        {/* < md: primary nav as ONE horizontally scrollable row (no JS,
+            no burger — the IA stays visible to tests and users); the
+            Explore nav sits directly below it as a second compact row.
+            md+: both navs collapse back into the vertical sidebar column. */}
+        <nav aria-label="Primary" className="px-2 pt-3 md:px-0 md:py-6">
+          <p className="hidden px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted md:block">
             Workspace
           </p>
-          <ul className="space-y-1">
+          <ul className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
             {primaryNav.map((item) => (
-              <li key={item.to}>
-                <NavLink to={item.to} className={navLinkClass}>
+              <li key={item.to} className="shrink-0 md:w-full">
+                <NavLink to={item.to} end={'end' in item ? item.end : false} className={navLinkClass}>
                   {item.label}
                 </NavLink>
               </li>
@@ -67,13 +81,13 @@ export default function Layout() {
           </ul>
         </nav>
 
-        <nav aria-label="Explore" className="border-t border-ink-border px-2 py-4 md:px-0">
-          <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+        <nav aria-label="Explore" className="border-t border-ink-border px-2 py-3 md:border-t-0 md:px-0 md:py-4">
+          <p className="hidden px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted md:block">
             Explore
           </p>
-          <ul className="space-y-1">
+          <ul className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
             {secondaryNav.map((item) => (
-              <li key={item.to}>
+              <li key={item.to} className="shrink-0 md:w-full">
                 <NavLink to={item.to} className={navLinkClass}>
                   {item.label}
                 </NavLink>
@@ -82,13 +96,11 @@ export default function Layout() {
           </ul>
         </nav>
 
-        {/* Sidebar tail: compact honest scope marker, then dev-facing
-            diagnostics behind a native disclosure (Keyboard-reachable,
-            no pointer-only interaction). */}
+        {/* Sidebar tail: dev-facing diagnostics behind a native disclosure
+            (keyboard-reachable, no pointer-only interaction). The honest
+            "Guided-demo build" scope marker lives INSIDE the details as its
+            first line — disclosed on request, not sprayed in the nav column. */}
         <div className="mt-1 flex flex-col gap-1.5 px-4 pb-4 md:mt-auto md:px-0 md:pb-1">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
-            Guided-demo build
-          </p>
           <details data-testid="sidebar-diagnostics" className="group min-w-0">
             <summary className="-mx-2 flex cursor-pointer list-none select-none items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium tracking-wide text-ink-muted no-underline hover:text-ink [&::-webkit-details-marker]:hidden">
               System diagnostics
@@ -99,6 +111,9 @@ export default function Layout() {
                 –
               </span>
             </summary>
+            <p className="mt-1 px-2 text-[11px] uppercase tracking-wide text-ink-muted">
+              Guided-demo build
+            </p>
             {/* Discreet truthful status: same honest health classification
                 as the chip, demoted to quiet text diagnostics, revealed on
                 request only. Never claims graph state — /health does not

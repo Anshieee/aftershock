@@ -58,7 +58,9 @@ test.describe('M4/M5 analyze flow', () => {
     page,
   }) => {
     await page.goto('/');
-    const guided = page.locator('section', { hasText: 'Try guided example' });
+    // Wave U1: the guided flow lives in the launcher card (the old
+    // "Try guided example" section heading is gone; honesty unchanged).
+    const guided = page.getByTestId('investigation-launcher');
     await guided.getByTestId('guided-seed-button').click();
 
     await page.waitForURL(/\/results/, { timeout: 20_000 }).catch(() => {});

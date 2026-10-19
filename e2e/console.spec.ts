@@ -27,7 +27,10 @@ test('landing → overview → Knowledge Graph: no console errors, no asset 404s
   });
 
   await page.goto('/', { waitUntil: 'load' });
-  await page.getByText('Overview').first().click();
+  // Wave U1: the sidebar entry was renamed Overview → Home, so this
+  // console-hygiene walk navigates directly to the (still-mounted)
+  // /overview route instead of a nav link that no longer exists.
+  await page.goto('/overview', { waitUntil: 'load' });
   await expect(page).toHaveURL(/\/overview$/);
 
   await page.locator('nav[aria-label="Explore"] a, nav[aria-label="Primary"] a, header a, main a')
