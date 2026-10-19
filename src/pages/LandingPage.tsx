@@ -10,9 +10,6 @@ import {
 } from '../lib/api';
 import ImportPanel from '../components/ImportPanel';
 
-const disabledLater =
-  'cursor-not-allowed rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink-muted';
-
 type SeedFlow =
   | { phase: 'idle' }
   | { phase: 'submitting' }
@@ -30,16 +27,17 @@ const seedFlowMessages: Record<string, string> = {
 };
 
 /**
- * Research-workspace landing (M4 state) — import-first.
+ * Action-first landing (P0 redesign).
  *
- * The hero poses the research question ("What would you like to
- * investigate?") with the one wired action (guarded guided-seed flow) plus
- * workflow shortcuts and the featured 2020 hydroxychloroquine investigation
- * (real, verified record). The document picker is the REAL import flow
- * (ImportPanel): client-side guards → POST /import-document → verbatim
- * server disclosure → Analyze enabled only for the guided demo manuscript.
- * The guided flow either navigates to real results or states exactly what
- * went wrong.
+ * One calm editorial hero (the research question), then exactly ONE primary
+ * interaction surface: the real guarded guided-seed flow with all of its
+ * honest states (submitting / unavailable / cooldown / not-wired / api-error
+ * / rejected). The document picker (ImportPanel — the real import flow)
+ * sits quietly below the panel in a subdued companion container, with the
+ * not-yet-wired Bibliography / Single DOI affordances demoted to one honest
+ * line. Real workspace shortcuts and the featured 2020 hydroxychloroquine
+ * investigation (real, publicly verified record) close the page. The
+ * Aftershock. wordmark stays in the sidebar, never in the hero.
  */
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -85,169 +83,41 @@ export default function LandingPage() {
   const seeding = seedFlow.phase === 'submitting';
 
   return (
-    <div className="mx-auto max-w-3xl">
-      {/* Hero: the research question in display serif. The Aftershock.
-          wordmark remains the site brand in the header, never here. */}
-      <section aria-labelledby="hero-heading" className="mt-2 md:mt-6">
+    <div className="mx-auto max-w-3xl pb-10">
+      {/* 1 — Hero: the research question in display serif. The Aftershock.
+          wordmark remains the site brand in the sidebar, never here. */}
+      <section aria-labelledby="hero-heading" className="mt-6 md:mt-10">
         <h1
           id="hero-heading"
-          className="max-w-2xl font-display text-4xl leading-tight text-ink md:text-5xl"
+          className="max-w-2xl font-display text-4xl leading-tight tracking-tight text-ink md:text-5xl"
         >
           What would you like to investigate?
         </h1>
         <p className="mt-4 max-w-prose text-lg leading-7 text-ink-muted md:text-xl md:leading-8">
-          Aftershock traces retractions and status notices through your citations
-          down to claim-level impact — so you know which of your sources changed
-          after publication and which of your claims depend on them.
+          Trace changes in scientific evidence and discover which claims may
+          need review.
         </p>
-
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-          {/* Large primary action — same guarded guided-seed flow as the
-              guided section's seeded button (shared handler, same honesty). */}
-          <button
-            type="button"
-            onClick={seedDemo}
-            disabled={seeding}
-            aria-busy={seeding}
-            data-testid="hero-guided-action"
-            className="rounded-lg bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline hover:bg-brand-deep disabled:cursor-progress disabled:opacity-80"
-          >
-            {seeding ? 'Contacting demo API…' : 'Explore guided investigation'}
-          </button>
-          {/* Secondary affordance: forwards to the real file picker (single
-              label association — the panel's label is the canonical one). */}
-          <button
-            type="button"
-            data-testid="hero-choose-document"
-            onClick={() => document.getElementById('import-input')?.click()}
-            className="cursor-pointer rounded-lg border border-ink-border bg-paper-raised px-6 py-3.5 text-center text-base font-medium text-ink hover:bg-paper-deep"
-          >
-            Choose a document
-          </button>
-        </div>
-        {seeding && (
-          <p className="mt-3 text-sm text-ink-muted" role="status">
-            {guidance}
-          </p>
-        )}
       </section>
 
-      {/* Workflow shortcuts — three real destinations, quiet hover only. */}
-      <nav aria-label="Workspace areas" className="mt-12">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Your workspace
-        </h2>
-        <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <li>
-            <Link
-              to="/overview"
-              className="block h-full rounded-lg border border-ink-border bg-paper-raised p-4 no-underline hover:bg-paper-deep"
-            >
-              <span className="block font-medium text-ink">Overview</span>
-              <span className="mt-1 block text-sm leading-6 text-ink-muted">
-                Current state of the workspace and the demo graph.
-              </span>
-            </Link>
-          </li>
-          <li>
-            <Link
-              to="/graph"
-              className="block h-full rounded-lg border border-ink-border bg-paper-raised p-4 no-underline hover:bg-paper-deep"
-            >
-              <span className="block font-medium text-ink">Knowledge Graph</span>
-              <span className="mt-1 block text-sm leading-6 text-ink-muted">
-                Records, provenance and review state, from the live demo API.
-              </span>
-            </Link>
-          </li>
-          <li>
-            <Link
-              to="/library"
-              className="block h-full rounded-lg border border-ink-border bg-paper-raised p-4 no-underline hover:bg-paper-deep"
-            >
-              <span className="block font-medium text-ink">Library</span>
-              <span className="mt-1 block text-sm leading-6 text-ink-muted">
-                Sources under review in one place.
-              </span>
-            </Link>
-          </li>
-        </ul>
-      </nav>
-
-      {/* Featured investigation — one real, publicly verified record. */}
-      <section aria-labelledby="featured-heading" className="mt-10">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-          Featured investigation
-        </h2>
-        <article className="mt-3 rounded-lg border border-ink-border bg-paper-raised p-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <h3 id="featured-heading" className="font-display text-xl text-ink">
-              The 2020 hydroxychloroquine retraction
-            </h3>
-            <span className="rounded-full border border-reviewed-surface bg-reviewed-surface px-2.5 py-0.5 text-xs font-medium text-reviewed-text">
-              Verified real record
-            </span>
-          </div>
-          <p className="mt-3 max-w-prose text-sm leading-6 text-ink-muted">
-            Mehra et al. 2020 (The Lancet) was retracted: the retraction was
-            announced 2020-06-04 and recorded 2020-06-05 (PMIDs 32450107 /
-            32511943). The guided investigation follows its impact through the
-            demo graph; the manuscript under review there is fictional and
-            labeled FICTIONAL / GUIDED DEMO — this record is not.
-          </p>
-          <Link
-            to="/results"
-            className="mt-4 inline-block rounded border border-ink-border bg-paper px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-paper-deep"
-          >
-            Open the guided investigation
-          </Link>
-        </article>
-      </section>
-
-      <section
-        aria-labelledby="import-heading"
-        className="mt-10 rounded-lg border border-ink-border bg-paper-raised p-6"
-      >
-        <h2 id="import-heading" className="text-lg font-semibold text-ink">
-          Start with a document
-        </h2>
-
-        {/* The real M4 import flow: guards → registration → verbatim
-            disclosure → demo-manuscript-only analyze. */}
-        <ImportPanel />
-
-        {/* Secondary affordances: visible, but not built yet */}
-        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-ink-border pt-4">
-          <button type="button" disabled className={disabledLater}>
-            Bibliography
-          </button>
-          <button type="button" disabled className={disabledLater}>
-            Single DOI
-          </button>
-          <p className="w-full text-xs text-ink-muted lg:ml-auto lg:w-72 lg:self-center">
-            Bibliography and DOI imports arrive with the import flow. Note: they
-            cannot detect passage-level claim dependencies — original research
-            text is needed for that.
-          </p>
-        </div>
-      </section>
-
+      {/* 2 — THE primary action panel: the only seed trigger on the page.
+          Same guarded, honest guided-seed flow as before — its states now
+          live here instead of a separate "Try guided example" section. */}
       <section
         aria-labelledby="guided-heading"
-        className="mt-10 rounded-lg border border-ink-border bg-paper-raised p-6"
+        className="mt-8 rounded-lg border border-ink-border bg-paper-raised p-6 shadow-sm md:p-7"
       >
-        <h2 id="guided-heading" className="text-lg font-semibold text-ink">
+        <h2 id="guided-heading" className="font-display text-2xl leading-snug text-ink">
           Try guided example
         </h2>
-        <p className="mt-1 max-w-prose text-sm text-ink-muted">
+        <p className="mt-2 max-w-prose text-sm leading-6 text-ink-muted">
           Seeds the live demo graph with a fictional manuscript plus one real,
           publicly verified retraction record, then shows actual graph-derived
           results. Runs through the guarded, rate-limited API.{' '}
           <button
             type="button"
-            onClick={() => setShowGuidedNote(true)}
-            className="font-semibold text-brand-deep underline"
+            onClick={() => setShowGuidedNote((open) => !open)}
             aria-expanded={showGuidedNote}
+            className="font-semibold text-brand-deep underline"
           >
             What does that involve?
           </button>
@@ -255,7 +125,7 @@ export default function LandingPage() {
 
         {showGuidedNote && (
           <p
-            className="mt-2 max-w-prose rounded border border-uncertain-border bg-uncertain-surface px-3 py-2 text-sm text-uncertain-text"
+            className="mt-3 max-w-prose rounded border border-uncertain-border bg-uncertain-surface px-3 py-2 text-sm leading-6 text-uncertain-text"
             role="note"
           >
             The guided example is the only path fully wired right now. It sends
@@ -267,16 +137,20 @@ export default function LandingPage() {
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={seedDemo}
-          disabled={seeding}
-          aria-busy={seeding}
-          data-testid="guided-seed-button"
-          className="mt-3 rounded bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-deep disabled:cursor-progress disabled:opacity-80"
-        >
-          {seeding ? 'Contacting demo API…' : 'Try guided example'}
-        </button>
+        {/* Testid hook kept for the legacy hero contract: this wrapper holds
+            the single primary CTA (data flow and honest states unchanged). */}
+        <div data-testid="hero-guided-action" className="mt-5">
+          <button
+            type="button"
+            onClick={seedDemo}
+            disabled={seeding}
+            aria-busy={seeding}
+            data-testid="guided-seed-button"
+            className="w-full rounded-lg bg-brand px-6 py-3.5 text-base font-semibold text-white shadow-sm no-underline hover:bg-brand-deep disabled:cursor-progress disabled:opacity-80 sm:w-auto"
+          >
+            {seeding ? 'Contacting demo API…' : 'Explore guided investigation'}
+          </button>
+        </div>
 
         <div
           aria-live="polite"
@@ -322,13 +196,125 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <p className="mt-8 text-sm text-ink-muted">
-        Just exploring? The{' '}
-        <Link to="/overview" className="text-brand-deep underline">
-          Overview
-        </Link>{' '}
-        shows the current state of the workspace.
-      </p>
+      {/* 3 — The real import flow, the quiet companion surface. ImportPanel
+          is rendered as-is: client-side guards → POST /import-document →
+          verbatim server disclosure → Analyze only for the demo manuscript. */}
+      <section
+        aria-labelledby="import-heading"
+        className="mt-5 rounded-lg border border-ink-border bg-paper-deep p-5 md:px-6"
+      >
+        <h2 id="import-heading" className="text-sm font-semibold text-ink">
+          Or start from your own document
+        </h2>
+        <p className="mt-1 max-w-prose text-xs leading-5 text-ink-muted">
+          PDF, DOCX or TXT, registered through the real import flow — the
+          server's own disclosure is shown verbatim and nothing is simulated.
+        </p>
+        <ImportPanel />
+
+        {/* Secondary affordances: visible, honest, and demoted to one
+            quiet line — they are not built yet and cannot produce
+            passage-level claim dependency analysis. */}
+        <div className="mt-4 border-t border-ink-border pt-3">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-ink-muted">
+            <button
+              type="button"
+              disabled
+              className="cursor-not-allowed rounded border border-ink-border bg-paper px-2 py-1 text-xs text-ink-muted"
+            >
+              Bibliography
+            </button>
+            <button
+              type="button"
+              disabled
+              className="cursor-not-allowed rounded border border-ink-border bg-paper px-2 py-1 text-xs text-ink-muted"
+            >
+              Single DOI
+            </button>
+            <span className="leading-5">
+              Bibliography and DOI imports arrive with the import flow — they
+              cannot detect passage-level claim dependencies; original research
+              text is needed for that.
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* 4 — Three real, quiet workspace shortcuts (no summary cards — the
+          areas themselves show the live state). */}
+      <nav aria-label="Workspace areas" className="mt-10">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Your workspace
+        </h2>
+        <ul className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-3">
+          <li>
+            <Link
+              to="/library"
+              className="text-sm text-ink no-underline hover:text-brand-deep"
+            >
+              <span className="font-medium">My Library</span>
+              <span className="ml-1.5 text-xs text-ink-muted">
+                Sources under review in one place.
+              </span>
+            </Link>
+          </li>
+          <li>
+            <Link
+              to="/review-queue"
+              className="text-sm text-ink no-underline hover:text-brand-deep"
+            >
+              <span className="font-medium">Review Claims</span>
+              <span className="ml-1.5 text-xs text-ink-muted">
+                Needs human judgement.
+              </span>
+            </Link>
+          </li>
+          <li>
+            <Link
+              to="/graph"
+              className="text-sm text-ink no-underline hover:text-brand-deep"
+            >
+              <span className="font-medium">Evidence Graph</span>
+              <span className="ml-1.5 text-xs text-ink-muted">
+                From the live demo API.
+              </span>
+            </Link>
+          </li>
+        </ul>
+      </nav>
+
+      {/* 5 — Featured investigation: one real, publicly verified record,
+          clearly distinct from the fictional guided-demo manuscript. The
+          single CTA is a plain link to /results — seeding happens only via
+          the primary panel above. */}
+      <section aria-labelledby="featured-heading" className="mt-10">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          Featured investigation
+        </h2>
+        <article className="mt-3 rounded-lg border border-ink-border bg-paper-raised p-6">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 id="featured-heading" className="font-display text-xl text-ink">
+              The 2020 hydroxychloroquine retraction
+            </h3>
+            <span className="rounded-full border border-review-border bg-review-surface px-2.5 py-0.5 text-xs font-medium text-review-text">
+              Verified real record
+            </span>
+          </div>
+          <p className="mt-3 max-w-prose text-sm leading-6 text-ink-muted">
+            Mehra et al. 2020 (The Lancet) was retracted: the retraction was
+            announced 2020-06-04 and recorded 2020-06-05 (PMIDs 32450107 /
+            32511943). The guided investigation follows its impact through the
+            demo graph; the manuscript under review there is fictional and
+            labeled FICTIONAL / GUIDED DEMO — this record is not.
+          </p>
+          <Link
+            to="/results"
+            className="mt-4 inline-block rounded border border-ink-border bg-paper px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-paper-deep"
+          >
+            Open the guided investigation
+          </Link>
+        </article>
+      </section>
     </div>
   );
 }
