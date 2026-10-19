@@ -146,27 +146,27 @@ export function buildReaderPassages(overview: GraphOverview) {
 function publicationsForPassage(
   overview: GraphOverview,
   node: GraphNode,
-): Array<{ publication: GraphNode; relationLabel: string; verified: boolean }> {
+): Array<{ publication: GraphNode; relationLabel: string }> {
   const nodeById = new Map(overview.nodes.map((candidate) => [candidate.id, candidate]));
-  const results: Array<{ publication: GraphNode; relationLabel: string; verified: boolean }> = [];
+  const results: Array<{ publication: GraphNode; relationLabel: string }> = [];
   for (const edge of overview.edges) {
     if (node.kind === 'CitationUse') {
       if (edge.type === 'CITATION_USE_REFERENCES_PUBLICATION' && edge.fromId === node.id) {
         const publication = nodeById.get(edge.toId);
         if (publication) {
-          results.push({ publication, relationLabel: 'cited publication (CITATION_USE_REFERENCES_PUBLICATION)', verified: false });
+          results.push({ publication, relationLabel: 'cited publication (CITATION_USE_REFERENCES_PUBLICATION)' });
         }
       }
     } else if (node.kind === 'ReferenceOccurrence') {
       if (edge.type === 'POSSIBLE_MATCH' && edge.fromId === node.id) {
         const publication = nodeById.get(edge.toId);
         if (publication) {
-          results.push({ publication, relationLabel: 'possible match — unverified (POSSIBLE_MATCH)', verified: false });
+          results.push({ publication, relationLabel: 'possible match — unverified (POSSIBLE_MATCH)' });
         }
       } else if (edge.type === 'OCCURRENCE_MATCHES_PUBLICATION' && edge.fromId === node.id) {
         const publication = nodeById.get(edge.toId);
         if (publication) {
-          results.push({ publication, relationLabel: 'occurrence matches publication (recorded match edge)', verified: false });
+          results.push({ publication, relationLabel: 'occurrence matches publication (recorded match edge)' });
         }
       }
     }
@@ -328,7 +328,7 @@ export default function EvidenceReaderPage() {
       : undefined;
   const inSession = typeof historyIndex === 'number' && historyIndex > 0;
 
-  const selectedPassageNode = selected;
+  const closeInspector = useCallback(() => setSelected(null), []);
 
   if (!ready) {
     return (
@@ -427,10 +427,13 @@ export default function EvidenceReaderPage() {
         className="mt-4 rounded-xl border border-uncertain-border bg-uncertain-surface px-5 py-3 text-base text-uncertain-text"
       >
         <strong>Fictional</strong> guided-demo manuscript: the synthetic passages below
-        ({syntheticCount} record{syntheticCount === 1 ? '' : 's'}) are labelled FICTIONAL /
-        GUIDED DEMO in place. Real bibliographic records ({realCount}) carry their
-        isSynthetic:false badge in the passage inspector. A flagged passage means{' '}
-        <strong>evidence review is needed</strong> — never a verdict of truth or falsity.
+        ({syntheticCount} passage record{syntheticCount === 1 ? '' : 's'} in the returned graph)
+        are labelled FICTIONAL / GUIDED DEMO in place. Real bibliographic records ({realCount})
+        carry their isSynthetic:false badge in the passage inspector. Both counts describe
+        records in the returned graph, not only the passages shown here; non-passage
+        records (such as publications) carry their own labels in the inspector. A flagged
+        passage means <strong>evidence review is needed</strong> — never a verdict of
+        truth or falsity.
       </p>
 
       {seed?.exists && seed.seedVersion && (
@@ -511,9 +514,9 @@ export default function EvidenceReaderPage() {
       )}
 
       <PassageInspector
-        passage={selectedPassageNode}
+        passage={selected}
         overview={ready ? graph.overview : undefined}
-        onClose={() => setSelected(null)}
+        onClose={closeInspector}
       />
     </div>
   );
@@ -539,7 +542,8 @@ function ReaderBasisDisclosure({ impact }: { impact: DemoImpact | null }) {
       <p className="mt-2 max-w-prose text-sm text-ink-muted">
         No manuscript full text is stored in this demo, so the reader shows exactly the
         recorded passages
-        {impact ? ` (${impact.nodeCount} nodes · ${impact.edgeCount} connections returned)` : ''}.
+        {impact ? ` (${impact.nodeCount} nodes · ${impact.edgeCount} connections returned)` : ''}
+        {impact ? ' (the returned graph may be truncated — the reader shows only what was returned)' : ''}.
         Each location renders only the pieces the record itself carries, and no overall
         pagination is invented. Records without usable location metadata are grouped last as{' '}
         <em>“Not located in the recorded layout”</em>, unpositioned.
@@ -716,6 +720,7 @@ function PassageRow({
             data-testid={`reader-inspect-${passage.id}`}
             aria-label={`Inspect relation records for ${passage.kindLabel} ${passage.id}`}
             aria-expanded={selected}
+            aria-controls="reader-inspector"
             className="rounded-lg border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
           >
             Inspect relations
@@ -746,14 +751,41 @@ function PassageInspector({
   overview?: GraphOverview;
   onClose: () => void;
 }) {
+  // Stable Escape handler: onClose lives in a ref so the keydown effect is
+  // registered once per mount, not re-registered every render.
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    if (!onClose) return;
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, passage]);
+  }, []);
+
+  // Move focus into the inspector when it opens (once per opened passage).
+  const inspectorRef = useRef<HTMLElement | null>(null);
+  const focusedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!passage) {
+      focusedForRef.current = null;
+      return;
+    }
+    if (focusedForRef.current === passage.id) return;
+    focusedForRef.current = passage.id;
+    const element = inspectorRef.current;
+    if (!element) return;
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // jsdom does not implement scrollIntoView — focus still moves here.
+    if (typeof element.scrollIntoView === 'function') {
+      element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+    element.focus({ preventScroll: true });
+  }, [passage]);
 
   if (!passage || !overview) return null;
 
@@ -843,8 +875,11 @@ function PassageInspector({
 
   return (
     <aside
+      id="reader-inspector"
       data-testid="reader-inspector"
       aria-labelledby="reader-inspector-heading"
+      tabIndex={-1}
+      ref={inspectorRef}
       className="rounded-xl border border-brand-surface bg-paper-raised p-5"
     >
       <div className="flex items-start justify-between gap-3">
@@ -965,7 +1000,7 @@ function PassageInspector({
       {noticeLinks.length > 0 && (
         <div className="mt-4 border-t border-notice-border pt-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
-            Verified publication notice linkages ({noticeLinks.length})
+            Publication notice linkages ({noticeLinks.length})
           </h3>
           <ul className="mt-2 space-y-3" data-testid="reader-inspector-notices">
             {noticeLinks.map(({ publicationId, notice }, index) => (
