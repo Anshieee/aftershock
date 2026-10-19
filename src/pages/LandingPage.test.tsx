@@ -22,25 +22,40 @@ function renderWithRoutes(initialPath = '/') {
   );
 }
 
-describe('LandingPage (Wave U1 entry experience)', () => {
-  it('renders the centered editorial hero with the exact research question and subtitle — no wordmark in the hero', () => {
+describe('LandingPage (Variant 3 — evidence lens)', () => {
+  it('renders the evidence-lens hero: real wordmark, tagline promise, lede — one h1 only', () => {
     renderWithRoutes();
 
-    // One h1 only: the research question in display serif.
+    // One h1 only: the promise line under the brand mark.
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Trace the evidence.' })).toBeTruthy();
     expect(
-      screen.getByRole('heading', { name: 'What would you like to investigate?' }),
+      screen.getByText(/One publication sends a ripple through the literature/),
     ).toBeTruthy();
-    expect(screen.getByText('Follow the evidence. Understand what changed.')).toBeTruthy();
-    // The Aftershock. wordmark stays in the sidebar, never in the hero.
-    expect(screen.queryByText(/Aftershock\./)).toBeNull();
+    // v3 composition change: the Aftershock. wordmark now lives in the hero.
+    const marks = screen.getAllByText(/Aftershock\./);
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.textContent).toBe('Aftershock.');
   });
 
-  it('exposes ONE primary seed trigger in the launcher card (no duplicated CTAs, no fake extras)', () => {
+  it('keeps the motif decorative artwork, honestly captioned — no widgets carry evidence claims', () => {
     renderWithRoutes();
 
-    // The single launcher card holds the primary flow (sr-only heading so
+    // The integrity caption is real page text (readable by AT).
+    expect(
+      screen.getByText('Illustrative composition — not evidence data.'),
+    ).toBeTruthy();
+    // The artwork itself is aria-hidden: decoration is never announced.
+    const motifLayer = document.querySelector('.landing-v3 .motif-layer svg');
+    expect(motifLayer).toBeTruthy();
+    expect(motifLayer!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('exposes ONE primary seed trigger in the launcher (no duplicated CTAs, no fake extras)', () => {
+    renderWithRoutes();
+
+    // The single launcher holds the primary flow (sr-only heading so
     // no implementation-status copy surfaces in the hero zone).
     expect(screen.getByTestId('investigation-launcher')).toBeTruthy();
     expect(
@@ -51,11 +66,12 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     // Legacy hero contract: the hero-guided-action hook wraps the CTA.
     expect(screen.getAllByTestId('hero-guided-action')).toHaveLength(1);
     expect(screen.getByTestId('hero-guided-action').textContent).toContain(
-      'Explore guided investigation',
+      'Start the guided investigation',
     );
-    // No fake chat box, no fake DOI search: exactly two real actions.
-    expect(screen.getAllByRole('button', { name: 'Explore guided investigation' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Choose a document' })).toHaveLength(1);
+    // No fake chat box, no fake DOI search: the CTA plus the metadata-only
+    // import toggle, nothing else.
+    expect(screen.getAllByRole('button', { name: 'Start the guided investigation' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Register a file (metadata only)' })).toHaveLength(1);
   });
 
   it('shows the quiet integrity line without expansion and keeps the document picker collapsed by default', () => {
@@ -69,7 +85,7 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     ).toBeTruthy();
     // The document picker starts collapsed: no import panel in the DOM.
     expect(screen.queryByTestId('import-panel')).toBeNull();
-    const toggle = screen.getByRole('button', { name: 'Choose a document' });
+    const toggle = screen.getByRole('button', { name: 'Register a file (metadata only)' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
 
     // Expanding reveals the real import flow untouched.
@@ -126,24 +142,26 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     expect(resultsLink.getAttribute('href')).toBe('/results');
   });
 
-  it('keeps exactly three quiet, real workspace shortcuts (no duplicated summaries)', () => {
+  it('keeps exactly four quiet, real workspace shortcuts (no duplicated summaries)', () => {
     renderWithRoutes();
     const shortcuts = screen.getByRole('navigation', { name: 'Workspace areas' });
     const links = Array.from(shortcuts.querySelectorAll('a[href]'));
     const hrefs = links.map((a) => a.getAttribute('href'));
     // Real destinations only; no /overview summary re-introduced here.
-    expect(hrefs).toEqual(['library', 'review-queue', 'graph'].map((p) => `/${p}`));
+    expect(hrefs).toEqual(
+      ['investigations', 'library', 'review-queue', 'graph'].map((p) => `/${p}`),
+    );
   });
 
   it('renders the collapsed document area with the honestly disabled Bibliography/DOI row behind the toggle', () => {
     renderWithRoutes();
 
     // Collapsed by default: the picker and the demoted affordances only
-    // exist after the outline toggle expands the document area.
+    // exist after the metadata-only toggle expands the document area.
     expect(screen.queryByTestId('import-panel')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Bibliography' })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Choose a document' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Register a file (metadata only)' }));
 
     expect(screen.getAllByLabelText('Choose a document').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTestId('import-input')).toBeTruthy();
@@ -173,7 +191,7 @@ describe('LandingPage (Wave U1 entry experience)', () => {
     );
     renderWithRoutes();
     // The picker lives in the collapsible document area — expand first.
-    fireEvent.click(screen.getByRole('button', { name: 'Choose a document' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Register a file (metadata only)' }));
     const input = screen.getByTestId('import-input') as HTMLInputElement;
 
     const file = new File(['%PDF-1.4 minimal'], 'field-notes.pdf', { type: 'application/pdf' });

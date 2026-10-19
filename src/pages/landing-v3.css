@@ -1,0 +1,125 @@
+/*
+ * VARIANT 03 — THE EVIDENCE LENS (landing-local stylesheet).
+ *
+ * Scope: only the v3 experiment landing page. Nothing here may leak into
+ * other pages — every rule is anchored under `.landing-v3`.
+ * Palette (design-of-record tokens, never pure black/gray):
+ *   paper #F7F3EA · ink #27283B · indigo #665C91 (deep #524A78)
+ *   lavender #DED6FA · amber #E9B867 · sage #658C79 · muted red #B85F59
+ */
+
+.landing-v3 {
+  /* Restraint rules for this variant. */
+  --v3-motif-crop: clip; /* page never scrolls sideways because of the art */
+}
+
+/* ———————————————————————————————————————————————— fluid type scale — */
+/*.type-hero — the wordmark in the hero. The existing .wordmark token class
+ * (index.css) provides the Bodoni Moda 900 voice; this class provides the
+ * fluid size only. */
+.landing-v3 .type-hero {
+  font-size: clamp(3.55rem, 2.1rem + 5.6vw, 7.1rem);
+  line-height: 0.96;
+}
+
+.landing-v3 .type-tagline {
+  font-size: clamp(1.95rem, 1.2rem + 3.1vw, 3.4rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.landing-v3 .body-lede {
+  font-size: clamp(1.05rem, 0.98rem + 0.38vw, 1.22rem);
+  line-height: 1.72; /* generous body line-height per brief */
+}
+
+/* ————————————————————————— motif layer: positioned, cropped, quiet — */
+.landing-v3 .motif-layer {
+  position: absolute;
+  z-index: 0;
+  width: 40rem; /* md+ sits top-right; viewfinder crop on the right edge */
+  max-width: none;
+  pointer-events: none; /* art never intercepts; controls live above */
+}
+
+.landing-v3 .motif-layer .motif-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* md+ — the constellation radiates behind/right of the headline, cropped by
+   overflow-x-clip on the page root so it never causes horizontal scroll. */
+@media (min-width: 768px) {
+  .landing-v3 .motif-layer {
+    top: -5rem;
+    right: -9rem;
+  }
+}
+
+/* <md — scaled + cropped (never crowded): a smaller constellation peeks
+   from the top-right corner behind the wordmark; lavender-on-paper stays
+   quiet enough for ink text to read over it. */
+@media (max-width: 767.98px) {
+  .landing-v3 .motif-layer {
+    top: -2.75rem;
+    right: -8.5rem;
+    width: 24rem;
+  }
+}
+
+/* — Node drift on viewport hover: transform-only, subtle, staggered per
+   node. transform-box keeps the fill-box as origin so shapes drift in
+   place. Global index.css already kills transitions entirely under
+   prefers-reduced-motion; the shift itself is also disabled below. */
+.landing-v3 .motif-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.landing-v3 .motif-layer:hover .motif-node--n0 { transform: translate(-1px, -2px); }
+.landing-v3 .motif-layer:hover .motif-node--n1 { transform: translate(2px, -3px) rotate(2deg); }
+.landing-v3 .motif-layer:hover .motif-node--n2 { transform: translate(-3px, -4px) rotate(-3deg); }
+.landing-v3 .motif-layer:hover .motif-node--n3 { transform: translate(3px, -2px) rotate(2.5deg); }
+.landing-v3 .motif-layer:hover .motif-node--n4 { transform: translate(-2px, 2px); }
+.landing-v3 .motif-layer:hover .motif-node--n5 { transform: translate(2px, 3px) rotate(-4deg); }
+.landing-v3 .motif-layer:hover .motif-node--n6 { transform: translate(3px, -3px) rotate(3deg); }
+.landing-v3 .motif-layer:hover .motif-node--n7 { transform: translate(-2px, -3px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-v3 .motif-node {
+    transition: none;
+  }
+  .landing-v3 .motif-layer:hover .motif-node {
+    transform: none; /* static artwork under reduced motion */
+  }
+}
+
+/* — Integrity caption: small, readable, always adjacent to the artwork.
+   It is page text (not aria-hidden) and never overlaps controls. */
+.landing-v3 .motif-caption {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+/* — Focus ring in amber (#E9B867) for everything focusable on THIS page —
+   the deliberate color signature of the variant. Offset 2–3px keeps the
+   ring visible on cream and on white launcher surfaces alike. */
+.landing-v3 a:focus-visible,
+.landing-v3 button:focus-visible,
+.landing-v3 summary:focus-visible,
+.landing-v3 input:focus-visible,
+.landing-v3 [tabindex]:focus-visible {
+  outline: 2px solid #e9b867;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* — Editorial reading-guide rules: hairline dividers instead of cards. — */
+.landing-v3 .reading-rule {
+  border-color: #dfd8c9; /* ink-border token */
+}

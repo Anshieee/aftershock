@@ -9,6 +9,8 @@ import {
   ensureDemoSeed,
 } from '../lib/api';
 import ImportPanel from '../components/ImportPanel';
+import EvidenceMotif from './landing-v3/EvidenceMotif';
+import './landing-v3.css';
 
 type SeedFlow =
   | { phase: 'idle' }
@@ -27,17 +29,22 @@ const seedFlowMessages: Record<string, string> = {
 };
 
 /**
- * Wave U1 entry experience (2026-10-19 design-of-record).
+ * VARIANT 03 — THE EVIDENCE LENS (2026-10-20 design experiment).
  *
- * One centered entry column: the research question as a display-serif hero,
- * then exactly ONE launcher card with exactly two real actions — the guarded
- * guided-seed flow (all of its honest states: submitting / unavailable /
- * cooldown / not-wired / api-error / rejected) and an outline toggle that
- * discloses the real document picker (<ImportPanel/> untouched) behind
- * progressive disclosure. The still-not-wired Bibliography / Single DOI
- * affordances stay visible-but-honestly-disabled inside that area only.
- * A quiet links row and the featured real-record investigation close the
- * page. The Aftershock. wordmark stays in the sidebar, never in the hero.
+ * First impression: the real brand hero (`Aftershock.` in Bodoni Moda 900
+ * over the promise "Trace the evidence.") beside a hand-drawn ripple +
+ * network artwork that radiates from one point. The artwork signals
+ * *connected evidence* through composition alone; it is DECORATIVE, marked
+ * "Illustrative composition — not evidence data.", carries no data, no
+ * labels, no claims, and sits strictly behind the interactive layer.
+ *
+ * Behavior is the design-of-record seed machine, unchanged: one loud indigo
+ * CTA ("Start the guided investigation") → the guarded, honest seed states
+ * (submitting / unavailable / cooldown / not-wired / api-error / rejected,
+ * aria-live, navigate to /results only on real success) → then the
+ * progressive-disclosure document area (the untouched <ImportPanel/> behind
+ * "Register a file (metadata only)"), a hairline reading-guide with the
+ * flag rule, the featured verified real record, and a quiet links row.
  */
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -84,77 +91,74 @@ export default function LandingPage() {
   const seeding = seedFlow.phase === 'submitting';
 
   return (
-    // Entry column: hero + launcher vertically balanced in the usable
-    // viewport (md+), centered, `max-w-2xl` — never a left-pinned dashboard.
-    <div className="mx-auto flex min-h-[calc(100svh-4rem)] w-full max-w-2xl flex-col justify-center">
-      {/* 1 — Hero: the research question in display serif. The Aftershock.
-          wordmark remains the site brand in the sidebar, never here. */}
-      <section aria-labelledby="hero-heading" className="px-2 text-center">
+    // The page root owns the vertical rhythm and clips the artwork's
+    // right-edge crop so the motif can push past the viewport edge without
+    // ever creating horizontal scroll.
+    <div className="landing-v3 relative min-h-[calc(100svh-4rem)] overflow-x-clip pb-12">
+      {/* ARTWORK LAYER — decorative, aria-hidden, pointer-events-none.
+          Radiates behind/right of the hero; on mobile it is scaled and
+          cropped into the top-right corner, never crowded, never over a
+          control. No text above z-0 sits on it illegibly: hairlines are
+          lavender-on-paper and all interactive elements stay z-10. */}
+      <div className="motif-layer">
+        <EvidenceMotif />
+      </div>
+
+      {/* 1 — Hero: real brand mark + the page promise. The tagline is the
+          h1; the wordmark is a brand mark (not a heading). */}
+      <section className="relative z-10 px-2 pt-4 md:pt-10" aria-labelledby="hero-heading">
+        <p className="wordmark type-hero text-ink">Aftershock.</p>
         <h1
           id="hero-heading"
-          className="text-4xl font-display leading-[1.05] tracking-tight text-ink [text-wrap:balance] md:text-6xl"
+          className="type-tagline mt-3 font-display font-semibold text-brand-deep"
         >
-          What would you like to investigate?
+          Trace the evidence.
         </h1>
-        <p className="mt-4 text-lg leading-7 text-ink-muted md:text-xl md:leading-8">
-          Follow the evidence. Understand what changed.
+        <p className="body-lede mt-4 max-w-lg text-ink-muted">
+          One publication sends a ripple through the literature. Aftershock
+          draws the wave — which works cite which, and where the record asks
+          a human to look. A flag is a request for review, never a verdict.
+        </p>
+        {/* Integrity caption for the artwork: page text, near the art,
+            honest about what it is NOT. */}
+        <p className="motif-caption mt-4 max-w-lg text-ink-muted">
+          Illustrative composition — not evidence data.
         </p>
       </section>
 
-      {/* 2 — THE launcher card: the only seed trigger on the page and the
-          only document action in the initial viewport (the picker itself is
-          disclosed behind the outline toggle). Two actions, one memory:
-          the indigo primary is the page's single indigo destination. */}
+      {/* 2 — THE launcher: the page's single indigo destination and the
+          only seed trigger. One loud CTA; its honest states unchanged. */}
       <section
         aria-labelledby="launcher-heading"
         data-testid="investigation-launcher"
-        className="mt-8 rounded-2xl border border-ink-border bg-paper-raised p-6 shadow-[0_1px_2px_rgba(39,40,59,0.06),0_8px_24px_rgba(39,40,59,0.05)] md:p-8"
+        className="relative z-10 mt-8 max-w-xl rounded-2xl border border-ink-border bg-paper-raised p-6 shadow-[0_1px_2px_rgba(39,40,59,0.06),0_8px_24px_rgba(39,40,59,0.05)] md:p-7"
       >
         <h2 id="launcher-heading" className="sr-only">
           Start an investigation
         </h2>
 
-        {/* Testid hook kept for the legacy hero contract: this wrapper
-            anchors the two real actions (data flow and honest states
-            unchanged). */}
-        <div
-          data-testid="hero-guided-action"
-          className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center"
-        >
+        {/* Legacy hero contract: this wrapper anchors the primary action
+            (data flow and honest states unchanged). */}
+        <div data-testid="hero-guided-action" className="flex flex-col items-start gap-3">
           <button
             type="button"
             onClick={seedDemo}
             disabled={seeding}
             aria-busy={seeding}
             data-testid="guided-seed-button"
-            className="w-full rounded-lg bg-brand px-6 py-3.5 text-base font-semibold text-white no-underline hover:bg-brand-deep disabled:cursor-progress disabled:opacity-80 sm:w-auto"
+            className="w-full rounded-xl bg-brand px-6 py-4 text-lg font-semibold text-white no-underline shadow-[0_1px_2px_rgba(82,74,120,0.3)] hover:bg-brand-deep disabled:cursor-progress disabled:opacity-80 sm:w-auto"
           >
-            {seeding ? 'Contacting demo API…' : 'Explore guided investigation'}
-          </button>
-          {/* Secondary action: outline, deliberately NOT indigo — it only
-              discloses the real picker; it never competes with the primary
-              CTA for the one indigo destination. */}
-          <button
-            type="button"
-            onClick={() => setShowDocumentArea((open) => !open)}
-            aria-expanded={showDocumentArea}
-            aria-controls="document-area"
-            data-testid="choose-document-toggle"
-            className="w-full rounded-lg border border-ink-border bg-paper px-6 py-3.5 text-base font-semibold text-ink no-underline hover:bg-paper-deep sm:w-auto"
-          >
-            Choose a document
+            {seeding ? 'Contacting demo API…' : 'Start the guided investigation'}
           </button>
         </div>
 
-        {/* Quiet integrity line: the honest synthetic-vs-real distinction,
-            visible without expanding anything (never only inside a
-            collapsed region). */}
-        <p className="mx-auto mt-5 max-w-prose text-center text-sm leading-6 text-ink-muted">
+        {/* Quiet integrity line — verbatim, visible without expanding. */}
+        <p className="mt-5 text-sm leading-6 text-ink-muted">
           The guided example uses clearly labeled synthetic content (FICTIONAL
           / GUIDED DEMO) alongside real public records — nothing is simulated.
         </p>
 
-        <p className="mt-2 text-center text-sm">
+        <p className="mt-2 text-sm">
           <button
             type="button"
             onClick={() => setShowGuidedNote((open) => !open)}
@@ -187,7 +191,7 @@ export default function LandingPage() {
           className="mt-3 min-h-5"
         >
           {seedFlow.phase === 'submitting' && (
-            <p className="text-center text-sm text-ink-muted" role="status">
+            <p className="text-sm text-ink-muted" role="status">
               {guidance}
             </p>
           )}
@@ -223,16 +227,31 @@ export default function LandingPage() {
               </p>
             )}
         </div>
+      </section>
 
-        {/* 3 — Document area, collapsed by default. Toggling it reveals the
-            real import flow (ImportPanel rendered untouched: client-side
-            guards → POST /import-document → verbatim server disclosure →
-            Analyze only for the demo manuscript) plus the still-unbuilt
-            Bibliography / Single DOI affordances, honest and disabled. */}
+      {/* 3 — Progressive-disclosure import. The picker (the untouched
+          <ImportPanel/>) exists only after the toggle expands the area. */}
+      <section aria-labelledby="document-heading" className="relative z-10 mt-8 max-w-xl px-2">
+        <h2 id="document-heading" className="text-sm font-semibold text-ink">
+          Have a document?
+        </h2>
+        <p className="mt-1 text-sm text-ink-muted">
+          <button
+            type="button"
+            onClick={() => setShowDocumentArea((open) => !open)}
+            aria-expanded={showDocumentArea}
+            aria-controls="document-area"
+            data-testid="choose-document-toggle"
+            className="font-semibold text-ink underline decoration-ink-border decoration-2 underline-offset-4 hover:text-brand-deep"
+          >
+            Register a file (metadata only)
+          </button>
+        </p>
+
         {showDocumentArea && (
           <div
             id="document-area"
-            className="mt-6 rounded-xl bg-paper-deep p-5 text-left md:p-6"
+            className="mt-4 rounded-xl border border-ink-border bg-paper-raised p-5 text-left md:p-6"
           >
             <ImportPanel />
 
@@ -263,16 +282,78 @@ export default function LandingPage() {
         )}
       </section>
 
-      {/* 4 — Three real, quiet workspace shortcuts as one centered text
-          row (no summary cards — the areas themselves show the live state). */}
-      <nav aria-label="Workspace areas" className="mt-8">
-        <ul className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+      {/* 4 — How to read the evidence: hairline definition rows (no icon
+          cards) with the flag rule in plain words, then the featured
+          REAL record kept verbatim from the design of record. */}
+      <section aria-labelledby="reading-heading" className="relative z-10 mt-10 max-w-xl px-2">
+        <h2
+          id="reading-heading"
+          className="text-xs font-semibold uppercase tracking-wide text-ink-muted"
+        >
+          How to read the evidence
+        </h2>
+        <dl className="mt-3 divide-y divide-[#DFD8C9]">
+          <div className="py-3.5">
+            <dt className="font-display text-base font-semibold text-ink">Flags</dt>
+            <dd className="mt-1 text-sm leading-6 text-ink-muted">
+              A flag asks a human to review the evidence — it is never a
+              verdict, and never a proof.
+            </dd>
+          </div>
+          <div className="py-3.5">
+            <dt className="font-display text-base font-semibold text-ink">Imports</dt>
+            <dd className="mt-1 text-sm leading-6 text-ink-muted">
+              Registering a file records metadata only; the text of real
+              documents never leaves your side of this demo.
+            </dd>
+          </div>
+        </dl>
+
+        <article
+          aria-labelledby="featured-heading"
+          className="mt-6 rounded-2xl border border-ink-border bg-paper-raised p-6"
+        >
+          <h3 id="featured-heading" className="font-display text-xl text-ink">
+            Theory under real pressure
+          </h3>
+          <p className="mt-3 text-sm leading-6 text-ink-muted">
+            Mehra et al. 2020 (The Lancet) was retracted: the retraction was
+            announced 2020-06-04 and recorded 2020-06-05 (PMIDs 32450107 /
+            32511943). The guided investigation follows its impact through the
+            demo graph; the manuscript under review there is fictional and
+            labeled FICTIONAL / GUIDED DEMO — this record is not.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="rounded-full border border-review-border bg-review-surface px-2.5 py-0.5 text-xs font-medium text-review-text">
+              Verified real record
+            </span>
+            <Link
+              to="/results"
+              className="rounded border border-ink-border bg-paper px-3.5 py-1.5 text-sm font-medium text-ink no-underline hover:bg-paper-deep"
+            >
+              Open the guided investigation
+            </Link>
+          </div>
+        </article>
+      </section>
+
+      {/* 5 — Quiet links row: four real destinations, one text line. */}
+      <nav aria-label="Workspace areas" className="relative z-10 mt-10 px-2">
+        <ul className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <li>
             <Link
-              to="/library"
+              to="/investigations"
               className="text-sm text-ink no-underline hover:text-brand-deep"
             >
-              My Library
+              Investigations
+            </Link>
+          </li>
+          <li aria-hidden="true" className="text-sm text-ink-muted">
+            ·
+          </li>
+          <li>
+            <Link to="/library" className="text-sm text-ink no-underline hover:text-brand-deep">
+              Library
             </Link>
           </li>
           <li aria-hidden="true" className="text-sm text-ink-muted">
@@ -283,60 +364,19 @@ export default function LandingPage() {
               to="/review-queue"
               className="text-sm text-ink no-underline hover:text-brand-deep"
             >
-              Review Claims
+              Review Queue
             </Link>
           </li>
           <li aria-hidden="true" className="text-sm text-ink-muted">
             ·
           </li>
           <li>
-            <Link
-              to="/graph"
-              className="text-sm text-ink no-underline hover:text-brand-deep"
-            >
-              Evidence Graph
+            <Link to="/graph" className="text-sm text-ink no-underline hover:text-brand-deep">
+              Knowledge Graph
             </Link>
           </li>
         </ul>
       </nav>
-
-      {/* 5 — Featured investigation: one real, publicly verified record,
-          clearly distinct from the fictional guided-demo manuscript. The
-          single CTA is a plain outline link to /results — seeding happens
-          only via the launcher above. */}
-      <section aria-labelledby="featured-heading" className="mt-10 pb-10">
-        <h2
-          id="featured-heading"
-          className="text-xs font-semibold uppercase tracking-wide text-ink-muted"
-        >
-          Featured investigation
-        </h2>
-        <article className="mt-3 rounded-2xl border border-ink-border bg-paper-raised p-6">
-          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-            <h3 id="featured-heading" className="font-display text-xl text-ink">
-              The 2020 hydroxychloroquine retraction
-            </h3>
-            <span className="rounded-full border border-review-border bg-review-surface px-2.5 py-0.5 text-xs font-medium text-review-text">
-              Verified real record
-            </span>
-          </div>
-          <p className="mx-auto mt-3 max-w-prose text-sm leading-6 text-ink-muted">
-            Mehra et al. 2020 (The Lancet) was retracted: the retraction was
-            announced 2020-06-04 and recorded 2020-06-05 (PMIDs 32450107 /
-            32511943). The guided investigation follows its impact through the
-            demo graph; the manuscript under review there is fictional and
-            labeled FICTIONAL / GUIDED DEMO — this record is not.
-          </p>
-          <div className="text-center">
-            <Link
-              to="/results"
-              className="mt-4 inline-block rounded border border-ink-border bg-paper px-4 py-2 text-sm font-medium text-ink no-underline hover:bg-paper-deep"
-            >
-              Open the guided investigation
-            </Link>
-          </div>
-        </article>
-      </section>
     </div>
   );
 }
