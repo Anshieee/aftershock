@@ -34,6 +34,12 @@ Honest, evidence-linked list of what the current demo does **not** guarantee. Up
 - **Rate/cost shaping:** per-IP search budget cooldown 60 s, ≤10 per 10 min (deliberately tighter than write routes); per-claim budget separate; Crossref polite-pool `mailto` sent only when `CROSSREF_CONTACT_EMAIL` is configured.
 - **The panel cannot be used to "confirm" a claim:** the UI states and enforces that support/contrast assessment happens at the paper itself in human review; the finding surface never flips a review state.
 
+## Import metadata extraction (Wave 3, deployed 2026-10-19) — honest scope
+- **TXT only, bounded excerpt:** DOI detection scans at most the first 512 KiB of a TXT upload and is explicitly NOT attempted for PDF/DOCX in this tier (responses state this instead of lying by omission). Larger files disclose `truncated` and matches beyond the excerpt are not looked for.
+- **Detection, never verification:** a detected DOI is an UNVERIFIED pattern-match candidate — presence in the file proves nothing about claim support, citation integrity, or the identifier's validity. The UI shows the standing caveat verbatim; no scoring, ranking, or "relevance" is asserted.
+- **Session-scoped, never persisted:** the extraction lives only in the import HTTP response. No node label, edge type, or graph property exists for it; the graph contract of `/import-document` is unchanged (`contentStored:false` still primary).
+- **OTL (out of this tier) explicitly:** no reference-section parsing (author/year/title structure), no retraction lookups on detected DOIs, no DOI resolution/verification, no PDF/DOCX text extraction, no claim↔reference linkage from file content.
+
 ## Third-party / telemetry residuals
 - External fetches are time-boxed and logs are content-redacted (AGENTS.md). Sentry, if enabled, is scrubbed for manuscript content and PII (§13). **Residual risks that cannot be fully eliminated in this demo:** the unencrypted graph channel still exposes synthetic workload metadata to network observers; verification fetches reach third-party services (Crossref, NCBI, doi.org) and reveal working IPs/agents without sending user content; direct `thelancet.com` fetch is blocked (403) and only corroborated indirectly. Fonts are self-hosted (no runtime CDN calls).
 - No "secure transport" or encryption claims are made anywhere in the demo UI; the disclosure duties of §2 and §4 bind all product surfaces.

@@ -63,3 +63,14 @@ Running log for the autonomous session started 2026-10-19 ~04:45 UTC. Orchestrat
   - Design of record: `/tmp/opencode/wave3-spec.md`.
 - Deploy decision: sweep `d31ae56`/`c26575c` into production in the Wave-3 deploy after both branches merge (fixtureId fix is cosmetic; no urgency).
 - Empty-states `/library` E2E flake: did NOT reproduce in the last two full production sweeps (74/0/4 clean); leaving spec as-is per bounded-diagnostics constraint.
+
+## Wave 3 complete — DEPLOYED + live-verified (11:35–11:45 UTC block)
+- Backend merged `42becc9` (branch commit `3e2c42b` + wording polish `10a14f9`); frontend merged `baa23a0` (commit `2a6a668`). Both agent diffs reviewed by orchestrator before merge: only owned files touched; `registerDocumentImport` byte-identical; honesty contract intact.
+- One merge-tail fix by orchestrator: `f91b8a9` aligned the handler-test's expected extraction-failure string with the polished wording (the agent had pinned the earlier "Recursive…" string from my spec typo).
+- **Gates on merged main `baa23a0`:** root suite 449 passed / 13 skipped / 0 failed; typecheck clean; production build clean.
+- **Production deploy `6ad5b322b4ae0df977a3e1bf`.**
+- **Live verification vs production:** synthetic TXT import → `extraction.attempted:true`, 326/524288 bytes scanned, both planted DOIs detected with exact occurrence counts (2 and 1 — doi.org URL form counted once), snippets + verbatim caveat present, `contentStored:false` unchanged; synthetic PDF import → honest `attempted:false` + reason, no dois key. Both test docs are synthetic-only content (safe for the no-TLS graph).
+- **Production E2E: 80 passed / 0 failed / 4 skipped** (was 74 pre-W3; +6 new extraction/coverage tests).
+- Docs: BUILD_STATUS (Wave 3 row + verification section), KNOWN_LIMITATIONS (import extraction scope), this checkpoint.
+- Note: two synthetic verification docs now exist in demo Library (`wave3-verify-synthetic.txt`, `wave3-pdf-check-synthetic.pdf`) — real registrations of synthetic test files with honest metadata; harmless and disclosed.
+- NEXT: Wave 4 — reliability/security hardening + first M7 candidate (grouped shared-data dependencies is parked pending design; feasibility via read-only Cypher traversal).
