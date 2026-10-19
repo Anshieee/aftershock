@@ -539,21 +539,28 @@ export async function readGraphRecords(session, { limit, nodeId = null, depth = 
 }
 
 /**
- * Document list for `GET /documents`: REAL Document nodes read from the
- * graph, including their isSynthetic flag (the synthetic manuscript vs. real
- * verified Mehra records — nothing is synthesized at response time).
+ * Document list: REAL Document nodes read from the graph, including their
+ * `isSynthetic` flag (the synthetic manuscript vs. real verified Mehra
+ * records — nothing is synthesized at response time).
+ *
+ * `seeded` selects the import cohort: `true` (default) returns only seeded
+ * documents so `GET /documents` keeps its current behavior; `false` returns
+ * user-imported documents for `GET /documents-imported`. An honest empty
+ * array is returned when none match — nothing is fabricated.
  *
  * @param {import('./graphClient.mjs').GraphSession} session
+ * @param {{seeded?: boolean}} [options] `seeded=true` (default) → seeded
+ *        documents only; `seeded=false` → non-seeded/user-imported documents.
  * @returns {Promise<{documents: Record<string, unknown>[], seedVersion: string | null}>}
  */
-export async function readDocuments(session) {
+export async function readDocuments(session, { seeded = true } = {}) {
   if (!(await session.graphExists())) {
     return { documents: [], seedVersion: null };
   }
   const meta = await readSeedMeta(session);
   const res = await session.roQuery(
     'MATCH (n:ResearchDocument) WHERE n.seeded = $seeded\n     RETURN properties(n) AS row',
-    { seeded: true },
+    { seeded },
   );
   const documents = /** @type {Array<Record<string, unknown>>} */ (res.data ?? [])
     .map((r) => toWireNode(r.row))
