@@ -1,6 +1,18 @@
 # Aftershock — Build Status
 
-Last updated: 2026-10-19 (M6 reports & exports complete + deployed; full unit + E2E green vs production)
+Last updated: 2026-10-19 (DEMO READY — P0 demo-first refinement deployed; production verified end-to-end; final demo commit `6598bc5`)
+
+## Deployment incident (2026-10-19, ROOT-CAUSED + RESOLVED)
+- **Finding:** Netlify had NO deploy after 2026-10-18T19:06 UTC — the site had no working GitHub auto-publish for overnight M5/M6/P2/P3 commits, so production served a pre-M5 bundle (review endpoints absent → SPA fallback → frontend honestly displayed "decision recording not wired"). E2E had been passing against the honest-unavailable paths, masking the gap.
+- **Fix:** Deployed `main` via the linked Netlify CLI (`netlify deploy --build --prod`): all 19 functions + M5 decision/revision endpoints + M6 export endpoints + P2/P3 read endpoints verified live. Repeated after P0 landing/review merges.
+- **Operational note:** commits to `main` do NOT auto-publish; every production update currently requires a manual `netlify deploy --build --prod` from the repo (site linked via `.netlify/state.json`). GitHub integration re-enablement is a user-side action if desired.
+
+## Production verification (2026-10-19, all against `6598bc5` deploy 6ad5949ffd3e2ca24bbfcb31)
+- `/health`: ok, graph `aftershock:demo` reachable, 16 nodes, seeded seed-1.
+- M5 round-trip: real `POST /review-decide?caseId=claim-A` recorded a genuine decision (visible in graph + `GET /activity`); per-IP 429 rate limiting confirmed working. NOTE: an idempotent guided-seed run after that wiped seeded-scope decision nodes (known free-tier durability limitation, disclosed in UI) — decisions are re-recordable live during demo.
+- M6: `POST /export/report` produced a real PDF (HTTP 200, `application/pdf`, `%PDF-` magic, attachment, 6.1 KB) from live graph data.
+- E2E vs production: **60 passed / 0 failed / 4 intentional skips** (Playwright retries allowed flake re-runs; no failures), including redesigned landing selectors and enabled review decision affordances.
+- Unit: frontend vitest 410 passed/13 skipped; server vitest 155 passed; typecheck clean.
 
 ## Environment (verified 2026-10-18)
 - Repo: /home/ansh/Projects/aftershock → GitHub `Anshieee/aftershock` (main), synced.
