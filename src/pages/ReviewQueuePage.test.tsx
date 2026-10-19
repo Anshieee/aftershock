@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import ReviewQueuePage from './ReviewQueuePage';
 import { stubFetchByRoute } from '../test/mockFetch';
 import { buildDemoOverviewRecord } from '../test/graphFixtures';
-
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -365,3 +364,477 @@ describe('ReviewQueuePage — derives real flagged items from the graph', () => 
     expect(screen.queryByTestId('review-item-claim-A')).toBeNull();
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * P0 review-queue UX wave — server-state-first rendering, audit
+ * history from the real /activity feed, typed decision errors, and
+ * evidence-path links.
+ * ------------------------------------------------------------------ */
+
+/** A review_decision event exactly as the typed client hands it to pages. */
+const REVIEW_HISTORY_EVENT = {
+  id: 'review-evt-9',
+  type: 'review_decision' as const,
+  timestamp: '2026-10-19T12:00:00.000Z',
+  actor: 'A. Reviewer',
+  action: 'more_evidence_needed',
+  description: 'Deployment verification: recording a real decision against the seeded demo case to confirm the write path.',
+  beforeState: 'awaiting_review',
+  afterState: 'review_recorded',
+  isSynthetic: true,
+  syntheticLabel: 'FICTIONAL / GUIDED DEMO',
+};
+
+/** Production-shaped record: server writes the M5 case state into reviewState + reviewFlags. */
+function recordWithServerReviewState(flags: string[] = ['further_investigation']): Record<string, unknown> {
+  const record = buildDemoOverviewRecord() as {
+    nodes: Array<Record<string, unknown>>;
+  };
+  const claimA = record.nodes.find((node) => node['id'] === 'claim-A');
+  expect(claimA).toBeDefined();
+  claimA!['reviewState'] = 'review_recorded';
+  claimA!['reviewFlags'] = flags;
+  return record;
+}
+
+function stubMutableQueue(options: {
+  firstOverview: unknown;
+  thenOverview?: unknown;
+  activityResponses?: Array<{ status: number; body?: unknown }>;
+  decideStatus?: number;
+  decideBody?: unknown;
+}) {
+  let edgesCalls = 0;
+  let activityCalls = 0;
+  const calls = stubFetchByRoute((url) => {
+    if (url.includes('graph-edges')) {
+      edgesCalls += 1;
+      return {
+        status: 200,
+        body: edgesCalls === 1 ? options.firstOverview : (options.thenOverview ?? options.firstOverview),
+      };
+    }
+    if (url.includes('/activity')) {
+      const response = options.activityResponses?.[activityCalls] ?? {
+        status: 200,
+        body: [REVIEW_HISTORY_EVENT],
+      };
+      activityCalls += 1;
+      // Past the scripted list the endpoint keeps answering with the last body.
+      return response;
+    }
+    if (url.includes('review-decide')) {
+      return { status: options.decideStatus ?? 200, body: options.decideBody ?? DECISION_OK };
+    }
+    if (url.includes('review-revision')) {
+      return { status: 200, body: PROPOSAL_OK };
+    }
+    return undefined;
+  });
+  return { calls, edgesCalls: () => edgesCalls, activityCalls: () => activityCalls };
+}
+
+describe('ReviewQueuePage — sage styling derives from SERVER state, never a local guess', () => {
+  it('a returned record carrying reviewState review_recorded + reviewFlags shows sage and the amber further-investigation badge on first load, with no session decision', async () => {
+    stubFetchByRoute((url) => {
+      if (url.includes('graph-edges'))
+        return { status: 200, body: recordWithServerReviewState(['further_investigation']) };
+      if (url.includes('/activity')) return { status: 200, body: [] };
+      return undefined;
+    });
+    renderQueue();
+
+    const item = await screen.findByTestId('review-item-claim-A');
+    expect(item.getAttribute('data-review-state')).toBe('reviewed');
+    expect(item.className).toContain('border-reviewed');
+    expect(item.getAttribute('data-review-state')).toBe('reviewed');
+    const badge = screen.getByTestId('review-item-claim-A-investigation-pending');
+    expect(badge.textContent).toBe('Further investigation pending');
+    expect(badge.className).toContain('border-uncertain-border');
+    // No dialog decision, no invented decision line.
+    expect(screen.queryByTestId('review-item-claim-A-decision')).toBeNull();
+    expect(document.querySelector('[data-testid="review-item-claim-A"]')!.textContent).not.toMatch(
+      /Decision recorded:/,
+    );
+
+    // The dependent conclusion-C inherits the obligation: the flag on claim-A
+    // does NOT clear its indirect review (no automatic clearing upstream→down).
+    const conclusionC = screen.getByTestId('review-item-conclusion-C');
+    expect(conclusionC.getAttribute('data-review-state')).toBe('needs-review');
+    expect(conclusionC.className).not.toContain('border-reviewed');
+  });
+
+  it('revision_pending in returned reviewFlags shows the amber Revision pending badge from server state', async () => {
+    stubFetchByRoute((url) => {
+      if (url.includes('graph-edges'))
+        return { status: 200, body: recordWithServerReviewState(['revision_pending']) };
+      if (url.includes('/activity')) return { status: 200, body: [] };
+      return undefined;
+    });
+    renderQueue();
+
+    await screen.findByTestId('review-item-claim-A');
+    expect(screen.getByTestId('review-item-claim-A-revision-pending').textContent).toBe(
+      'Revision pending',
+    );
+  });
+});
+
+describe('ReviewQueuePage — decision success: server response reflected + background refresh + audit refetch', () => {
+  it('records a decision, refetches the graph (server state) and the /activity feed, keeps the dialog open, and renders the audit entry', async () => {
+    const stub = stubMutableQueue({
+      firstOverview: buildDemoOverviewRecord(),
+      thenOverview: recordWithServerReviewState(['revision_pending']),
+      activityResponses: [
+        { status: 200, body: [] },
+        { status: 200, body: [REVIEW_HISTORY_EVENT] },
+      ],
+      decideStatus: 200,
+      decideBody: DECISION_OK,
+    });
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    // Initial history read happened (empty first).
+    await waitFor(() => expect(stub.activityCalls()).toBe(1));
+
+    fireEvent.click(screen.getByTestId('review-decide-claim-A'));
+    fireEvent.click(screen.getByTestId('review-decision-outcome-revision_needed'));
+    fireEvent.change(screen.getByTestId('review-decision-explanation'), {
+      target: { value: DECISION_OK.explanation },
+    });
+    fireEvent.click(screen.getByTestId('review-decision-submit'));
+
+    await waitFor(() => expect(screen.getByTestId('review-decision-done')).toBeTruthy());
+
+    // Server state refetch + cache-busted audit refetch happened.
+    await waitFor(() => expect(stub.edgesCalls()).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(stub.activityCalls()).toBe(2));
+
+    // The dialog confirmation survives the background refresh.
+    expect(screen.getByTestId('review-decision-done')).toBeTruthy();
+
+    // Refresh note is visible and server-derived: the refreshed record now
+    // carries reviewState review_recorded server-side.
+    const note = await screen.findByTestId('review-queue-refresh-note');
+    expect(note.textContent).toMatch(/Server state refreshed at/);
+
+    // The item is reviewed (session decision + server reviewState agree).
+    expect(screen.getByTestId('review-item-claim-A').getAttribute('data-review-state')).toBe(
+      'reviewed',
+    );
+    expect(screen.getByTestId('review-item-claim-A-revision-pending').textContent).toBe(
+      'Revision pending',
+    );
+
+    // The audit entry appears from the refetched feed, with the REAL recorded
+    // outcome (the server's action string), actor, and description.
+    const entry = await screen.findByTestId('review-history-entry-review-evt-9');
+    expect(entry).toBeTruthy();
+    expect(
+      screen.getByTestId('review-history-entry-review-evt-9-action').textContent,
+    ).toContain('more_evidence_needed');
+    expect(
+      screen.getByTestId('review-history-entry-review-evt-9-actor').textContent,
+    ).toContain('A. Reviewer');
+    expect(
+      screen.getByTestId('review-history-entry-review-evt-9-description').textContent,
+    ).toContain('Deployment verification');
+    // String before/after states in the event are displayed.
+    expect(
+      screen.getByTestId('review-history-entry-review-evt-9-before').textContent,
+    ).toContain('awaiting_review');
+    expect(
+      screen.getByTestId('review-history-entry-review-evt-9-after').textContent,
+    ).toContain('review_recorded');
+    expect(
+      screen.getByTestId('review-history-entry-review-evt-9-synthetic').textContent,
+    ).toContain('FICTIONAL / GUIDED DEMO');
+    // Open panels survive: still no wipe of the open revision panel id state (dialog closed manually only).
+  });
+
+  it('open dialogs/panels stay intact while the background server refresh lands', async () => {
+    const stub = stubMutableQueue({
+      firstOverview: buildDemoOverviewRecord(),
+      thenOverview: recordWithServerReviewState([]),
+      activityResponses: [{ status: 200, body: [] }],
+      decideStatus: 200,
+      decideBody: DECISION_OK,
+    });
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    // Record a decision to trigger the background refresh.
+    fireEvent.click(screen.getByTestId('review-decide-claim-A'));
+    fireEvent.click(screen.getByTestId('review-decision-outcome-evidence_updated'));
+    fireEvent.change(screen.getByTestId('review-decision-explanation'), {
+      target: { value: 'The supporting basis was corrected upstream.' },
+    });
+    fireEvent.click(screen.getByTestId('review-decision-submit'));
+    await waitFor(() => expect(stub.edgesCalls()).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(screen.getByTestId('review-decision-done')).toBeTruthy());
+
+    // Now open the revision panel while the refresh has landed: selection state stable.
+    fireEvent.click(screen.getByTestId('review-decision-done-close'));
+    fireEvent.click(screen.getByTestId('review-revise-claim-A'));
+    await waitFor(() => expect(screen.getByTestId('revision-proposal-panel')).toBeTruthy());
+
+    // Re-open the decision dialog: it must not have been killed by the refresh.
+    fireEvent.click(screen.getByTestId('review-decide-claim-A'));
+    expect(screen.getByTestId('review-decision-dialog')).toBeTruthy();
+  });
+});
+
+describe('ReviewQueuePage — typed decision failures with honest recovery', () => {
+  /**
+   * Stubs fetch so the queue itself loads normally while the review-decide
+   * call fails in a specific typed way (route-selective — a blank failure
+   * stub would break the page's own overview/history fetches, which are not
+   * under test here).
+   */
+  function stubDecisionFailure(kind: 'timeout' | 'network' | 'html') {
+    const record = buildDemoOverviewRecord();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = typeof input === 'string' ? input : String((input as Request).url);
+        if (url.includes('graph-edges'))
+          return new Response(JSON.stringify(record), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        if (url.includes('/activity'))
+          return new Response(JSON.stringify([REVIEW_HISTORY_EVENT]), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        if (url.includes('review-decide') || url.includes('review-revision')) {
+          if (kind === 'timeout') throw new DOMException('The operation was aborted.', 'AbortError');
+          if (kind === 'network') throw new TypeError('Failed to fetch');
+          return new Response('<!doctype html><html><body>spa</body></html>', {
+            status: 200,
+            headers: { 'Content-Type': 'text/html' },
+          });
+        }
+        return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+      }),
+    );
+  }
+
+  it('429 shows cooldown copy (wait, then retry) and never marks the item reviewed', async () => {
+    stubMutableQueue({
+      firstOverview: buildDemoOverviewRecord(),
+      activityResponses: [{ status: 200, body: [] }],
+      decideStatus: 429,
+      decideBody: { error: 'rate limited' },
+    });
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    fireEvent.click(screen.getByTestId('review-decide-claim-A'));
+    fireEvent.click(screen.getByTestId('review-decision-outcome-revision_needed'));
+    fireEvent.change(screen.getByTestId('review-decision-explanation'), {
+      target: { value: DECISION_OK.explanation },
+    });
+    fireEvent.click(screen.getByTestId('review-decision-submit'));
+
+    const banner = await screen.findByTestId('review-decision-error');
+    expect(banner.textContent).toMatch(/429/);
+    expect(banner.textContent).toMatch(/[Ww]ait/);
+    expect(banner.textContent).toMatch(/cooldown/i);
+    expect(banner.textContent).toMatch(/Nothing was recorded\./);
+    expect(screen.getByTestId('review-decision-retry')).toBeTruthy();
+    expect(
+      screen.getByTestId('review-item-claim-A').getAttribute('data-review-state'),
+    ).toBe('needs-review');
+  });
+
+  it('timeout is typed: the copy names the timeout and the retry affordance exists', async () => {
+    stubDecisionFailure('timeout');
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    fireEvent.click(screen.getByTestId('review-decide-claim-A'));
+    fireEvent.click(screen.getByTestId('review-decision-outcome-revision_needed'));
+    fireEvent.change(screen.getByTestId('review-decision-explanation'), {
+      target: { value: DECISION_OK.explanation },
+    });
+    fireEvent.click(screen.getByTestId('review-decision-submit'));
+
+    const banner = await screen.findByTestId('review-decision-error');
+    expect(banner.textContent).toMatch(/timeout/i);
+    expect(banner.textContent).toMatch(/nothing was recorded\./i);
+    expect(screen.getByTestId('review-decision-retry')).toBeTruthy();
+  });
+
+  it('network failure is typed: the copy says the request did not reach the API', async () => {
+    stubDecisionFailure('network');
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    fireEvent.click(screen.getByTestId('review-decide-claim-A'));
+    fireEvent.click(screen.getByTestId('review-decision-outcome-more_evidence_needed'));
+    fireEvent.change(screen.getByTestId('review-decision-explanation'), {
+      target: { value: DECISION_OK.explanation },
+    });
+    fireEvent.click(screen.getByTestId('review-decision-submit'));
+
+    const banner = await screen.findByTestId('review-decision-error');
+    expect(banner.textContent).toMatch(/Network error/);
+    expect(banner.textContent).toMatch(/did not reach/);
+  });
+
+  it('HTML-shaded 2xx is typed as unavailable, never a fake success', async () => {
+    stubDecisionFailure('html');
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    fireEvent.click(screen.getByTestId('review-decide-claim-A'));
+    fireEvent.click(screen.getByTestId('review-decision-outcome-not_affected'));
+    fireEvent.change(screen.getByTestId('review-decision-explanation'), {
+      target: { value: DECISION_OK.explanation },
+    });
+    fireEvent.click(screen.getByTestId('review-decision-submit'));
+
+    const banner = await screen.findByTestId('review-decision-error');
+    expect(banner.textContent).toMatch(/not available/i);
+    expect(banner.textContent).toMatch(/The decision was not recorded\./);
+    expect(
+      screen.getByTestId('review-item-claim-A').getAttribute('data-review-state'),
+    ).toBe('needs-review');
+  });
+});
+
+describe('ReviewQueuePage — evidence-path connection and links', () => {
+  it('each flagged item exposes its evidence path as chips plus Inspect/Results links', async () => {
+    stubQueueRoute(200);
+    renderQueue();
+    await screen.findByTestId('review-item-claim-A');
+
+    const whyA = screen.getByTestId('review-item-claim-A-why');
+    expect(screen.getByTestId('review-item-claim-A-chip-citation-use').textContent).toContain(
+      'cu-A-supporting',
+    );
+    expect(screen.getByTestId('review-item-claim-A-chip-publication').textContent).toContain(
+      'pub-mehra-2020',
+    );
+    expect(whyA.textContent).toContain('cu-A-supporting');
+
+    const inspect = screen.getByTestId('review-item-claim-A-inspect') as HTMLAnchorElement;
+    expect(inspect.getAttribute('href')).toBe('/graph');
+    expect(inspect.textContent).toContain('Inspect evidence path');
+
+    const results = screen.getByTestId('review-item-claim-A-results') as HTMLAnchorElement;
+    expect(results.getAttribute('href')).toBe('/results');
+
+    const whyC = screen.getByTestId('review-item-conclusion-C-why');
+    expect(screen.getByTestId('review-item-conclusion-C-chip-claim').textContent).toContain('claim-A');
+    expect(whyC.textContent).toContain('claim-A');
+    expect(screen.getByTestId('review-item-conclusion-C-inspect')).toBeTruthy();
+  });
+});
+
+describe('ReviewQueuePage — Review history honest states (real /activity feed)', () => {
+  it('shows only review_decision events; other event types never masquerade as decisions', async () => {
+    stubFetchByRoute((url) => {
+      if (url.includes('graph-edges')) return { status: 200, body: buildDemoOverviewRecord() };
+      if (url.includes('/activity'))
+        return {
+          status: 200,
+          body: [
+            REVIEW_HISTORY_EVENT,
+            {
+              id: 'evt-analysis-x',
+              type: 'analysis_run' as const,
+              timestamp: '2026-10-19T00:23:54.762Z',
+              actor: 'Aftershock',
+              action: 'completed',
+              description: 'Analysis run for document version',
+            },
+          ],
+        };
+      return undefined;
+    });
+    renderQueue();
+
+    await screen.findByTestId('review-history-entry-review-evt-9');
+    const section = screen.getByTestId('review-history');
+    expect(section.textContent).toContain('Review history (1');
+    expect(section.textContent).not.toContain('Analysis run for document version');
+  });
+
+  it('empty decision history stays honest when the feed answers with no review events', async () => {
+    stubFetchByRoute((url) => {
+      if (url.includes('graph-edges')) return { status: 200, body: buildDemoOverviewRecord() };
+      if (url.includes('/activity')) return { status: 200, body: [] };
+      return undefined;
+    });
+    renderQueue();
+
+    const empty = await screen.findByTestId('review-history-empty');
+    expect(empty.textContent).toMatch(/No review decisions have been recorded yet/);
+  });
+
+  it('missing activity endpoint keeps the queue usable and says history is not available', async () => {
+    stubFetchByRoute((url) => {
+      if (url.includes('graph-edges')) return { status: 200, body: buildDemoOverviewRecord() };
+      if (url.includes('/activity')) return { status: 404 };
+      return undefined;
+    });
+    renderQueue();
+
+    const missing = await screen.findByTestId('review-history-missing');
+    expect(missing.textContent).toMatch(/until the real feed answers/i);
+    // The flagged list still renders.
+    expect(screen.getByTestId('review-item-claim-A')).toBeTruthy();
+  });
+
+  it('history failure shows the typed error + retry that refetches the feed', async () => {
+    const stub = stubMutableQueue({
+      firstOverview: buildDemoOverviewRecord(),
+      activityResponses: [{ status: 500 }, { status: 200, body: [REVIEW_HISTORY_EVENT] }],
+    });
+    renderQueue();
+
+    await waitFor(() =>
+      expect(screen.getByTestId('review-history-detail').textContent).toMatch(/HTTP 500/),
+    );
+    expect(stub.activityCalls()).toBe(1);
+
+    fireEvent.click(screen.getByTestId('review-history-retry'));
+    await screen.findByTestId('review-history-entry-review-evt-9');
+    expect(stub.activityCalls()).toBe(2);
+  });
+
+  it('a failed post-decision audit refetch keeps the displayed entries and discloses the staleness', async () => {
+    const stub = stubMutableQueue({
+      firstOverview: buildDemoOverviewRecord(),
+      activityResponses: [
+        { status: 200, body: [REVIEW_HISTORY_EVENT] },
+        { status: 500 },
+      ],
+      decideStatus: 200,
+      decideBody: DECISION_OK,
+    });
+    renderQueue();
+    await screen.findByTestId('review-history-entry-review-evt-9');
+
+    fireEvent.click(screen.getByTestId('review-decide-claim-A'));
+    fireEvent.click(screen.getByTestId('review-decision-outcome-revision_needed'));
+    fireEvent.change(screen.getByTestId('review-decision-explanation'), {
+      target: { value: DECISION_OK.explanation },
+    });
+    fireEvent.click(screen.getByTestId('review-decision-submit'));
+
+    await waitFor(() => expect(stub.activityCalls()).toBe(2));
+    // Honest staleness disclosure, instead of silently showing old data.
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('review-history-refresh-failed').textContent,
+      ).toMatch(/last successful read/),
+    );
+    // The previously-displayed real events stay visible, labeled as stale.
+    expect(screen.getByTestId('review-history-entry-review-evt-9')).toBeTruthy();
+  });
+});
+

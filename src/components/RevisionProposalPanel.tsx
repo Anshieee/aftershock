@@ -4,6 +4,7 @@ import {
   ApiHttpError,
   ApiNetworkError,
   ApiTimeoutError,
+  ApiUnavailableError,
   reviewRevision,
   type RevisionProposalRequest,
   type RevisionProposalResult,
@@ -13,7 +14,7 @@ type PanelFlow =
   | { phase: 'idle' }
   | { phase: 'proposing' }
   | { phase: 'draft'; proposal: RevisionProposalResult }
-  | { phase: 'copied' }
+  | { phase: 'copied'; proposal: RevisionProposalResult }
   | { phase: 'accepted'; proposal: RevisionProposalResult }
   | { phase: 'failed'; message: string };
 
@@ -43,21 +44,31 @@ export default function RevisionProposalPanel({
   }, []);
 
   const describeError = useCallback((error: unknown): string => {
-    if (
-      error instanceof ApiTimeoutError ||
-      error instanceof ApiNetworkError ||
-      error instanceof ApiClientError
-    ) {
-      return error.message;
+    if (error instanceof ApiTimeoutError) {
+      return 'The revision API did not answer within 10 seconds (timeout) — no proposal was created. Try again.';
     }
+    if (error instanceof ApiNetworkError) {
+      return 'Network error — the request did not reach the revision API, no proposal was created.';
+    }
+    if (error instanceof ApiUnavailableError) {
+      return `${error.message} No proposal was created.`;
+    }
+    // NOTE: ApiHttpError extends ApiClientError — status-specific branches
+    // must run BEFORE the generic client-error fallback.
     if (error instanceof ApiHttpError) {
       if (error.status === 400) {
         return 'The proposal was rejected as malformed (HTTP 400) — check the proposed text and try again.';
       }
-      if (error.status >= 500) {
-        return 'The revision API is unavailable (server error) — the proposal was not created.';
+      if (error.status === 429) {
+        return 'Rate limited (HTTP 429) — the revision endpoint allows only a few requests per short interval. Wait for the cooldown to pass, then try again. No proposal was created.';
       }
-      return `The revision API returned HTTP ${error.status} — the proposal was not created.`;
+      if (error.status >= 500) {
+        return 'The revision API is unavailable (server error) — no proposal was created.';
+      }
+      return `The revision API returned HTTP ${error.status} — no proposal was created.`;
+    }
+    if (error instanceof ApiClientError) {
+      return error.message;
     }
     return 'The proposal could not be created — nothing was saved.';
   }, []);
@@ -86,28 +97,36 @@ export default function RevisionProposalPanel({
   }, [caseId, proposedText, rationale, describeError]);
 
   const copyProposal = useCallback(() => {
+    // DRAFT / COPIED / ACCEPTED all carry the proposal; `copied` was missing
+    // before, which removed the Copy/Accept row right after a successful copy.
     const proposal =
-      flow.phase === 'draft' || flow.phase === 'accepted' ? flow.proposal : null;
+      flow.phase === 'draft' || flow.phase === 'copied' || flow.phase === 'accepted'
+        ? flow.proposal
+        : null;
     const text = proposal?.proposedText ?? proposedText.trim();
     if (!text) return;
     navigator.clipboard
       .writeText(text)
       .then(() => {
         setFlow((current) =>
-          current.phase === 'accepted' ? { phase: 'accepted', proposal: current.proposal } : { phase: 'copied' },
+          current.phase === 'draft' || current.phase === 'copied' || current.phase === 'accepted'
+            ? { phase: 'copied', proposal: current.proposal }
+            : current,
         );
       })
       .catch(() => {
         // Clipboard access may be blocked; the copy is a convenience, not a requirement.
         setFlow((current) =>
-          current.phase === 'accepted' ? { phase: 'accepted', proposal: current.proposal } : { phase: 'idle' },
+          current.phase === 'draft' || current.phase === 'copied' || current.phase === 'accepted'
+            ? { phase: 'draft', proposal: current.proposal }
+            : current,
         );
       });
   }, [flow, proposedText]);
 
   const accept = useCallback(() => {
     const proposal =
-      flow.phase === 'draft' ? flow.proposal : null;
+      flow.phase === 'draft' || flow.phase === 'copied' ? flow.proposal : null;
     if (!proposal) return;
     // Acceptance is a human-reported action, not scientific validation.
     // It is not re-sent to the graph backend unless an accept endpoint exists.
@@ -115,7 +134,10 @@ export default function RevisionProposalPanel({
     onAccepted?.(proposal);
   }, [flow, onAccepted]);
 
-  const proposal = flow.phase === 'draft' || flow.phase === 'accepted' ? flow.proposal : null;
+  const proposal =
+    flow.phase === 'draft' || flow.phase === 'copied' || flow.phase === 'accepted'
+      ? flow.proposal
+      : null;
   const canPropose = Boolean(proposedText.trim());
   const inFlight = flow.phase === 'proposing';
 
@@ -153,57 +175,60 @@ export default function RevisionProposalPanel({
         </span>
       </div>
 
-      {/* Original text — immutable, read-only, distinct styling. */}
-      <div className="mb-3">
-        <p className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">
-          Original {kindLabel} text — immutable
-        </p>
-        <blockquote
-          className="rounded border border-ink-border bg-paper-deep pl-3 py-2 text-sm text-ink italic"
-          data-testid="revision-proposal-original-text"
-        >
-          {originalText ? `“${originalText}”` : 'No text recorded on the returned record.'}
-        </blockquote>
-        <p className="mt-1 text-xs text-ink-muted">
-          Shown read-only. Copying or accepting a proposal never edits the original passage.
-        </p>
+      {/* Original (left) vs proposed (right) — side by side from md up, so
+          the immutable original and the editable proposal read as one
+          comparison without ever equating copy with an applied change. */}
+      <div className="mb-3 grid gap-4 md:grid-cols-2">
+        <div>
+          <p className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">
+            Original {kindLabel} text — immutable
+          </p>
+          <blockquote
+            className="rounded border border-ink-border bg-paper-deep pl-3 py-2 text-sm text-ink italic"
+            data-testid="revision-proposal-original-text"
+          >
+            {originalText ? `“${originalText}”` : 'No text recorded on the returned record.'}
+          </blockquote>
+          <p className="mt-1 text-xs text-ink-muted">
+            Shown read-only. Copying or accepting a proposal never edits the original
+            passage.
+          </p>
+        </div>
+        <div>
+          <label className="text-sm font-medium text-ink block mb-1">
+            Proposed replacement text
+          </label>
+          <textarea
+            value={proposedText}
+            onChange={(e) => setProposedText(e.target.value)}
+            rows={5}
+            className="rounded border border-ink-border bg-paper-raised px-3 py-2 text-sm text-ink focus:outline-2 focus:outline-offset-1 focus:outline-brand disabled:opacity-60"
+            placeholder="Suggest the replacement wording here…"
+            disabled={inFlight}
+            data-testid="revision-proposal-proposed-text"
+          />
+          {flow.phase === 'idle' && (
+            <p className="mt-1 text-xs text-ink-muted">
+              A proposal starts as a draft. It is not applied, and it does not imply
+              scientific validation, until a human explicitly accepts it.
+            </p>
+          )}
+        </div>
       </div>
-
-      {/* Proposed replacement text — separate, editable area. */}
       <div className="mb-3">
         <label className="text-sm font-medium text-ink block mb-1">
-          Proposed replacement text
+          Rationale<span className="text-ink-muted font-normal"> · optional</span>
         </label>
-        <textarea
-          value={proposedText}
-          onChange={(e) => setProposedText(e.target.value)}
-          rows={5}
+        <input
+          type="text"
+          value={rationale}
+          onChange={(e) => setRationale(e.target.value)}
           className="rounded border border-ink-border bg-paper-raised px-3 py-2 text-sm text-ink focus:outline-2 focus:outline-offset-1 focus:outline-brand disabled:opacity-60"
-          placeholder="Suggest the replacement wording here…"
+          placeholder="Why this replacement…"
           disabled={inFlight}
-          data-testid="revision-proposal-proposed-text"
+          data-testid="revision-proposal-rationale"
+          maxLength={500}
         />
-        {flow.phase === 'idle' && (
-          <p className="mt-1 text-xs text-ink-muted">
-            A proposal starts as a draft. It is not applied, and it does not imply
-            scientific validation, until a human explicitly accepts it.
-          </p>
-        )}
-        <div className="mt-2">
-          <label className="text-sm font-medium text-ink block mb-1">
-            Rationale<span className="text-ink-muted font-normal"> · optional</span>
-          </label>
-          <input
-            type="text"
-            value={rationale}
-            onChange={(e) => setRationale(e.target.value)}
-            className="rounded border border-ink-border bg-paper-raised px-3 py-2 text-sm text-ink focus:outline-2 focus:outline-offset-1 focus:outline-brand disabled:opacity-60"
-            placeholder="Why this replacement…"
-            disabled={inFlight}
-            data-testid="revision-proposal-rationale"
-            maxLength={500}
-          />
-        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -211,6 +236,7 @@ export default function RevisionProposalPanel({
           type="button"
           onClick={propose}
           disabled={!canPropose || inFlight}
+          aria-busy={inFlight}
           className={
             'rounded border border-ink-border bg-paper px-4 py-2 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-60 hover:bg-paper-deep'
           }
@@ -239,10 +265,10 @@ export default function RevisionProposalPanel({
             >
               {flow.phase === 'accepted' ? 'Accepted' : 'Accept suggestion'}
             </button>
-            <p className="mt-2 text-xs text-ink-muted">
+            <p className="mt-2 w-full text-xs text-ink-muted">
               {flow.phase === 'accepted'
-                ? 'Accepted — reported as applied externally. This is user-reported, not scientific validation.'
-                : 'Copying a proposal does not imply it was applied.'}
+                ? 'Accepted — reported as applied externally (user-reported; the server keeps the draft, it is not validated by this page).'
+                : 'Copying copies text only — it does not apply, validate, or store anything.'}
             </p>
           </>
         )}
