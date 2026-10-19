@@ -288,3 +288,214 @@ describe('ImportPanel — analyze flow', () => {
     );
   });
 });
+
+describe('ImportPanel — extraction disclosure (Wave 3, unverified candidates)', () => {
+  /**
+   * Honesty rails under test (per the Wave 3 spec + AGENTS.md):
+   * detected DOIs are UNVERIFIED pattern-match output — the UI may never
+   * present them as verified references, as support for anything, or as
+   * stored content; the pre-existing contentStored:false disclosure stays
+   * primary; and an absent/malformed extraction member (older deploys)
+   * renders nothing at all.
+   */
+
+  const CAVEAT =
+    'Detected by pattern matching on a bounded excerpt; unverified — presence in the file proves nothing about claim support or reference validity.';
+
+  const IMPORT_WITH_EXTRACTION = {
+    documentId: 'doc-ext-1',
+    versionId: 'ver-ext-1',
+    contentStored: false,
+    disclosure: 'The document was registered; its text content is not stored in this build.',
+    extraction: {
+      attempted: true,
+      format: 'txt',
+      byteSelection: { scannedBytes: 128, maxBytes: 524288, truncated: false },
+      dois: [
+        {
+          doi: '10.9999/demo-alpha',
+          occurrences: 2,
+          snippet: 'prior work [1] with doi 10.9999/demo-alpha recorded in the references',
+        },
+        { doi: '10.9999/demo-beta', occurrences: 1 },
+      ],
+      caveat: CAVEAT,
+    },
+  };
+
+  function pickTxt() {
+    pickFile(new File(['synthetic fixture text'], 'mini-fixtures.txt', { type: 'text/plain' }));
+  }
+
+  it('renders unverified candidate DOIs with the standing caveat verbatim and honest counts', async () => {
+    stubFetchByRoute((url) =>
+      url.startsWith('/.netlify/functions/import-document')
+        ? { status: 200, body: IMPORT_WITH_EXTRACTION }
+        : undefined,
+    );
+    render(<ImportPanel />);
+    pickTxt();
+
+    const section = await waitFor(() => screen.getByTestId('import-extraction'));
+    expect(
+      screen.getByTestId('import-extraction-heading').textContent,
+    ).toContain('Detected in your file — unverified candidate references (2)');
+    expect(screen.getByTestId('import-extraction-caveat').textContent).toBe(CAVEAT);
+
+    const dois = screen.getAllByTestId('import-extraction-doi');
+    expect(dois).toHaveLength(2);
+    expect(dois[0]?.textContent).toContain('10.9999/demo-alpha');
+    expect(dois[0]?.textContent).toContain('2 occurrences in the scanned excerpt');
+    const alphaSnippet: string = IMPORT_WITH_EXTRACTION.extraction.dois[0]?.snippet ?? '';
+    expect(dois[0]?.textContent).toContain(alphaSnippet);
+    expect(dois[1]?.textContent).toContain('10.9999/demo-beta');
+    expect(dois[1]?.textContent).toContain('1 occurrence in the scanned excerpt');
+
+    // The doi.org links are plain resolver links over the detected string —
+    // they must never claim more than that (no "verify"/"confirmed" copy).
+    const link = screen
+      .getAllByTestId('import-extraction-doi')
+      .map((li) => li.querySelector('a'))
+      .find((a) => (a?.href ?? '').includes('demo-alpha'));
+    expect(
+      link?.getAttribute('href'),
+    ).toBe('https://doi.org/10.9999/demo-alpha');    expect(link?.getAttribute('rel')).toBe('noreferrer');
+    expect(section.textContent).not.toMatch(/\bverified\b/i);
+
+    // Primary disclosure stays intact above the extraction section.
+    expect(screen.getByTestId('import-result').textContent).toContain('contentStored: false');
+  });
+
+  it('falls back to the fixed UI caveat when the server omits `caveat`', async () => {
+    const body = {
+      ...IMPORT_WITH_EXTRACTION,
+      disclosure: 'Registered metadata-only.',
+      extraction: {
+        attempted: true,
+        format: 'txt',
+        dois: [{ doi: '10.9999/demo-solo', occurrences: 1 }],
+      },
+    };
+    stubFetchByRoute((url) =>
+      url.startsWith('/.netlify/functions/import-document') ? { status: 200, body } : undefined,
+    );
+    render(<ImportPanel />);
+    pickFile(new File(['fixtures'], 'fixed-caveat.txt', { type: 'text/plain' }));
+
+    await waitFor(() => expect(screen.getByTestId('import-extraction')).toBeTruthy());
+    expect(screen.getByTestId('import-extraction-caveat').textContent).toBe(CAVEAT);
+    expect(screen.getByTestId('import-extraction-heading').textContent).toContain('(1)');
+  });
+
+  it('shows the honest muted reason line for attempted:false (pdf/docx) — not an error', async () => {
+    stubFetchByRoute((url) =>
+      url.startsWith('/.netlify/functions/import-document')
+        ? {
+            status: 200,
+            body: {
+              ...IMPORT_OK,
+              disclosure: 'Registered metadata-only.',
+              extraction: {
+                attempted: false,
+                format: 'pdf',
+                reason: 'Text extraction for PDF is not implemented in the demo tier.',
+              },
+            },
+          }
+        : undefined,
+    );
+    render(<ImportPanel />);
+    pickFile(makePdf());
+
+    await waitFor(() => expect(screen.getByTestId('import-extraction-skipped')).toBeTruthy());
+    expect(screen.getByTestId('import-extraction-skipped').textContent).toBe(
+      'Text extraction for PDF is not implemented in the demo tier.',
+    );
+    // No candidate section, and nothing that claims references were found.
+    expect(screen.queryByTestId('import-extraction')).toBeNull();
+    expect(screen.queryByTestId('import-extraction-doi')).toBeNull();
+    const result = screen.getByTestId('import-result');
+    expect(result.textContent).toContain('contentStored: false');
+  });
+
+  it('renders nothing when the server sends no extraction member (older-deploy tolerance)', async () => {
+    stubFetchByRoute((url) =>
+      url.startsWith('/.netlify/functions/import-document')
+        ? { status: 200, body: IMPORT_OK }
+        : undefined,
+    );
+    render(<ImportPanel />);
+    pickFile(makePdf());
+
+    await waitFor(() => expect(screen.getByTestId('import-result')).toBeTruthy());
+    expect(screen.queryByTestId('import-extraction')).toBeNull();
+    expect(screen.queryByTestId('import-extraction-skipped')).toBeNull();
+    expect(screen.queryByTestId('import-extraction-doi')).toBeNull();
+  });
+
+  it('renders no section when attempted=true but the detected list is empty', async () => {
+    stubFetchByRoute((url) =>
+      url.startsWith('/.netlify/functions/import-document')
+        ? {
+            status: 200,
+            body: {
+              ...IMPORT_OK,
+              disclosure: 'Registered metadata-only.',
+              extraction: { attempted: true, format: 'txt', dois: [] },
+            },
+          }
+        : undefined,
+    );
+    render(<ImportPanel />);
+    pickTxt();
+
+    await waitFor(() => expect(screen.getByTestId('import-result')).toBeTruthy());
+    expect(screen.queryByTestId('import-extraction')).toBeNull();
+    expect(screen.queryByTestId('import-extraction-doi')).toBeNull();
+  });
+
+  it('drops a malformed extraction member instead of guessing a state', async () => {
+    const malformedBodies = [
+      // attempted is not a boolean → the whole member is unusable.
+      { extraction: { attempted: 'sure', dois: [{ doi: '10.9999/nope' }] } },
+      // extraction is not an object at all.
+      { extraction: 'attempted' },
+    ];
+    for (const body of malformedBodies) {
+      stubFetchByRoute((url) =>
+        url.startsWith('/.netlify/functions/import-document')
+          ? { status: 200, body: { ...IMPORT_OK, disclosure: 'Registered metadata-only.', ...body } }
+          : undefined,
+      );
+      const { unmount } = render(<ImportPanel />);
+      pickFile(makePdf());
+      await waitFor(() => expect(screen.getByTestId('import-result')).toBeTruthy());
+      expect(screen.queryByTestId('import-extraction')).toBeNull();
+      expect(screen.queryByTestId('import-extraction-skipped')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('discloses the bounded truncation when the scanned excerpt was cut off', async () => {
+    const body = {
+      ...IMPORT_OK,
+      disclosure: 'Registered metadata-only.',
+      extraction: {
+        attempted: true,
+        format: 'txt',
+        byteSelection: { scannedBytes: 524288, maxBytes: 524288, truncated: true },
+        dois: [{ doi: '10.9999/demo-truncated', occurrences: 4 }],
+      },
+    };
+    stubFetchByRoute((url) =>
+      url.startsWith('/.netlify/functions/import-document') ? { status: 200, body } : undefined,
+    );
+    render(<ImportPanel />);
+    pickFile(new File(['fixtures'], 'truncated.txt', { type: 'text/plain' }));
+
+    await waitFor(() => expect(screen.getByTestId('import-extraction')).toBeTruthy());
+    const note = screen.getByTestId('import-extraction-truncated');
+    expect(note.textContent).toContain('first 524,288 bytes');
+    expect(note.textContent).toContain('were not looked for');
+  });
+});

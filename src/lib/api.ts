@@ -764,6 +764,109 @@ export interface ImportDocumentInfo {
   contentStored: boolean;
   /** Server's disclosure for the contentless registration — shown verbatim. */
   disclosure?: string;
+  /**
+   * Wave 3 (additive, optional): in-memory session-scoped extraction of
+   * candidate reference DOIs, computed by the server from the already-read
+   * bytes during the SAME single import pass. NEVER persisted, NEVER written
+   * to the graph, and its contents are UNVERIFIED pattern-match output —
+   * detected DOIs are candidate identifiers only, never verified citations,
+   * never support for any claim, never content stored anywhere.
+   *
+   * The member may be absent entirely (older deploys); absence is tolerated
+   * and must never be guessed into a state.
+   */
+  extraction?: ImportExtraction;
+}
+
+/**
+ * One detected DOI candidate. Unverified by definition: this is shallow
+ * pattern-match output on a bounded excerpt of the file, not reference
+ * validation and not an assertion that the identifier resolves.
+ */
+export interface ImportDetectedDoi {
+  /** Display-form DOI string the pattern matched — unverified. */
+  doi: string;
+  /** Occurrences of the normalized DOI within the scanned excerpt. */
+  occurrences: number;
+  /** Short excerpt around the FIRST occurrence, if the server includes one. */
+  snippet?: string;
+}
+
+/** Bounded scan shape reported alongside detected candidates (attempted=true). */
+export interface ImportExtractionByteSelection {
+  scannedBytes: number;
+  maxBytes: number;
+  truncated: boolean;
+}
+
+/** The optional `extraction` member of the import response (design of record). */
+export interface ImportExtraction {
+  attempted: boolean;
+  format: ImportFormat;
+  /** Present when attempted=true — the bounded-scan selection shape. */
+  byteSelection?: ImportExtractionByteSelection;
+  /** Present when attempted=true; may be an EMPTY list (no candidate found). */
+  dois?: ImportDetectedDoi[];
+  /** Present when attempted=false — stable, honest, human-readable reason. */
+  reason?: string;
+  /** Server's standing honesty caveat, shown verbatim when present. */
+  caveat?: string;
+}
+
+/**
+ * Tolerant parse of the optional `extraction` member (Wave 3). Absence
+ * (older deploys) or a malformed member cleanly drops to `undefined` —
+ * it is never guessed into an extraction state and never fails the parse
+ * of the rest of the import response.
+ */
+function parseImportExtraction(value: unknown): ImportExtraction | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const src = value as Record<string, unknown>;
+  if (typeof src.attempted !== 'boolean') return undefined;
+  // A missing/unknown format is a malformed member, not a guess target —
+  // drop it entirely (never fabricate a format).
+  if (src.format !== 'pdf' && src.format !== 'docx' && src.format !== 'txt') return undefined;
+  const format: ImportFormat = src.format;
+
+  let byteSelection: ImportExtractionByteSelection | undefined;
+  const bs = src.byteSelection;
+  if (bs && typeof bs === 'object') {
+    const shape = bs as Record<string, unknown>;
+    if (
+      typeof shape.scannedBytes === 'number' &&
+      typeof shape.maxBytes === 'number' &&
+      typeof shape.truncated === 'boolean'
+    ) {
+      byteSelection = {
+        scannedBytes: shape.scannedBytes,
+        maxBytes: shape.maxBytes,
+        truncated: shape.truncated,
+      };
+    }
+  }
+
+  let dois: ImportDetectedDoi[] | undefined;
+  if (Array.isArray(src.dois)) {
+    dois = src.dois
+      .filter(
+        (item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object',
+      )
+      .filter((item) => stringField(item.doi) !== undefined)
+      .map((item) => ({
+        doi: item.doi as string,
+        occurrences: typeof item.occurrences === 'number' ? item.occurrences : 1,
+        snippet: stringField(item.snippet),
+      }));
+  }
+
+  return {
+    attempted: src.attempted,
+    format,
+    byteSelection,
+    dois,
+    reason: stringField(src.reason),
+    caveat: stringField(src.caveat),
+  };
 }
 
 export type ImportDocumentOutcome = ApiOutcome<ImportDocumentInfo>;
@@ -781,12 +884,17 @@ function parseImportDocumentInfo(payload: unknown): ImportDocumentInfo {
   if (typeof body.contentStored !== 'boolean') {
     throw new ApiClientError('Import response is missing the `contentStored` flag');
   }
-  return {
+  const info: ImportDocumentInfo = {
     documentId,
     versionId,
     contentStored: body.contentStored,
     disclosure: stringField(body.disclosure),
   };
+  // Optional member: silently absent on older deploys; malformed → dropped,
+  // never guessed. Required import fields above still gate success.
+  const extraction = parseImportExtraction(body.extraction);
+  if (extraction) info.extraction = extraction;
+  return info;
 }
 
 /**
