@@ -14,9 +14,13 @@
  *   `errorBodyFor`), no fabricated data. Graph failure / read timeout → 503
  *   via `errorBodyFor` — never invented groups. Unseeded/empty graph → 200
  *   with all-zero summary + empty groups (honest empties).
- * - Per-IP rate limit via `createRateLimiter` with the SAME budget
- *   `activity.mjs` uses (demo-scope, in-memory; the platform edge is the
- *   real control) — no new budget is invented here.
+ * - Per-IP rate limit via `createRateLimiter` with ONE deliberate deviation
+ *   from the bare `activity.mjs` default (5/10 min + 30 s cooldown): this
+ *   route serves a review-queue panel that fetches on EVERY page load, so
+ *   the bare default would 429 a normal reviewer navigating between pages.
+ *   Budget here stays per-IP bounded but calibrated for a page-attached
+ *   read: 1 s anti-hammer minimum gap, 30 per 10-min window as the real
+ *   abuse bound, honest 429 beyond (the same typed `rate-limited` shape).
  * - `READ_BUDGET_MS = 8000` wall-clock deadline, below the client's 10 s
  *   abort.
  *
@@ -45,7 +49,9 @@ const ALLOW = 'GET';
 export function createIndependenceGroupsHandler(deps = {}) {
   const env = deps.env ?? process.env;
   const layer = deps.layer ?? createGraphLayer(env);
-  const limiter = deps.limiter ?? createRateLimiter();
+  const limiter =
+    deps.limiter ??
+    createRateLimiter({ cooldownMs: 1_000, windowMs: 600_000, maxPerWindow: 30 });
   const compute = deps.compute ?? independenceGroups;
 
   return async function handler(request /*, context */) {
