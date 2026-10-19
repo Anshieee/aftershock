@@ -73,7 +73,7 @@ const FORMAT_NOT_EXTRACTABLE_REASON =
 
 /** Honest reason when the extraction machinery itself fails unexpectedly. */
 const EXTRACTION_FAILED_REASON =
-  'Recursive extraction failed; import registered metadata-only.';
+  'Extraction failed unexpectedly; import registered metadata-only.';
 
 /**
  * Build the additive `extraction` member of the 200 response. Detection, not
