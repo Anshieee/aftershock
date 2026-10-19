@@ -1037,3 +1037,84 @@ describe('ReviewQueuePage — P4 Find Evidence wiring (read-only, no case mutati
   });
 });
 
+
+describe('ReviewQueuePage — independence panel mount (W4, read-only)', () => {
+  /** Queue routes + a real /independence-groups answer for the mounted panel. */
+  function stubQueueWithIndependence(groupsBody: unknown, independenceStatus = 200) {
+    return stubFetchByRoute((url) => {
+      if (url.includes('graph-edges')) return { status: 200, body: buildDemoOverviewRecord() };
+      if (url.includes('activity')) return { status: 200, body: [] };
+      if (url.includes('independence-groups'))
+        return { status: independenceStatus, body: groupsBody };
+      return undefined;
+    });
+  }
+
+  const INDEPENDENCE_OK = {
+    graphName: 'aftershock-demo',
+    seeded: true,
+    seedVersion: 'seed-v3',
+    summary: { supportingCitationUses: 3, publicationsSupportingClaims: 2, sharedGroups: 1 },
+    groups: [
+      {
+        publication: {
+          id: 'pub-mehra-2020',
+          doi: '10.1016/j.mehra.2020',
+          title: 'A retracted registry analysis',
+          isSynthetic: true,
+        },
+        citationUseIds: ['cu-A-supporting', 'cu-B-supporting'],
+        claimCount: 2,
+        claims: [{ id: 'claim-A', text: null }, { id: 'claim-B', text: null }],
+      },
+    ],
+    caveat:
+      'Claims appearing in the same group share a supporting publication record. Sharing a supporting record means the claims are not independent evidence for each other — review them together at the paper itself. This alone never changes any review state.',
+    limitations: [
+      'Only same-publication sharing is detected in this tier; shared datasets, analyses, or review trees are not detected (Find Evidence responses disclose the same limitation).',
+      'Historical mentions never contribute to these groups; only supporting citation uses do.',
+    ],
+  };
+
+  it('mounts the independence panel ABOVE the review cases list with the shared-support fact and the FICTIONAL / GUIDED DEMO label', async () => {
+    stubQueueWithIndependence(INDEPENDENCE_OK);
+    renderQueue();
+
+    await screen.findByTestId('independence-group-pub-mehra-2020');
+    await screen.findByTestId('review-item-claim-A');
+
+    // DOM order: the panel section precedes the flagged-items section.
+    const panel = screen.getByTestId('independence-panel');
+    const flaggedSection = screen
+      .getByTestId('review-item-claim-A')
+      .closest('section') as HTMLElement;
+    // Node.DOCUMENT_POSITION_FOLLOWING (4): flaggedSection follows panel.
+    expect(panel.compareDocumentPosition(flaggedSection) & 4).toBe(4);
+
+    const group = screen.getByTestId('independence-group-pub-mehra-2020');
+    expect(group.textContent).toContain('pub-mehra-2020');
+    expect(group.textContent).toContain('2 claims');
+    expect(
+      screen.getByTestId('independence-group-pub-mehra-2020-synthetic').textContent,
+    ).toBe('FICTIONAL / GUIDED DEMO');
+    // The caveat is presented on the queue page too, verbatim.
+    expect(screen.getByTestId('independence-caveat').textContent).toContain(
+      'This alone never changes any review state.',
+    );
+  });
+
+  it('an unwired independence endpoint leaves the queue intact: the panel reports it honestly while review cases still render', async () => {
+    stubFetchByRoute((url) => {
+      if (url.includes('graph-edges')) return { status: 200, body: buildDemoOverviewRecord() };
+      if (url.includes('activity')) return { status: 200, body: [] };
+      return undefined; // independence-groups functions missing → bare 404
+    });
+    renderQueue();
+
+    const missing = await screen.findByTestId('independence-missing');
+    expect(missing.textContent).toContain('No independence endpoint answered');
+    // The queue itself is untouched and fully interactive.
+    expect(await screen.findByTestId('review-item-claim-A')).toBeTruthy();
+    expect(screen.getByTestId('find-evidence-claim-A')).toBeTruthy();
+  });
+});

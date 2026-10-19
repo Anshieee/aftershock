@@ -90,19 +90,22 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
       'graphProbe',
       'health',
       'importDocument',
+      'independenceGroups',
       'reviewDecide',
       'reviewRevision',
     ]);
   });
 
   /**
-   * M4/M5/M6 routes whose function files landed on main with their waves
-   * (the historical PENDING_FUNCTION_FILES seam is retired — every listed
-   * file exists and is deployed, so the existence check is now STRICT:
-   * any new route must have its netlify/functions/<name>.mjs file in the
-   * same batch, no tolerated drift).
+   * W4 pairing seam: the frontend half of Wave 4 carries the client route
+   * `independenceGroups` (`GET /.netlify/functions/independence-groups`,
+   * fixed contract with the parallel W4 server wave), while the server
+   * half's branch carries `netlify/functions/independence-groups.mjs`.
+   * Once that file lands (either by this branch rebasing on main or the
+   * server branch merging), STRICT strictness resumes — remove the entry
+   * from this set in the amendment that lands the function file.
    */
-  const PENDING_FUNCTION_FILES = new Set([]);
+  const PENDING_FUNCTION_FILES = new Set(['independence-groups']);
 
   for (const [key, { route, sourceLine }] of ROUTES) {
     describe(`route ${key} = ${route}`, () => {

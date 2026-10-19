@@ -71,6 +71,10 @@ export const apiRoutes = {
   // `POST /evidence/find` per the dash-path mapping convention, same as
   // review-decide). Fixed contract with the parallel P4 server wave.
   evidenceFind: '/evidence-find',
+  // W4 — independence groups (shared supporting publications). Read-only
+  // re-port of existing graph links; deploy path = function filename
+  // `independence-groups`. Fixed contract with the parallel W4 server wave.
+  independenceGroups: '/independence-groups',
 } as const;
 
 /**
@@ -1748,4 +1752,198 @@ export async function findEvidence(
     options: { signal: opts?.signal },
   });
   return parseEvidenceFindResult(data, claimId);
+}
+
+/* ------------------------------------------------------------------ *
+ * W4 — Independence groups (shared supporting publications).
+ * Design of record: /tmp/opencode/wave4-spec.md (§Endpoint response
+ * contract, §Frontend files).
+ *
+ * Honesty rules encoded here:
+ * - READ-ONLY. The client performs GET only and invents nothing: groups
+ *   describe exactly the same-publication fact the server reports.
+ * - Only fields the server actually returned are kept. A null/absent
+ *   claim text or status, or a null `isSynthetic`, is `undefined` in the
+ *   typed shape — "not reported", never guessed into a value.
+ * - Absent or malformed members (a group entry, a claim inside a group,
+ *   a citation-use id) drop honestly; they never fail the whole parse
+ *   and never gain invented substitutes.
+ * - 404/501 (and a SPA-shaded 2xx) resolve to `available: false` —
+ *   honest "not available yet", never an error and never fake data.
+ * ------------------------------------------------------------------ */
+
+/** One claim inside an independence group. Only server-carried fields. */
+export interface IndependenceGroupClaim {
+  id: string;
+  /** Null ⇒ not recorded by this payload; never a guessed string. */
+  text?: string;
+  status?: string;
+}
+
+/** The publication record a group shares. `id` is the only required member. */
+export interface IndependenceGroupPublication {
+  id: string;
+  doi?: string;
+  title?: string;
+  /**
+   * Contract value is `boolean | null`. `true` ⇒ the panel must label the
+   * group FICTIONAL / GUIDED DEMO; `undefined` (null on the wire) ⇒ the
+   * flag is simply not reported — labeled as such, never assumed false.
+   */
+  isSynthetic: boolean | null;
+}
+
+/** One shared-supporting-publication group (claimCount > 1 by contract). */
+export interface IndependenceGroup {
+  publication: IndependenceGroupPublication;
+  citationUseIds: string[];
+  claimCount: number;
+  claims: IndependenceGroupClaim[];
+}
+
+/** Real zeros/ones summary — singleton counts stay visible here. */
+export interface IndependenceSummary {
+  supportingCitationUses: number;
+  publicationsSupportingClaims: number;
+  sharedGroups: number;
+}
+
+export interface IndependenceGroupsData {
+  graphName?: string;
+  /** Seed-status semantics come from the server; undefined = not reported. */
+  seeded?: boolean;
+  seedVersion?: string | null;
+  summary: IndependenceSummary;
+  groups: IndependenceGroup[];
+  /** Standing server honesty string — shown verbatim. */
+  caveat?: string;
+  /** Honest scope notes — shown verbatim. */
+  limitations?: string[];
+}
+
+/** Public outcome type for the read endpoint. */
+export type IndependenceGroupsOutcome = ApiOutcome<IndependenceGroupsData>;
+
+/**
+ * Tolerant parse of the independence-groups body. Required top-level
+ * contract fields (`summary` numbers) gate success; nested members that
+ * are absent or malformed drop silently and honestly.
+ */
+export function parseIndependenceGroups(payload: unknown): IndependenceGroupsData {
+  if (!payload || typeof payload !== 'object') {
+    throw new ApiClientError('Independence-groups endpoint returned an unexpected payload');
+  }
+  const body = payload as Record<string, unknown>;
+
+  const rawSummary =
+    body.summary && typeof body.summary === 'object'
+      ? (body.summary as Record<string, unknown>)
+      : null;
+  const summaryNumber = (key: string): number => {
+    const value = rawSummary ? rawSummary[key] : undefined;
+    // A missing/non-numeric summary counter breaks every honest display
+    // built on it (zeros, shared-groups count) — refuse rather than guess 0.
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new ApiClientError(
+        `Independence-groups response is missing a numeric \`${key}\` in summary`,
+      );
+    }
+    return value;
+  };
+  const summary: IndependenceSummary = {
+    supportingCitationUses: summaryNumber('supportingCitationUses'),
+    publicationsSupportingClaims: summaryNumber('publicationsSupportingClaims'),
+    sharedGroups: summaryNumber('sharedGroups'),
+  };
+
+  const groups: IndependenceGroup[] = (Array.isArray(body.groups) ? body.groups : []).flatMap(
+    (entry: unknown) => {
+      if (!entry || typeof entry !== 'object') return [];
+      const source = entry as Record<string, unknown>;
+      const publicationRaw =
+        source.publication && typeof source.publication === 'object'
+          ? (source.publication as Record<string, unknown>)
+          : null;
+      const publicationId = publicationRaw ? stringField(publicationRaw.id) : undefined;
+      if (!publicationId || !publicationRaw) return []; // no identity → not displayable, never invented
+      const claimCount =
+        typeof source.claimCount === 'number' && Number.isFinite(source.claimCount)
+          ? source.claimCount
+          : undefined;
+      if (claimCount === undefined) return []; // malformed core pair → drop the group
+      const claims: IndependenceGroupClaim[] = (Array.isArray(source.claims) ? source.claims : [])
+        .flatMap((rawClaim: unknown) => {
+          if (!rawClaim || typeof rawClaim !== 'object') return [];
+          const claim = rawClaim as Record<string, unknown>;
+          const claimId = stringField(claim.id);
+          if (!claimId) return []; // unparsable claim record drops honestly
+          return [
+            {
+              id: claimId,
+              // null ⇒ not recorded; only a real owned string is kept.
+              text: stringField(claim.text),
+              status: stringField(claim.status),
+            },
+          ];
+        });
+      const citationUseIds = (Array.isArray(source.citationUseIds) ? source.citationUseIds : [])
+        .flatMap((value: unknown) => (typeof value === 'string' && value.length > 0 ? [value] : []));
+      return [
+        {
+          publication: {
+            id: publicationId,
+            doi: stringField(publicationRaw.doi),
+            title: stringField(publicationRaw.title),
+            isSynthetic:
+              typeof publicationRaw.isSynthetic === 'boolean' ? publicationRaw.isSynthetic : null,
+          },
+          citationUseIds: Array.from(new Set(citationUseIds)),
+          claimCount,
+          claims,
+        },
+      ];
+    },
+  );
+
+  const limitations = Array.isArray(body.limitations)
+    ? body.limitations.filter(
+        (entry): entry is string => typeof entry === 'string' && entry.length > 0,
+      )
+    : undefined;
+
+  return {
+    graphName: stringField(body.graphName),
+    seeded: typeof body.seeded === 'boolean' ? body.seeded : undefined,
+    seedVersion: stringField(body.seedVersion),
+    summary,
+    groups,
+    caveat: stringField(body.caveat),
+    limitations,
+  };
+}
+
+/**
+ * GET /.netlify/functions/independence-groups — shared supporting
+ * publications across claims (read-only; contract with the W4 server wave).
+ * 404/501 (and a SPA-shaded 2xx) resolve to `available: false` — honest
+ * "not available yet". Any other non-OK status throws a typed error so the
+ * UI can report the failure honestly; no group is ever synthesized locally.
+ */
+export async function getIndependenceGroups(
+  options?: RequestOptions,
+): Promise<IndependenceGroupsOutcome> {
+  let data: unknown;
+  try {
+    data = await request({
+      path: apiRoutes.independenceGroups,
+      options,
+      notAvailableStatuses: [404, 501],
+    });
+  } catch (error) {
+    if (error instanceof ApiUnavailableError) {
+      return { available: false, reason: 'endpoint-missing' };
+    }
+    throw error;
+  }
+  return outcome(data, parseIndependenceGroups);
 }

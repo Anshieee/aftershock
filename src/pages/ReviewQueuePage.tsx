@@ -17,6 +17,7 @@ import { deriveDemoImpact, type AffectedItem, type DemoImpact } from '../lib/dem
 import ReviewDecisionDialog from '../components/ReviewDecisionDialog';
 import RevisionProposalPanel from '../components/RevisionProposalPanel';
 import FindEvidencePanel from '../components/FindEvidencePanel';
+import IndependencePanel from '../components/IndependencePanel';
 
 type QueueLoad =
   | { phase: 'loading' }
@@ -355,6 +356,9 @@ export default function ReviewQueuePage() {
           </div>
         )}
       </div>
+
+      {/* W4 — read-only independence groups: informs review, never flips a state. */}
+      <IndependencePanel />
 
       {state.phase === 'loading' && (
         <p className="mt-6 text-sm text-ink-muted" role="status" data-testid="review-loading">
