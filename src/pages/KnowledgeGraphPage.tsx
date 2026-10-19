@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ApiClientError,
@@ -10,17 +10,40 @@ import {
   type GraphNode,
   type GraphOverview,
 } from '../lib/api';
-import GraphCanvas, { GraphLegend, GraphRecordsList } from '../components/GraphCanvas';
+import GraphCanvas, { GraphLegend, GraphRecordsList, nodePrimaryLabel } from '../components/GraphCanvas';
 import {
   applyGraphFilters,
   availableEdgeProvenanceKinds,
   availableNodeKinds,
   deriveFocusedPath,
-  isFlaggedClaimOrConclusion,
 } from '../lib/graphView';
 import ContextInspector from '../components/ContextInspector';
 
 const OVERVIEW_LIMIT = 40;
+
+/**
+ * Client-side text search over the LOADED overview slice only: case-
+ * insensitive substring over the node id, kind, and primary label fields
+ * (title/text/rawText/label — same candidates `nodePrimaryLabel` uses).
+ * This is not a full-graph index; the page fetches a capped overview and
+ * the search sees only what loaded.
+ */
+function nodeMatchesQuery(node: GraphNode, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return `${node.id} ${node.kind} ${nodePrimaryLabel(node)}`.toLowerCase().includes(q);
+}
+
+/**
+ * `analysisVersion` reaches the browser inside `edge.properties` (the wire's
+ * extra top-level edge fields land there after parsing in api.ts). Absent
+ * stays absent — the provenance panel shows "not provided", never an
+ * invented version.
+ */
+function edgeAnalysisVersion(edge: GraphEdge): string | undefined {
+  const value = edge.properties?.analysisVersion;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
 
 type LoadState =
   | { phase: 'loading' }
@@ -40,6 +63,7 @@ export default function KnowledgeGraphPage() {
   const [focusActive, setFocusActive] = useState(false);
   const [selectedNodeKinds, setSelectedNodeKinds] = useState<Set<string>>(new Set());
   const [selectedEdgeProv, setSelectedEdgeProv] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   const [filtersReady, setFiltersReady] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
 
@@ -95,8 +119,8 @@ export default function KnowledgeGraphPage() {
   const edges: GraphEdge[] = overview?.edges ?? [];
   const nodes: GraphNode[] = overview?.nodes ?? [];
 
-  const nodeKindsAvailable = availableNodeKinds(nodes);
-  const edgeProvAvailable = availableEdgeProvenanceKinds(edges);
+  const nodeKindsAvailable = useMemo(() => availableNodeKinds(nodes), [nodes]);
+  const edgeProvAvailable = useMemo(() => availableEdgeProvenanceKinds(edges), [edges]);
 
   // Filter initialization happens in load()'s success handler (same batch as
   // the ready state), so no separate effect is needed here.
@@ -106,24 +130,42 @@ export default function KnowledgeGraphPage() {
     setFocusActive(false);
   }, [selected?.id]);
 
-  const filtered = filtersReady
-    ? applyGraphFilters(nodes, edges, {
-        nodeKinds: selectedNodeKinds,
-        edgeProvenance: selectedEdgeProv,
-      })
-    : { nodes, edges };
+  // Search runs first, then the kind/provenance filters — both must apply.
+  // Memoized: these sets were recomputed on every render; the win is limited
+  // to the loaded overview slice (capped at OVERVIEW_LIMIT records).
+  const searchMatchedNodes = useMemo(
+    () => nodes.filter((node) => nodeMatchesQuery(node, searchQuery)),
+    [nodes, searchQuery],
+  );
+  const filtered = useMemo(
+    () =>
+      filtersReady
+        ? applyGraphFilters(searchMatchedNodes, edges, {
+            nodeKinds: selectedNodeKinds,
+            edgeProvenance: selectedEdgeProv,
+          })
+        : { nodes: searchMatchedNodes, edges },
+    [searchMatchedNodes, edges, filtersReady, selectedNodeKinds, selectedEdgeProv],
+  );
   const filteredNodes = filtered.nodes;
   const filteredEdges = filtered.edges;
 
-  const focusedPath =
-    focusActive && selected
-      ? deriveFocusedPath(nodes, edges, selected.id)
-      : null;
+  const derivedPath = useMemo(
+    () => deriveFocusedPath(nodes, edges, selected?.id ?? null),
+    [nodes, edges, selected?.id],
+  );
+  const focusedPath = focusActive ? derivedPath : null;
   const focusedNodeIds = focusedPath?.nodeIds ?? null;
   const focusedEdgeIds = focusedPath?.edgeIds ?? null;
 
-  const flaggedSelected =
-    !!selected && isFlaggedClaimOrConclusion(nodes, edges, selected.id);
+  const flaggedSelected = derivedPath !== null;
+
+  // Connected edges of the selection — all payload edges (not view-filtered),
+  // matching the Context Inspector, so provenance stays complete.
+  const connectedEdges = useMemo(
+    () => (selected ? edges.filter((edge) => edge.fromId === selected.id || edge.toId === selected.id) : []),
+    [edges, selected],
+  );
 
   return (
     <div className="mx-auto max-w-7xl overflow-x-hidden">
@@ -215,6 +257,29 @@ export default function KnowledgeGraphPage() {
               <div className="min-w-0 space-y-4">
                 <section data-testid="graph-filters" className="rounded-xl border border-ink-border bg-paper-raised p-3">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Filters (client-side over returned records)</p>
+                  <div className="mb-3">
+                    <label htmlFor="graph-search-input" className="text-xs font-medium text-ink">
+                      Search loaded nodes
+                    </label>
+                    <input
+                      id="graph-search-input"
+                      data-testid="graph-search"
+                      type="search"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      aria-describedby="graph-search-scope-note"
+                      placeholder="Substring match on id, kind, or label…"
+                      className="mt-1 w-full rounded-lg border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted focus:border-brand focus:outline-none"
+                    />
+                    <p id="graph-search-scope-note" data-testid="graph-search-scope" className="mt-1 text-xs text-ink-muted">
+                      {searchQuery.trim()
+                        ? `${searchMatchedNodes.length} of ${nodes.length} loaded nodes match. `
+                        : 'Matches are counted '}
+                      The search applies within the currently loaded overview nodes ({nodes.length}) — only
+                      the overview slice this page fetched (capped at {OVERVIEW_LIMIT} records), not a
+                      full-graph index.
+                    </p>
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <fieldset data-testid="node-kind-filter">
                       <legend className="text-xs font-medium text-ink">Node kind</legend>
@@ -263,13 +328,55 @@ export default function KnowledgeGraphPage() {
                       </div>
                     </fieldset>
                   </div>
+                  <div role="status" aria-live="polite" className="sr-only" data-testid="graph-status">
+                    {filteredNodes.length} of {nodes.length} loaded nodes and {filteredEdges.length} of{' '}
+                    {edges.length} connections shown after filters
+                    {searchQuery.trim() ? ' and search' : ''}. Filters and search apply within the
+                    currently loaded overview nodes ({nodes.length}).
+                  </div>
                   {filteredNodes.length === 0 && nodes.length > 0 && (
                     <p data-testid="graph-filter-empty" className="mt-2 text-xs text-ink-muted">
-                      No records match the current filters. Adjust the checkboxes above — nothing
-                      was removed from the underlying graph.
+                      No records match the current filters or search. Adjust the checkboxes or clear
+                      the search above — nothing was removed from the underlying graph.
                     </p>
                   )}
                 </section>
+
+                {/* Nonvisual synchronized representation of the FILTERED nodes:
+                    a screen-reader list with keyboard-operable select buttons,
+                    revealed on keyboard focus (sr-only + focus-within). */}
+                <div
+                  data-testid="graph-node-list"
+                  className="sr-only focus-within:not-sr-only focus-within:my-2 focus-within:rounded-xl focus-within:border focus-within:border-ink-border focus-within:bg-paper-raised focus-within:p-3"
+                >
+                  {/* Not a heading: the loaded page's heading stream starts
+                      at the h1 and a nested h3 here would skip a level
+                      (axe heading-order). A plain label tied to the list
+                      keeps the same accessible meaning. */}
+                  <p id="graph-node-list-label" className="text-sm font-semibold text-ink">
+                    Filtered nodes ({filteredNodes.length})
+                  </p>
+                  {filteredNodes.length === 0 ? (
+                    <p className="mt-1 text-xs text-ink-muted">
+                      No records match the current filters or search.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 space-y-1" aria-labelledby="graph-node-list-label">
+                      {filteredNodes.map((node) => (
+                        <li key={node.id} className="text-xs text-ink">
+                          <button
+                            type="button"
+                            onClick={() => setSelected(node)}
+                            aria-pressed={selected?.id === node.id}
+                            className="rounded border border-ink-border px-2 py-1 text-left"
+                          >
+                            {nodePrimaryLabel(node)} — {node.kind} ({node.id})
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
                 {flaggedSelected && (
                   <button
@@ -315,6 +422,64 @@ export default function KnowledgeGraphPage() {
                   onClose={selected ? () => setSelected(null) : undefined}
                   focusActive={focusActive}
                 />
+                {/* M7 wave-3 — provenance surfacing for the selection. Lists
+                    the contract fields of its related edges exactly as the
+                    payload carries them; absent fields say "not provided" —
+                    nothing is inferred or invented. */}
+                {selected && (
+                  <section
+                    data-testid="graph-selection-provenance"
+                    aria-label="Edge provenance for the selected record"
+                    className="mt-4 rounded-lg border border-ink-border bg-paper-raised p-4 md:p-5"
+                  >
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                      Edge provenance ({connectedEdges.length})
+                    </h3>
+                    <p className="mt-1 text-xs text-ink-muted" data-testid="graph-relation-legend">
+                      Relation types differ in meaning — cites ≠ discusses ≠ supports ≠ contrasts ≠
+                      method-reuse ≠ has-status-notice. Each relation is listed below exactly as
+                      recorded, never reworded.
+                    </p>
+                    {connectedEdges.length === 0 ? (
+                      <p className="mt-2 text-xs text-ink-muted">
+                        No connected edges among the records this view returned.
+                      </p>
+                    ) : (
+                      <ul className="mt-2 space-y-3">
+                        {connectedEdges.map((edge, index) => (
+                          <li
+                            key={edge.id ?? `${edge.type}-${index}`}
+                            className="border-t border-ink-border pt-2 text-xs first:border-t-0 first:pt-0"
+                          >
+                            <span className="font-mono text-[11px] text-ink-muted">{edge.type}</span>
+                            <span className="mx-1 text-ink-border">·</span>
+                            <span className="break-all text-ink">
+                              {edge.fromId === selected.id ? `→ ${edge.toId}` : `← ${edge.fromId}`}
+                            </span>
+                            <dl className="mt-1 grid grid-cols-[7.5rem_1fr] gap-x-2 gap-y-0.5">
+                              <dt className="font-medium text-ink-muted">Provenance kind</dt>
+                              <dd className="text-ink" data-testid="edge-provenance-kind">
+                                {edge.provenanceKind ?? 'not provided'}
+                              </dd>
+                              <dt className="font-medium text-ink-muted">Rationale</dt>
+                              <dd className="break-words text-ink" data-testid="edge-rationale">
+                                {edge.rationale ?? 'not provided'}
+                              </dd>
+                              <dt className="font-medium text-ink-muted">Source pointer</dt>
+                              <dd className="break-all text-ink" data-testid="edge-source-pointer">
+                                {edge.sourcePointer ?? 'not provided'}
+                              </dd>
+                              <dt className="font-medium text-ink-muted">Analysis version</dt>
+                              <dd className="text-ink" data-testid="edge-analysis-version">
+                                {edgeAnalysisVersion(edge) ?? 'not provided'}
+                              </dd>
+                            </dl>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                )}
               </div>
             </div>
           )}
