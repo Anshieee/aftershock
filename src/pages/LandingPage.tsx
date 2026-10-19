@@ -92,7 +92,7 @@ export default function LandingPage() {
       <section aria-labelledby="hero-heading" className="px-2 text-center">
         <h1
           id="hero-heading"
-          className="text-4xl font-display leading-[1.05] tracking-tight text-ink md:text-6xl"
+          className="text-4xl font-display leading-[1.05] tracking-tight text-ink [text-wrap:balance] md:text-6xl"
         >
           What would you like to investigate?
         </h1>
@@ -108,7 +108,7 @@ export default function LandingPage() {
       <section
         aria-labelledby="launcher-heading"
         data-testid="investigation-launcher"
-        className="mt-8 rounded-2xl border border-ink-border bg-paper-raised p-6 shadow-sm md:p-8"
+        className="mt-8 rounded-2xl border border-ink-border bg-paper-raised p-6 shadow-[0_1px_2px_rgba(39,40,59,0.06),0_8px_24px_rgba(39,40,59,0.05)] md:p-8"
       >
         <h2 id="launcher-heading" className="sr-only">
           Start an investigation

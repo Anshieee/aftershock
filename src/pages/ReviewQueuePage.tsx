@@ -335,8 +335,13 @@ export default function ReviewQueuePage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="font-display text-3xl text-ink">Review Queue</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            Evidence review workspace
+          </p>
+          <h1 className="mt-1 font-display text-3xl tracking-tight text-ink">Review Queue</h1>
+        </div>
         {state.phase === 'ready' && (
           <div className="flex flex-col items-end gap-1">
             <p className="text-xs text-ink-muted" data-testid="review-queue-counts">
@@ -361,7 +366,7 @@ export default function ReviewQueuePage() {
       <IndependencePanel />
 
       {state.phase === 'loading' && (
-        <p className="mt-6 text-sm text-ink-muted" role="status" data-testid="review-loading">
+        <p className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6 text-sm text-ink-muted" role="status" data-testid="review-loading">
           Reading flagged items from the graph…
         </p>
       )}
@@ -369,7 +374,7 @@ export default function ReviewQueuePage() {
       {state.phase === 'missing' && (
         <section
           aria-labelledby="review-missing-heading"
-          className="mt-6 rounded-lg border border-ink-border bg-paper-raised p-6"
+          className="mt-6 rounded-xl border border-ink-border bg-paper-raised p-6"
           data-testid="review-missing"
         >
           <h2 id="review-missing-heading" className="text-lg font-semibold text-ink">
@@ -389,7 +394,7 @@ export default function ReviewQueuePage() {
       {state.phase === 'failure' && (
         <section
           aria-labelledby="review-failure-heading"
-          className="mt-6 rounded-lg border border-notice-border bg-notice-surface p-6"
+          className="mt-6 rounded-xl border border-notice-border bg-notice-surface p-6"
           data-testid="review-failure"
         >
           <h2 id="review-failure-heading" className="text-lg font-semibold text-notice-text">
@@ -402,11 +407,11 @@ export default function ReviewQueuePage() {
             <button
               type="button"
               onClick={load}
-              className="rounded border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
+              className="rounded-lg border border-ink-border bg-paper px-4 py-2 text-sm text-ink hover:bg-paper-deep"
             >
               Retry
             </button>
-            <Link to="/" className="rounded px-4 py-2 text-sm text-ink-muted no-underline hover:text-ink">
+            <Link to="/" className="rounded-lg px-4 py-2 text-sm text-ink-muted no-underline hover:text-ink">
               Back to landing
             </Link>
           </div>
@@ -418,7 +423,7 @@ export default function ReviewQueuePage() {
           <p
             role="note"
             data-testid="review-attribution"
-            className="rounded-lg border border-uncertain-border bg-uncertain-surface px-4 py-3 text-base text-uncertain-text"
+            className="rounded-xl border border-uncertain-border bg-uncertain-surface px-4 py-3 text-base text-uncertain-text"
           >
             A review flag means <strong>evidence review is needed</strong> — never a verdict
             of truth or falsity. Sage “reviewed” styling appears only when the returned
@@ -432,7 +437,7 @@ export default function ReviewQueuePage() {
             automatically clears an inherited concern on a dependent conclusion.
           </p>
 
-          <section aria-labelledby="review-flagged-heading" className="rounded-lg border border-ink-border bg-paper-raised p-6">
+          <section aria-labelledby="review-flagged-heading" className="rounded-xl border border-ink-border bg-paper-raised p-6">
             <h2 id="review-flagged-heading" className="text-lg font-semibold text-ink">
               Flagged for review ({items.length})
             </h2>
@@ -455,8 +460,8 @@ export default function ReviewQueuePage() {
                       data-review-state={reviewed ? 'reviewed' : 'needs-review'}
                       className={
                         reviewed
-                          ? 'rounded-lg border border-reviewed bg-reviewed-surface p-4 text-base text-reviewed-text'
-                          : 'rounded-lg border border-review-border bg-review-surface p-4 text-base'
+                          ? 'rounded-xl border border-reviewed bg-reviewed-surface p-4 text-base text-reviewed-text'
+                          : 'rounded-xl border border-review-border bg-review-surface p-4 text-base'
                       }
                     >
                       <header className="flex flex-wrap items-baseline justify-between gap-2">
@@ -578,7 +583,7 @@ export default function ReviewQueuePage() {
                           type="button"
                           onClick={() => setOpenDialogId(item.id)}
                           data-testid={`review-decide-${item.id}`}
-                          className="rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
+                          className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-deep"
                         >
                           {decisionRecorded ? 'Record another decision' : 'Record decision'}
                         </button>
@@ -591,7 +596,7 @@ export default function ReviewQueuePage() {
                           onClick={() => setOpenEvidenceId(item.id)}
                           data-testid={`find-evidence-${item.id}`}
                           aria-label={`Find evidence for ${item.id}`}
-                          className="rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
+                          className="rounded-lg border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
                         >
                           Find evidence
                         </button>
@@ -611,7 +616,7 @@ export default function ReviewQueuePage() {
                           data-testid={`review-revise-${item.id}`}
                           disabled={!reviewed}
                           className={
-                            'rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep disabled:opacity-60 disabled:cursor-not-allowed'
+                            'rounded-lg border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep disabled:opacity-60 disabled:cursor-not-allowed'
                           }
                         >
                           {openRevisionId === item.id ? 'Hide proposal' : 'Propose revision'}
@@ -654,7 +659,7 @@ export default function ReviewQueuePage() {
 
           <section
             aria-labelledby="review-history-heading"
-            className="rounded-lg border border-ink-border bg-paper-raised p-6"
+            className="rounded-xl border border-ink-border bg-paper-raised p-6"
             data-testid="review-history"
           >
             <h2 id="review-history-heading" className="text-lg font-semibold text-ink">
@@ -692,7 +697,7 @@ export default function ReviewQueuePage() {
                   type="button"
                   onClick={loadHistory}
                   data-testid="review-history-retry"
-                  className="mt-2 rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
+                  className="mt-2 rounded-lg border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
                 >
                   Retry history
                 </button>
@@ -700,7 +705,7 @@ export default function ReviewQueuePage() {
             )}
 
             {history.phase === 'ready' && historyRefreshFailed && (
-              <div className="mt-3 rounded border border-notice-border bg-notice-surface px-3 py-2 text-xs text-notice-text">
+              <div className="mt-3 rounded-lg border border-notice-border bg-notice-surface px-3 py-2 text-xs text-notice-text">
                 <p data-testid="review-history-refresh-failed">
                   The audit refetch did not complete — the entries shown here are from
                   the last successful read of the feed, not live data.
@@ -709,7 +714,7 @@ export default function ReviewQueuePage() {
                   type="button"
                   onClick={loadHistory}
                   data-testid="review-history-retry"
-                  className="mt-2 inline rounded border border-notice-text bg-notice-surface px-2 py-1 text-xs font-medium text-notice-text hover:bg-notice-surface-deep"
+                  className="mt-2 inline rounded-lg border border-notice-border bg-notice-surface px-2 py-1 text-xs font-medium text-notice-text hover:bg-notice-border"
                 >
                   Retry history
                 </button>
@@ -732,7 +737,7 @@ export default function ReviewQueuePage() {
                     <div
                       key={event.id}
                       data-testid={`review-history-entry-${event.id}`}
-                      className="rounded border border-reviewed bg-paper p-3 text-sm"
+                      className="rounded-xl border border-reviewed bg-paper p-3 text-sm"
                     >
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <p className="font-medium text-ink" data-testid={`review-history-entry-${event.id}-action`}>
@@ -781,7 +786,7 @@ export default function ReviewQueuePage() {
 
           <section
             aria-labelledby="review-unresolved-heading"
-            className="rounded-lg border border-uncertain-border bg-uncertain-surface p-6"
+            className="rounded-xl border border-uncertain-border bg-uncertain-surface p-6"
           >
             <h2 id="review-unresolved-heading" className="text-lg font-semibold text-uncertain-text">
               Possible publication matches — not review cases ({state.impact.unresolved.length})
@@ -803,7 +808,7 @@ export default function ReviewQueuePage() {
                   key={item.id}
                   data-testid={`review-unresolved-${item.id}`}
                   data-review-state="unresolved"
-                  className="rounded border border-uncertain-border bg-paper-raised p-3 text-base"
+                  className="rounded-xl border border-uncertain-border bg-paper-raised p-3 text-base"
                 >
                   <p className="font-medium text-uncertain-text">
                     “{item.text ?? item.id}” — unresolved ({item.resolutionState ?? 'state not recorded'})
