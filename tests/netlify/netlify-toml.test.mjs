@@ -82,6 +82,7 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
       'documentDetail',
       'documents',
       'documentsImported',
+      'evidenceFind',
       'exportAnnotatedManuscript',
       'exportReport',
       'exportRevisionPack',
@@ -114,6 +115,9 @@ describe('src/lib/api.ts apiRoutes — canonical dash paths', () => {
     'export-revision-pack',
     'review-decide',
     'review-revision',
+    // P4 — Find Evidence: fixed client↔server contract; the evidence-find.mjs
+    // function lands with the parallel backend wave (never client-owned).
+    'evidence-find',
   ]);
 
   for (const [key, { route, sourceLine }] of ROUTES) {

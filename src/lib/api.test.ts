@@ -23,6 +23,7 @@ import {
   getSeedStatus,
   importDocument,
   startAnalysis,
+  findEvidence,
   MAX_IMPORT_BYTES,
 } from './api';
 import { stubFetchByRoute } from '../test/mockFetch';
@@ -902,5 +903,244 @@ describe('api client — activity (GET /activity)', () => {
       'analysis_run',
       'export_generated',
     ]);
+  });
+});
+
+describe('api client — evidence-find (P4)', () => {
+  const PREPARE_PAYLOAD = {
+    mode: 'prepare',
+    claimId: 'claim-A',
+    claimText: 'Agent P-9 was selected on the strength of the registry analysis we cite.',
+    label: 'Claim',
+    manuscriptId: 'doc-demo-manuscript',
+    concern: { summary: 'The supporting citation use points at a retracted publication.', direction: 'direct' },
+    suggestedQuery: 'registry analysis drug-treatment mortality cohort',
+    queryEditable: true,
+    providers: [
+      { id: 'crossref', displayName: 'Crossref', scopeNote: 'public bibliographic metadata', landingUrl: 'https://www.crossref.org' },
+    ],
+    caveats: [
+      'Candidates come from public bibliographic metadata (Crossref).',
+      'This search does not modify citations, review states, or the manuscript.',
+    ],
+  };
+
+  const CANDIDATE = {
+    candidateId: 'doi:10.1016/s0140-6736(20)31180-6',
+    doi: '10.1016/S0140-6736(20)31180-6',
+    title: 'Hydroxychloroquine or chloroquine with or without a macrolide for treatment of COVID-19: a multinational registry analysis',
+    authors: ['Mehra M.R.'],
+    year: 2020,
+    container: 'The Lancet',
+    publicationType: 'journal-article',
+    publisher: 'Elsevier',
+    isSynthetic: false,
+    retractionStatus: 'notice_present',
+    evidenceRelationship: 'unverified',
+    independence: 'unknown',
+    fullTextAvailability: 'unknown',
+    relevanceBasis:
+      "Retrieved by Crossref bibliographic relevance for 'registry analysis' — a metadata match only; support/contrast relationships are unverified.",
+    urls: { sourceUrl: 'https://doi.org/10.1016/S0140-6736(20)31180-6' },
+  };
+
+  const SEARCH_PAYLOAD = {
+    mode: 'search',
+    claimId: 'claim-A',
+    claimText: PREPARE_PAYLOAD.claimText,
+    label: 'Claim',
+    manuscriptId: 'doc-demo-manuscript',
+    concern: PREPARE_PAYLOAD.concern,
+    query: 'registry analysis drug-treatment mortality cohort',
+    candidates: [CANDIDATE],
+    providersStatus: [{ id: 'crossref', status: 'ok' }],
+    providers: PREPARE_PAYLOAD.providers,
+    caveats: PREPARE_PAYLOAD.caveats,
+    searchedAt: '2026-10-19T05:00:00.000Z',
+  };
+
+  it('prepare mode: POSTs an empty {} JSON body to /evidence-find?claimId= and parses the prepared read', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: PREPARE_PAYLOAD }));
+    const result = await findEvidence('claim-A');
+    expect(result.mode).toBe('prepare');
+    if (result.mode !== 'prepare') return;
+    expect(result.claimId).toBe('claim-A');
+    expect(result.claimText).toBe(PREPARE_PAYLOAD.claimText);
+    expect(result.concern).toEqual(PREPARE_PAYLOAD.concern);
+    expect(result.suggestedQuery).toBe('registry analysis drug-treatment mortality cohort');
+    expect(result.queryEditable).toBe(true);
+    expect(result.providers[0]!.id).toBe('crossref');
+    expect(result.caveats).toEqual(PREPARE_PAYLOAD.caveats);
+    // Search-only fields must NOT be derived from a prepare answer.
+    expect('candidates' in result).toBe(false);
+    expect('providersStatus' in result).toBe(false);
+
+    const call = calls[0];
+    expect(call?.url).toBe('/.netlify/functions' + apiRoutes.evidenceFind + '?claimId=claim-A');
+    expect(call?.init?.method).toBe('POST');
+    expect((call?.init?.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect(call?.init?.body).toBe('{}');
+    expect(call?.init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('search mode: POSTs {query} and parses candidates + providersStatus incl. a provider timeout', async () => {
+    const calls = stubFetch(() => ({
+      status: 200,
+      body: {
+        ...SEARCH_PAYLOAD,
+        candidates: [],
+        providersStatus: [
+          { id: 'crossref', status: 'timeout', retried: true, message: 'AbortError from crossref' },
+        ],
+      },
+    }));
+    const result = await findEvidence('claim-A', { query: '  padded query  ' });
+    expect(result.mode).toBe('search');
+    if (result.mode !== 'search') return;
+    // Candidates absent from this provider run and status reported honestly.
+    expect(result.candidates).toEqual([]);
+    expect(result.providersStatus).toEqual([
+      { id: 'crossref', status: 'timeout', message: 'AbortError from crossref', retried: true },
+    ]);
+    expect(result.query).toBe('registry analysis drug-treatment mortality cohort');
+    expect(result.searchedAt).toBe('2026-10-19T05:00:00.000Z');
+    expect(result.caveats).toEqual(PREPARE_PAYLOAD.caveats);
+
+    const call = calls[0];
+    expect(call?.init?.body).toBe(JSON.stringify({ query: '  padded query  ' }));
+  });
+
+  it('search mode: parses the full candidate field set, verbatim (display DOI, URLs, constants)', async () => {
+    stubFetch(() => ({ status: 200, body: SEARCH_PAYLOAD }));
+    const result = await findEvidence('claim-A', { query: 'registry analysis' });
+    expect(result.mode).toBe('search');
+    if (result.mode !== 'search') return;
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0]).toEqual({
+      candidateId: CANDIDATE.candidateId,
+      doi: CANDIDATE.doi,
+      title: CANDIDATE.title,
+      authors: ['Mehra M.R.'],
+      year: 2020,
+      container: 'The Lancet',
+      publicationType: 'journal-article',
+      publisher: 'Elsevier',
+      isSynthetic: false,
+      retractionStatus: 'notice_present',
+      evidenceRelationship: 'unverified',
+      independence: 'unknown',
+      fullTextAvailability: 'unknown',
+      relevanceBasis: CANDIDATE.relevanceBasis,
+      urls: { sourceUrl: 'https://doi.org/10.1016/S0140-6736(20)31180-6' },
+    });
+  });
+
+  it('URL-encodes the claimId in the query string', async () => {
+    const calls = stubFetch(() => ({ status: 200, body: { ...PREPARE_PAYLOAD, claimId: 'claim:A-1' } }));
+    await findEvidence('claim:A-1');
+    // encodeURIComponent escapes ':' — the route contract is per-claim query param.
+    expect(calls[0]?.url).toBe('/.netlify/functions' + apiRoutes.evidenceFind + '?claimId=claim%3AA-1');
+  });
+
+  it('caller abort: the AbortSignal passes through and a caller abort rethrows as-is (no fake timeout class)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: unknown, init?: RequestInit) => {
+        const signal = init?.signal;
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason));
+        });
+      }),
+    );
+    const controller = new AbortController();
+    const pending = findEvidence('claim-A', { signal: controller.signal });
+    const expectation = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+    await expectation;
+  });
+
+  it('429 rate limit and 503 graph-unreachable surface as typed ApiHttpError with the server status', async () => {
+    stubFetch(() => ({ status: 429, body: { error: 'rate limited' } }));
+    const error429 = await findEvidence('claim-A').catch((e: unknown) => e);
+    expect(error429).toBeInstanceOf(ApiHttpError);
+    expect((error429 as ApiHttpError).status).toBe(429);
+
+    stubFetch(() => ({ status: 503, body: { error: 'graph unreachable' } }));
+    const error503 = await findEvidence('claim-A').catch((e: unknown) => e);
+    expect(error503).toBeInstanceOf(ApiHttpError);
+    expect((error503 as ApiHttpError).status).toBe(503);
+  });
+
+  it('refuses ambiguous 2xx payloads: missing mode / missing claimText / search without the used query', async () => {
+    stubFetch(() => ({ status: 200, body: { note: 'searched?' } }));
+    await expect(findEvidence('claim-A')).rejects.toBeInstanceOf(ApiClientError);
+
+    stubFetch(() => ({ status: 200, body: { mode: 'prepare' } }));
+    await expect(findEvidence('claim-A')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      message: 'Evidence-find response is missing `claimText`',
+    });
+
+    stubFetch(() => ({ status: 200, body: { mode: 'search', claimText: 'x', candidates: [] } }));
+    await expect(findEvidence('claim-A', { query: 'q' })).rejects.toMatchObject({
+      name: 'ApiClientError',
+      message: 'Evidence-find search response is missing the used `query`',
+    });
+  });
+
+  it('drops unparsable candidate/status entries rather than fabricating display rows', async () => {
+    stubFetch(() => ({
+      status: 200,
+      body: {
+        ...SEARCH_PAYLOAD,
+        candidates: [CANDIDATE, { noTitle: true }, null],
+        providersStatus: [{ id: 'crossref', status: 'ok' }, { id: 'crossref' }, 'junk'],
+      },
+    }));
+    const result = await findEvidence('claim-A', { query: 'q' });
+    expect(result.mode).toBe('search');
+    if (result.mode !== 'search') return;
+    expect(result.candidates).toHaveLength(1);
+    expect(result.providersStatus).toEqual([{ id: 'crossref', status: 'ok', message: undefined, retried: undefined }]);
+  });
+
+  it('retryOnce semantics are server-reported: `retried` parses only when boolean', async () => {
+    stubFetch(() => ({
+      status: 200,
+      body: {
+        ...SEARCH_PAYLOAD,
+        providersStatus: [
+          { id: 'crossref', status: 'error', retried: true },
+        ],
+      },
+    }));
+    const result = await findEvidence('claim-A', { query: 'q' });
+    if (result.mode !== 'search') return;
+    expect(result.providersStatus[0]).toMatchObject({ status: 'error', retried: true });
+  });
+
+  it('network failure throws ApiNetworkError', async () => {
+    stubFetch(() => {
+      throw new TypeError('connection refused');
+    });
+    await expect(findEvidence('claim-A')).rejects.toBeInstanceOf(ApiNetworkError);
+  });
+
+  it('aborts hanging requests after the promised 10 s', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: unknown, init?: RequestInit) => {
+        const signal = init?.signal;
+        return new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason));
+        });
+      }),
+    );
+    const pending = findEvidence('claim-A');
+    const expectation = expect(pending).rejects.toBeInstanceOf(ApiTimeoutError);
+    await vi.advanceTimersByTimeAsync(API_TIMEOUT_MS - 1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expectation;
   });
 });

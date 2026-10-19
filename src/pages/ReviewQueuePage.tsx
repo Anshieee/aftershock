@@ -16,6 +16,7 @@ import {
 import { deriveDemoImpact, type AffectedItem, type DemoImpact } from '../lib/demoImpact';
 import ReviewDecisionDialog from '../components/ReviewDecisionDialog';
 import RevisionProposalPanel from '../components/RevisionProposalPanel';
+import FindEvidencePanel from '../components/FindEvidencePanel';
 
 type QueueLoad =
   | { phase: 'loading' }
@@ -183,6 +184,8 @@ export default function ReviewQueuePage() {
   const [decisions, setDecisions] = useState<Record<string, ReviewDecisionResult>>({});
   const [openDialogId, setOpenDialogId] = useState<string | null>(null);
   const [openRevisionId, setOpenRevisionId] = useState<string | null>(null);
+  /** P4 — the case whose "Find evidence" panel is open (read-only search; never mutates the case). */
+  const [openEvidenceId, setOpenEvidenceId] = useState<string | null>(null);
 
   /** Background server-state refresh — never wipes dialogs or selection. */
   const [refreshing, setRefreshing] = useState(false);
@@ -575,6 +578,19 @@ export default function ReviewQueuePage() {
                         >
                           {decisionRecorded ? 'Record another decision' : 'Record decision'}
                         </button>
+                        {/* P4 Find-Evidence affordance — an honest read-only
+                            external-metadata search for this case. It opens a
+                            dialog and performs NO write of any kind; case
+                            state below only ever derives from the server. */}
+                        <button
+                          type="button"
+                          onClick={() => setOpenEvidenceId(item.id)}
+                          data-testid={`find-evidence-${item.id}`}
+                          aria-label={`Find evidence for ${item.id}`}
+                          className="rounded border border-ink-border bg-paper px-3 py-1.5 text-sm text-ink hover:bg-paper-deep"
+                        >
+                          Find evidence
+                        </button>
                         {decision && (
                             <p
                               className="text-xs text-ink-muted"
@@ -616,6 +632,13 @@ export default function ReviewQueuePage() {
                             // Acceptance is user-reported, not scientific validation.
                             setOpenRevisionId(null);
                           }}
+                        />
+                      )}
+                      {openEvidenceId === item.id && (
+                        <FindEvidencePanel
+                          claimId={item.id}
+                          open
+                          onClose={() => setOpenEvidenceId(null)}
                         />
                       )}
                     </li>
