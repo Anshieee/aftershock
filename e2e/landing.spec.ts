@@ -29,8 +29,9 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
   await expect(input).toHaveAttribute('type', 'file');
   await expect(input).toHaveAttribute('accept', /\.pdf|\.docx|\.txt/);
 
-  // Selecting a real file updates the UI with honest disclosure that
-  // nothing was uploaded and no analysis exists yet.
+  // Selecting a real file triggers the import flow. The server may accept
+  // the registration (2xx → "Registered:" result) or reject it (error
+  // message). Both are honest outcomes; fabricated success is never shown.
   await input.setInputFiles({
     name: 'manuscript.txt',
     mimeType: 'text/plain',
@@ -38,7 +39,18 @@ test('a native file input is present (no fake uploader)', async ({ page }) => {
   });
   const status = page.locator('[data-testid="selection-state"]');
   await expect(status).toContainText('manuscript.txt');
-  await expect(status).toContainText(/not wired|not been uploaded|no analysis backend|HTTP 4\d{2}|cooldown|nothing was (?:registered|uploaded)|unavailable/i);
+  // Either a successful registration with honest contentStored: false
+  // disclosure, or an honest error — never a fabricated analysis claim.
+  const statusText = await status.textContent();
+  const isRegistered = statusText.includes('Registered');
+  if (isRegistered) {
+    await expect(status).toContainText(/content stored: no/i);
+    await expect(status).toContainText(/contentStored: false/i);
+  } else {
+    await expect(status).toContainText(
+      /not wired|not been uploaded|no analysis backend|HTTP 4\d{2}|cooldown|nothing was (?:registered|uploaded)|unavailable|failed/i,
+    );
+  }
   await expect(status).not.toContainText(/analyzed|extracted citation|verified/i);
 });
 
