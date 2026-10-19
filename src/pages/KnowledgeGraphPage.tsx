@@ -54,7 +54,18 @@ export default function KnowledgeGraphPage() {
       .then((outcome) => {
         if (controller.signal.aborted) return;
         if (outcome.available) {
+          // Initialize client-side filters to "all present" in the SAME batch
+          // as the ready state, so the first commit that shows the canvas
+          // already has initialized filters. Previously this happened in a
+          // separate effect that ran one tick later; a filter change made in
+          // that window was clobbered by the initializer (test flake, and a
+          // real if brief race for users).
+          const kinds = new Set(availableNodeKinds(outcome.data.nodes));
+          const provs = new Set(availableEdgeProvenanceKinds(outcome.data.edges));
           setState({ phase: 'ready', overview: outcome.data });
+          setSelectedNodeKinds(kinds);
+          setSelectedEdgeProv(provs);
+          setFiltersReady(true);
         } else {
           setState({ phase: 'missing', reason: outcome.reason });
         }
@@ -87,12 +98,8 @@ export default function KnowledgeGraphPage() {
   const nodeKindsAvailable = availableNodeKinds(nodes);
   const edgeProvAvailable = availableEdgeProvenanceKinds(edges);
 
-  // Initialize filters to "all present" once data loads.
-  useEffect(() => {
-    setSelectedNodeKinds(new Set(nodeKindsAvailable));
-    setSelectedEdgeProv(new Set(edgeProvAvailable));
-    setFiltersReady(true);
-  }, [nodes.length, edges.length]);
+  // Filter initialization happens in load()'s success handler (same batch as
+  // the ready state), so no separate effect is needed here.
 
   // Reset focus when selection changes.
   useEffect(() => {
