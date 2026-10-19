@@ -1113,9 +1113,11 @@ export async function getDocumentDetail(
 /* ------------------------------------------------------------------ *
  * Activity event type (contract §5 GET /activity, §11).
  * Timestamps are ISO-8601 UTC and must never be merged: a source_notice
- * event's timestamp is the notice's actual publication date, an
- * analysis_run event's is first detection, a review_decision's is the
- * human decision date, and an export_generated's is the export date.
+ * event's timestamp is the notice's official publication date (with
+ * first-recorded and last-verified times carried as distinct additive
+ * fields), an analysis_run event's is its run window (completedAt when the
+ * run finished, else startedAt), a review_decision's is the human decision
+ * date, and an export_generated's is the export date.
  * ------------------------------------------------------------------ */
 
 export type ActivityEventType =
@@ -1133,13 +1135,37 @@ export interface ActivityEvent {
   /** Human-visible verb phrase describing what happened. */
   action: string;
   description?: string;
-  /** Prior state (e.g. pre-decision review state). */
+  /** Prior state (e.g. pre-decision review state). String when the record
+   *  carries a plain state string; object state blobs (`{reviewState, flags}`)
+   *  are flattened to a readable `state · flag` string — never repainted. */
   beforeState?: string;
-  /** Resulting state (e.g. post-decision review state). */
+  /** Resulting state (e.g. post-decision review state). Same readable
+   *  string-form rule as `beforeState`. */
   afterState?: string;
   /** True when the event describes synthetic/demo content. */
   isSynthetic?: boolean;
   syntheticLabel?: string;
+  /* M7 Priority D additive fields — the date KINDS stay distinct, never
+   * merged. Absent on the wire = `undefined` ("not reported"), never guessed. */
+  /** Case id the event is recorded against (review_decision events). */
+  targetId?: string;
+  /** Target record kind (case | Publication | DocumentVersion) — verbatim. */
+  targetType?: string;
+  /** Provenance kind verbatim from the graph record, when the server carries it. */
+  provenanceKind?: string | null;
+  /* source_notice only — the four distinct notice timestamps (§6): */
+  /** Official announcement date (PubMed/PMC/Crossref record of the notice). */
+  noticeRecordedDate?: string | null;
+  /** When Aftershock FIRST recorded the notice. In the demo graph this is
+   *  always the seed timestamp — it is labeled "First recorded by
+   *  Aftershock (demo seed)" and must never be presented as scanning or
+   *  live discovery. */
+  detectedAt?: string | null;
+  /** Most recent re-check of the recorded notice. */
+  lastVerifiedAt?: string | null;
+  /* analysis_run only — the run window of the recorded execution: */
+  startedAt?: string | null;
+  completedAt?: string | null;
 }
 
 function isActivityEventType(value: unknown): value is ActivityEventType {
@@ -1149,6 +1175,30 @@ function isActivityEventType(value: unknown): value is ActivityEventType {
     value === 'analysis_run' ||
     value === 'export_generated'
   );
+}
+
+/**
+ * Flattens a review-state field to a single readable string. The server may
+ * send a plain state string or the recorded state blob
+ * `{ reviewState, flags }`; both map to the same `state · flag · flag`
+ * display form. Non-string, non-shape values drop to undefined ("not
+ * recorded") — never repainted and never guessed into a state label.
+ */
+function activityStateField(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const blob = value as Record<string, unknown>;
+    const parts: string[] = [];
+    const reviewState = stringField(blob.reviewState);
+    if (reviewState) parts.push(reviewState);
+    if (Array.isArray(blob.flags)) {
+      for (const flag of blob.flags) {
+        if (typeof flag === 'string' && flag.length > 0) parts.push(flag);
+      }
+    }
+    return parts.length > 0 ? parts.join(' · ') : undefined;
+  }
+  return undefined;
 }
 
 function parseActivityEvent(payload: unknown, index: number): ActivityEvent {
@@ -1172,11 +1222,33 @@ function parseActivityEvent(payload: unknown, index: number): ActivityEvent {
     actor: stringField(source.actor),
     action: stringField(source.action) ?? 'Activity recorded',
     description: stringField(source.description),
-    beforeState: stringField(source.beforeState),
-    afterState: typeof source.afterState === 'string' ? source.afterState : undefined,
+    beforeState: activityStateField(source.beforeState),
+    afterState: activityStateField(source.afterState),
     isSynthetic: typeof source.isSynthetic === 'boolean' ? source.isSynthetic : undefined,
     syntheticLabel: stringField(source.syntheticLabel),
+    // M7 Priority D additive fields — kept only when the server actually
+    // returned them; distinct kinds are never merged or defaulted.
+    targetId: stringField(source.targetId),
+    targetType: stringField(source.targetType),
+    // Bean-shaped null answers "not recorded" on the wire; surfaced as
+    // undefined rather than invented into a value.
+    provenanceKind: stringField(source.provenanceKind),
+    noticeRecordedDate: stringField(source.noticeRecordedDate),
+    detectedAt: stringField(source.detectedAt),
+    lastVerifiedAt: stringField(source.lastVerifiedAt),
+    startedAt: stringField(source.startedAt),
+    completedAt: stringField(source.completedAt),
   };
+}
+
+/**
+ * M7 Priority D — optional per-case filter for GET /activity. Additive and
+ * read-only: the caseId travels as a `?caseId=` query parameter and is
+ * validated/parameterized on the server (`$caseId`). No other request shape
+ * changes.
+ */
+export interface ActivityRequestOptions extends RequestOptions {
+  caseId?: string;
 }
 
 /**
@@ -1184,14 +1256,24 @@ function parseActivityEvent(payload: unknown, index: number): ActivityEvent {
  * 404/501 (and a SPA-shaded 2xx) resolve to `available: false` — honest
  * "not available yet", never a fabricated history. Any other non-OK status
  * throws a typed error so the UI can report the failure honestly.
+ *
+ * With `options.caseId`, a per-case filter is appended (`?caseId=<encoded>`).
+ * The filtered response contains only review_decision events recorded
+ * against that case — the server returns nothing else (notices/runs are not
+ * case-scoped), and an empty list reads as "no recorded events for this id".
  */
 export async function getActivity(
-  options?: RequestOptions,
+  options?: ActivityRequestOptions,
 ): Promise<ApiOutcome<ActivityEvent[]>> {
+  const caseId = options?.caseId;
+  let path: string = apiRoutes.activity;
+  if (typeof caseId === 'string' && caseId.length > 0) {
+    path = `${apiRoutes.activity}?caseId=${encodeURIComponent(caseId)}`;
+  }
   let data: unknown;
   try {
     data = await request({
-      path: apiRoutes.activity,
+      path,
       options,
       notAvailableStatuses: [404, 501],
     });
