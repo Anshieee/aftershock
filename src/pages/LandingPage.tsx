@@ -106,7 +106,10 @@ export default function LandingPage() {
 
       {/* 1 — Hero: real brand mark + the page promise. The tagline is the
           h1; the wordmark is a brand mark (not a heading). */}
-      <section className="relative z-10 px-2 pt-4 md:pt-10" aria-labelledby="hero-heading">
+      <section
+        className="v3-text-layer relative z-10 px-2 pt-4 md:pt-10"
+        aria-labelledby="hero-heading"
+      >
         <p className="wordmark type-hero text-ink">Aftershock.</p>
         <h1
           id="hero-heading"

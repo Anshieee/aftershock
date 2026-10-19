@@ -40,7 +40,21 @@
   z-index: 0;
   width: 40rem; /* md+ sits top-right; viewfinder crop on the right edge */
   max-width: none;
-  pointer-events: none; /* art never intercepts; controls live above */
+  pointer-events: none; /* art layer itself never intercepts controls */
+}
+
+/* The svg re-engages pointer events only for hover-drift feedback; it has
+   no handlers and sits under the z-10 content layer, so no control is ever
+   blocked and no click target is introduced. */
+.landing-v3 .motif-layer .motif-svg {
+  pointer-events: auto;
+}
+
+/* The svg re-engages pointer events only for hover-drift feedback; it has
+   no handlers and sits under the z-10 content layer, so no control is ever
+   blocked and no click target is introduced. */
+.landing-v3 .motif-layer .motif-svg {
+  pointer-events: auto;
 }
 
 .landing-v3 .motif-layer .motif-svg {
@@ -53,9 +67,20 @@
    overflow-x-clip on the page root so it never causes horizontal scroll. */
 @media (min-width: 768px) {
   .landing-v3 .motif-layer {
-    top: -5rem;
+    top: -1.75rem;
     right: -9rem;
   }
+}
+
+/* Hero text layer: the container hands empty-column hover events to the
+   artwork beneath (so node drift reads as viewport hover), while the text
+   elements themselves stay fully interactive and selectable. */
+.landing-v3 .v3-text-layer {
+  pointer-events: none;
+}
+
+.landing-v3 .v3-text-layer :where(p, h1, h2, h3) {
+  pointer-events: auto;
 }
 
 /* <md — scaled + cropped (never crowded): a smaller constellation peeks
