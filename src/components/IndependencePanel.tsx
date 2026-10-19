@@ -45,7 +45,7 @@ export const INDEPENDENCE_EMPTY_COPY =
 
 /** Fixed footer truth line: this panel informs review; it never decides it. */
 export const INDEPENDENCE_READONLY_COPY =
-  'This panel is read-only. Sharing a supporting publication never flips a review state, never marks a claim verified, and never marks a claim disproven — review decisions remain human work through the decision dialog.';
+  'This panel is read-only. Sharing a supporting publication never flips a review state and never presents any claim as upheld or rejected — review decisions remain human work through the decision dialog.';
 
 interface IndependencePanelProps {
   /**
