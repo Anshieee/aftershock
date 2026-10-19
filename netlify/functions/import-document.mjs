@@ -20,6 +20,21 @@
  *   client MUST display the disclosure verbatim.
  * - 503 on graph-backend failure (errorBodyFor); nothing partial is claimed.
  *
+ * WAVE 3 IN-MEMORY EXTRACTION (immediately above the graph write, same
+ * single-pass moment over the already-read bytes): for `txt` uploads the
+ * handler runs a bounded (512 KiB prefix) shallow DOI pattern scan and
+ * ATTACHES the candidate list to the 200 response as `extraction`. This is
+ * DETECTION, not verification: detected DOIs are unverified candidates from a
+ * bounded excerpt; presence in the file proves nothing about claim support or
+ * reference validity (the response carries that caveat verbatim). The scan
+ * result is response-only — it is NEVER persisted, never logged, and never
+ * sent to the graph (`registerDocumentImport` and all its Cypher are
+ * untouched: no new nodes/edges/properties). Extracting for `pdf` and `docx`
+ * is not implemented in this demo tier, so they get
+ * `extraction: { attempted: false, ..., reason }` instead of a lie. An
+ * unexpected extraction failure is swallowed into an honest
+ * `attempted: false` envelope; it can never fail the import.
+ *
  * HONEST LIMITATION: this tier registers but does not store content, so
  * analysis of imported files is refused (422) by `/analyze` until persistent
  * content storage exists.
@@ -40,12 +55,54 @@ import {
   hashUploadBytes,
   registerDocumentImport,
 } from '../../server/importAnalyze.mjs';
+import {
+  MAX_SCAN_BYTES,
+  DOI_SCAN_CAVEAT,
+  extractTextMeta,
+} from '../../server/metaExtract.mjs';
 
 const RATE_LIMIT_COOLDOWN_MS = 6_000; // one import per IP per 6 s
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1-minute window
 const RATE_LIMIT_MAX_PER_WINDOW = 10; // at most 10 imports per window per IP
 const MAX_FILE_NAME_LENGTH = 255;
 const WRITE_BUDGET_MS = 20_000;
+
+/** Honest reason for formats whose text extraction this tier does not do. */
+const FORMAT_NOT_EXTRACTABLE_REASON =
+  'Text extraction for this format is not implemented in the demo tier; no DOIs were scanned.';
+
+/** Honest reason when the extraction machinery itself fails unexpectedly. */
+const EXTRACTION_FAILED_REASON =
+  'Extraction failed unexpectedly; import registered metadata-only.';
+
+/**
+ * Build the additive `extraction` member of the 200 response. Detection, not
+ * verification: the caveat travels verbatim so clients can show it honest by
+ * default. Pure envelope shaping — never throws in normal operation, but the
+ * caller still guards it (an extraction failure must never fail an import).
+ *
+ * @param {Uint8Array} bytes the SAME buffer the hash came from (no second read)
+ * @param {'pdf' | 'docx' | 'txt'} format normalized upload format
+ * @param {(bytes: Uint8Array) => { scannedBytes: number, truncated: boolean, dois: Array<{ doi: string, occurrences: number, snippet?: string }> }} extractTextOp
+ */
+function buildExtraction(bytes, format, extractTextOp) {
+  if (format !== 'txt') {
+    // Never a lie like "no references found": this format is simply not scanned.
+    return { attempted: false, format, reason: FORMAT_NOT_EXTRACTABLE_REASON };
+  }
+  const scan = extractTextOp(bytes);
+  return {
+    attempted: true,
+    format,
+    caveat: DOI_SCAN_CAVEAT,
+    byteSelection: {
+      scannedBytes: scan.scannedBytes,
+      maxBytes: MAX_SCAN_BYTES,
+      truncated: scan.truncated,
+    },
+    dois: scan.dois,
+  };
+}
 
 export function createImportDocumentHandler(deps = {}) {
   const env = deps.env ?? process.env;
@@ -57,6 +114,7 @@ export function createImportDocumentHandler(deps = {}) {
   });
   const registerOp = deps.registerOp ?? registerDocumentImport;
   const timeoutMs = deps.timeoutMs ?? WRITE_BUDGET_MS;
+  const extractTextOp = deps.extractTextOp ?? extractTextMeta;
 
   return async function handler(request /*, context */) {
     if (request.method !== 'POST') {
@@ -141,13 +199,22 @@ export function createImportDocumentHandler(deps = {}) {
 
     try {
       const sourceHash = hashUploadBytes(bytes);
+      // Wave 3: same single pass over the already-in-memory bytes, BEFORE the
+      // graph write. Detection only — the scan result never reaches the graph
+      // and an unexpected extraction failure must never fail the import.
+      let extraction;
+      try {
+        extraction = buildExtraction(bytes, format, extractTextOp);
+      } catch {
+        extraction = { attempted: false, format, reason: EXTRACTION_FAILED_REASON };
+      }
       const result = await withSession(
         layer,
         demoGraphName(env),
         (session) => registerOp(session, { fileName, format, sizeBytes: bytes.byteLength, sourceHash }),
         { timeoutMs },
       );
-      return jsonResponse(200, result);
+      return jsonResponse(200, { ...result, extraction });
     } catch (err) {
       if (err instanceof HonestApiError) return jsonResponse(err.status, err.body);
       const { status, body } = errorBodyFor(err);

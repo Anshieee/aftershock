@@ -15,6 +15,7 @@ import {
   METADATA_ONLY_DISCLOSURE,
   registerDocumentImport,
 } from '../../server/importAnalyze.mjs';
+import { MAX_SCAN_BYTES } from '../../server/metaExtract.mjs';
 import { assertParameterized, ConnectionError } from '../../server/graphClient.mjs';
 import { fakeConfiguredEnv, fakeLayer, permissiveLimiter, readJson } from './_helpers.mjs';
 import { expectUuid, m4FakeSession } from './_m4fake.mjs';
@@ -220,3 +221,74 @@ describe('import-document handler — rate limiting + failure honesty', () => {
     expect(layer.openedGraphs).toEqual(['aftershock:demo-smoke']);
   });
 });
+
+describe('import-document handler — wave 3 in-memory extraction (response-only)', () => {
+  it('attaches detection-only extraction for txt uploads; the graph writes are unchanged', async () => {
+    const raw = [
+      'CHAPTER 1',
+      'Key citation: https://doi.org/10.4711/handler-fixture.',
+      'Also referenced as 10.4711/handler-fixture and 10.8228/another-fixture;',
+      'plain lorem follows, no check performed anywhere.',
+    ].join('\n');
+    const session = m4FakeSession();
+    const handler = handlerWith({ layer: fakeLayer(session) });
+    const res = await handler(uploadRequest('?fileName=notes.txt&format=txt', raw));
+    expect(res.status).toBe(200);
+    const body = await readJson(res);
+
+    // Metadata-only contract unchanged.
+    expect(body.contentStored).toBe(false);
+    expect(body.disclosure).toBe(METADATA_ONLY_DISCLOSURE);
+
+    // Additive detection-only extra: honest caveat + bounded scan flags.
+    expect(body.extraction.attempted).toBe(true);
+    expect(body.extraction.format).toBe('txt');
+    expect(body.extraction.byteSelection.maxBytes).toBe(MAX_SCAN_BYTES);
+    expect(body.extraction.byteSelection.truncated).toBe(false);
+    expect(body.extraction.byteSelection.scannedBytes).toBe(new TextEncoder().encode(raw).byteLength);
+    expect(body.extraction.caveat).toMatch(/unverified|proved nothing about claim support|reference validity/i);
+    expect(body.extraction.dois.map((d) => d.doi)).toEqual(['10.4711/handler-fixture', '10.8228/another-fixture']);
+    expect(body.extraction.dois[0].occurrences).toBe(2);
+
+    // The graph contract is untouched: 3 metadata writes, no DOI-related
+    // params, no new writes for extraction.
+    expect(session.writes.length).toBe(3);
+    for (const { params } of session.writes) {
+      for (const value of Object.values(params)) {
+        expect(value, 'no extraction payload in params').not.toEqual(
+          body.extraction.dois,
+        );
+      }
+    }
+  });
+
+  it('answers pdf/docx honestly: attempted:false + stable not-implemented reason', async () => {
+    const handler = handlerWith();
+    for (const format of ['pdf', 'docx']) {
+      const res = await handler(uploadRequest(`?fileName=f.${format}&format=${format}`, 'bytes'));
+      expect(res.status, format).toBe(200);
+      const { extraction } = await readJson(res);
+      expect(extraction).toEqual({
+        attempted: false,
+        format,
+        reason: expect.stringMatching(/not implemented in the demo tier/i),
+      });
+      expect(extraction.reason).not.toMatch(/no references|no DOIs(?! were scanned)/i);
+    }
+  });
+
+  it('tolerates an extraction op that throws: still 200 metadata-only with honest attempted:false', async () => {
+    const handler = handlerWith({ extractTextOp: () => { throw new Error('simulated scan machinery failure'); } });
+    const res = await handler(uploadRequest('?fileName=notes.txt&format=txt', 'some text 10.9111/never-verified'));
+    expect(res.status).toBe(200);
+    const body = await readJson(res);
+    expect(body.contentStored).toBe(false);
+    expect(body.documentId).toBeDefined();
+    expect(body.extraction).toEqual({
+      attempted: false,
+      format: 'txt',
+      reason: 'Recursive extraction failed; import registered metadata-only.',
+    });
+  });
+});
+
