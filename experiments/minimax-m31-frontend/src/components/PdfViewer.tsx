@@ -380,8 +380,21 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(function PdfViewer(
                     const isSelected = anchor.id === selectedId;
                     const isHovered = anchor.id === hoveredId;
                     const colour = TONE_RGB[anchor.tone];
+                    const first = anchor.rects[0];
                     return (
                       <div key={anchor.id}>
+                        {first ? (
+                          <span
+                            aria-hidden="true"
+                            className="annotation-pin"
+                            style={{
+                              left: -14,
+                              top: first.y * scale + (first.height * scale) / 2,
+                              background: colour,
+                              opacity: isSelected ? 1 : isHovered ? 0.9 : 0.66,
+                            }}
+                          />
+                        ) : null}
                         {anchor.rects.map((rect, index) => {
                           const left = rect.x * scale;
                           const top = rect.y * scale;
@@ -410,16 +423,6 @@ export const PdfViewer = forwardRef<PdfViewerHandle, Props>(function PdfViewer(
                                   width,
                                   color: colour,
                                   opacity: isSelected ? 1 : isHovered ? 1 : 0.62,
-                                }}
-                              />
-                              <span
-                                aria-hidden="true"
-                                className="annotation-pin"
-                                style={{
-                                  left: -13,
-                                  top: top + height / 2,
-                                  background: colour,
-                                  opacity: isSelected ? 1 : 0.72,
                                 }}
                               />
                             </div>

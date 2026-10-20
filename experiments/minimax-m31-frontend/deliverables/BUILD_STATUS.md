@@ -65,6 +65,10 @@ interruption.
 - [x] Sidebar collapse, panel transitions, ripple, annotation reveals
 - [x] `prefers-reduced-motion` honoured globally
 - [x] Verified at 1440×900, 1366×768, 1024×768, 768×1024, 390×844, 360×800
+- [x] Mobile: reflowed reader by default, bottom-sheet inspector, graph
+      filters and node records in sheets, report preview first
+- [x] Finding navigation (previous / next, with a counter) in the reader bar
+- [x] One margin indicator per annotated passage in the page gutter
 
 ### Phase 6 — visual inspection
 - [x] 22 screenshots captured from the running app (`scripts/capture.mjs`)
@@ -79,7 +83,7 @@ interruption.
 - [x] `npm run verify:anchors` — all 6 anchors resolve against the PDF
 - [x] `npm run journey` — 22/22 steps of the required user journey pass,
       no console errors, real HTML and DOCX files produced
-- [x] `npm run capture` — 22 screenshots, no console errors
+- [x] `npm run capture` — 26 screenshots, no console errors
 - [x] `deliverables/design-system.md`
 - [x] `deliverables/prototype-limitations.md`
 - [x] `deliverables/screenshots/`
@@ -96,7 +100,7 @@ interruption.
 | `npm test` | 5 files, 47 tests, all passing |
 | `npm run verify:anchors` | all 6 anchors resolve against the PDF |
 | `npm run journey` | 22/22 steps pass, **no console errors** |
-| `npm run capture` | 22 screenshots, **no console errors** |
+| `npm run capture` | 26 screenshots, **no console errors** |
 
 Test coverage:
 - `tests/anchors.test.ts` — phrase location across line breaks, geometry,

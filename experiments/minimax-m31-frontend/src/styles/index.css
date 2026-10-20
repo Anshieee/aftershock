@@ -148,10 +148,11 @@
   .annotation-pin {
     position: absolute;
     pointer-events: none;
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 16px;
     border-radius: 99px;
     transform: translateY(-50%);
+    box-shadow: 0 0 0 2px rgb(var(--c-paper-raised) / 0.85);
   }
 
   /* ---- Native PDF text layer (selection) ---------------------------- */

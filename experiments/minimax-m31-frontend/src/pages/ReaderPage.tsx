@@ -141,6 +141,21 @@ export default function ReaderPage() {
     window.setTimeout(() => viewerRef.current?.scrollToAnchor(findingId), 60);
   };
 
+  const currentFindingIndex = revealed.findIndex(
+    (finding) => finding.id === state.selectedFindingId,
+  );
+  const hasPrevious = currentFindingIndex > 0;
+  const hasNext =
+    currentFindingIndex >= 0 && currentFindingIndex < revealed.length - 1;
+
+  const stepFinding = (direction: 1 | -1) => {
+    if (revealed.length === 0) return;
+    const base = currentFindingIndex < 0 ? (direction === 1 ? -1 : 0) : currentFindingIndex;
+    const next = base + direction;
+    if (next < 0 || next >= revealed.length) return;
+    selectFinding(revealed[next]!.id);
+  };
+
   const openGraph = (findingId: string) => {
     dispatch({ type: 'select-finding', findingId });
     navigate(`/i/${documentId}/graph`);
@@ -241,6 +256,25 @@ export default function ReaderPage() {
               </div>
             ) : null}
           </div>
+
+          {/* Finding navigation */}
+          {revealed.length > 0 ? (
+            <div className="hidden items-center gap-0.5 sm:flex">
+              <IconButton
+                label="Previous finding"
+                disabled={!hasPrevious}
+                onClick={() => stepFinding(-1)}
+              >
+                <IconChevronRight size={14} className="rotate-180" />
+              </IconButton>
+              <span className="meta w-[52px] text-center tabular-nums">
+                {currentFindingIndex < 0 ? '—' : currentFindingIndex + 1} / {revealed.length}
+              </span>
+              <IconButton label="Next finding" disabled={!hasNext} onClick={() => stepFinding(1)}>
+                <IconChevronRight size={14} />
+              </IconButton>
+            </div>
+          ) : null}
 
           <IconButton
             label={inspectorOpen ? 'Hide evidence inspector' : 'Show evidence inspector'}
