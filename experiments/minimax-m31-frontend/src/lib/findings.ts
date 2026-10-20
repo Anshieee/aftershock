@@ -14,7 +14,7 @@ import {
   type GraphEdgeRecord,
   type GraphNodeRecord,
 } from '../fixtures';
-import type { AppState } from '../state/store';
+import type { ReviewDecisionRecord, RevisionProposalRecord } from '../fixtures';
 
 /* ------------------------------------------------------------------ *
  * Presentation helpers shared by the reader, the review queue and the
@@ -45,12 +45,16 @@ export function findingNotice(finding: Finding): GraphNodeRecord | undefined {
   return finding.noticeId ? nodeById.get(finding.noticeId) : undefined;
 }
 
-export function findingStatus(state: AppState, finding: Finding): FindingStatus {
-  const decision = state.reviewDecisions[finding.id];
+export function findingStatus(
+  reviewDecisions: Record<string, ReviewDecisionRecord>,
+  proposals: Record<string, RevisionProposalRecord>,
+  finding: Finding,
+): FindingStatus {
+  const decision = reviewDecisions[finding.id];
   if (!decision) return 'awaiting_review';
   if (decision.outcome === 'further_investigation') return 'further_investigation';
   if (decision.outcome === 'revision_needed') {
-    const proposal = state.proposals[finding.id];
+    const proposal = proposals[finding.id];
     if (proposal?.status === 'accepted') return 'draft_prepared';
     if (proposal) return 'revision_pending';
     return 'further_investigation';

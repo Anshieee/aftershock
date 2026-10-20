@@ -51,7 +51,9 @@ export default function EvidencePage() {
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Chip tone="brand">{documentFindings.length} findings</Chip>
               <Chip tone="neutral">
-                {documentFindings.filter((f) => findingStatus(state, f) !== 'awaiting_review').length}{' '}
+                {documentFindings.filter(
+                  (f) => findingStatus(state.reviewDecisions, state.proposals, f) !== 'awaiting_review',
+                ).length}{' '}
                 reviewed
               </Chip>
               {document?.isSample ? <Chip tone="neutral">Example investigation</Chip> : null}
@@ -98,7 +100,7 @@ export default function EvidencePage() {
                   <ul className="divide-y divide-ink-border">
                     {documentFindings.map((finding) => {
                       const tone = findingTone(finding);
-                      const status = findingStatus(state, finding);
+                      const status = findingStatus(state.reviewDecisions, state.proposals, finding);
                       const active = finding.id === selectedFinding?.id;
                       return (
                         <li key={finding.id}>

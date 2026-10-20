@@ -111,7 +111,7 @@ export const findings: Finding[] = [
     kind: 'indirect',
     title: 'A conclusion depends on the affected passage',
     plainExplanation:
-      'This conclusion restates the result reported in the passage flagged above, so it inherits the same evidence concern. The conclusion is affected indirectly — it does not cite the retracted work itself.',
+      'This conclusion restates the result reported in the passage flagged above, so it inherits the same evidence concern and needs review in its own right. It is affected indirectly — it does not cite the retracted work itself.',
     anchorId: 'anchor-conclusion-dependency',
     locationLabel: '§5 Conclusions',
     viaClaimId: 'claim-A',
@@ -143,7 +143,7 @@ export const findings: Finding[] = [
     kind: 'unresolved',
     title: 'A reference could not be resolved to one publication',
     plainExplanation:
-      'The citation “Lee et al. (2020)” matches more than one candidate publication. Until a person confirms which one is meant, the relationship between this passage and that work stays unresolved and is not propagated to any conclusion.',
+      'The citation “Lee et al. (2020)” matches more than one candidate publication. Until a person confirms which one is meant, this passage needs a decision, and the relationship between it and that work stays unresolved — it is not propagated to any conclusion.',
     anchorId: 'anchor-unresolved-reference',
     locationLabel: '§2.2 Cohort definition',
     citationUseId: 'cu-H-unresolved',
@@ -238,7 +238,7 @@ export const findings: Finding[] = [
     kind: 'unresolved',
     title: 'A reference is still awaiting resolution',
     plainExplanation:
-      'One reference in this manuscript has two possible matches and has not been confirmed by a person. It stays unresolved and is not counted anywhere else.',
+      'One reference in this manuscript has two possible matches and has not been confirmed by a person. It needs a decision, stays unresolved, and is not counted anywhere else.',
     anchorId: null,
     locationLabel: '§2.1 Inclusion criteria',
     nodeIds: [],
@@ -304,7 +304,7 @@ export const revisionProposals: RevisionProposalRecord[] = [
     originalText:
       'Registry cohorts in comparable settings have reported a marked reduction in time-to-antibiotics when marker panels are used to gate escalation (Mehra et al., 2020). Our own estimates are consistent with that reported direction of effect, and the mechanism assumed in both analyses — that an earlier provisional marker result releases a decision before confirmatory testing completes — is the same.',
     proposedText:
-      'Registry cohorts in comparable settings have reported reductions in time-to-antibiotics when marker panels are used to gate escalation, although one widely cited registry analysis in this area was retracted by its publisher in June 2020 and cannot be used as support. Our own estimates are consistent with the direction of effect reported elsewhere, and the mechanism assumed in those analyses — that an earlier provisional marker result releases a decision before confirmatory testing completes — is the same.',
+      'Registry cohorts in comparable settings have reported reductions in time-to-antibiotics when marker panels are used to gate escalation, although the registry analysis most often cited for this effect was retracted by its publisher in June 2020 and cannot be used as support. Our own estimates are consistent with the direction of effect reported elsewhere, and the mechanism assumed in those analyses — that an earlier provisional marker result releases a decision before confirmatory testing completes — is the same.',
     rationale:
       'The cited analysis was retracted after concerns were raised about its source data. The sentence keeps the finding it relies on, attributes it to the wider literature rather than to the retracted analysis, and records the retraction explicitly. The underlying result of this study is unchanged; only the attribution is.',
     status: 'draft',

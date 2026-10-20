@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent,
 } from 'react';
 import {
   forceCollide,
@@ -562,7 +561,7 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
     dragRef.current = { node: null, panning: false, lastX: 0, lastY: 0 };
   };
 
-  const handleWheel = (event: ReactWheelEvent<HTMLCanvasElement>) => {
+  const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -580,7 +579,16 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
       y: pointerY - (pointerY - current.y) * ratio,
     };
     forceRender((tick) => tick + 1);
-  };
+  }, [width, height]);
+
+  // A native, non-passive listener: React's own wheel handler is passive
+  // and would refuse preventDefault, so the page would scroll instead.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   return (
     <div ref={containerRef} className={`relative overflow-hidden ${className}`}>
@@ -592,7 +600,6 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={() => onHover?.(null)}
-        onWheel={handleWheel}
         role="img"
         aria-label={`Evidence graph with ${nodes.length} records and ${edges.length} relationships. A full list of records follows.`}
       />

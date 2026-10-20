@@ -13,14 +13,30 @@ export interface DiffToken {
   text: string;
 }
 
+/**
+ * Splits into words, keeping the whitespace that PRECEDES each word.
+ *
+ * Leading whitespace keeps a replaced phrase readable: the space that
+ * separated the two sides never disappears, and the final word of a
+ * sentence is still comparable with the final word of the other side.
+ */
 function tokenise(value: string): string[] {
-  return value.split(/(\s+)/).filter((token) => token.length > 0);
+  return value.match(/\S+|\s+/g) ?? [];
+}
+
+/** The word part of a token, without its leading whitespace. */
+function wordOf(token: string): string {
+  return token.trim();
 }
 
 /** Longest common subsequence over word tokens. */
 export function diffWords(original: string, revised: string): DiffToken[] {
   const left = tokenise(original);
   const right = tokenise(revised);
+
+  // Compare words, not the whitespace that precedes them.
+  const leftWords = left.map(wordOf);
+  const rightWords = right.map(wordOf);
 
   const rows = left.length + 1;
   const cols = right.length + 1;
@@ -29,7 +45,7 @@ export function diffWords(original: string, revised: string): DiffToken[] {
   for (let i = left.length - 1; i >= 0; i -= 1) {
     for (let j = right.length - 1; j >= 0; j -= 1) {
       table[i]![j] =
-        left[i] === right[j]
+        leftWords[i] === rightWords[j]
           ? table[i + 1]![j + 1]! + 1
           : Math.max(table[i + 1]![j]!, table[i]![j + 1]!);
     }
@@ -39,7 +55,7 @@ export function diffWords(original: string, revised: string): DiffToken[] {
   let i = 0;
   let j = 0;
   while (i < left.length && j < right.length) {
-    if (left[i] === right[j]) {
+    if (leftWords[i] === rightWords[j]) {
       tokens.push({ type: 'equal', text: left[i]! });
       i += 1;
       j += 1;

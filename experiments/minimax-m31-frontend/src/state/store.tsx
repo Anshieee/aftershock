@@ -75,7 +75,7 @@ export const DEFAULT_REPORT_SECTIONS: Record<string, boolean> = {
   timestamps: true,
 };
 
-const initialState: AppState = {
+export const initialState: AppState = {
   theme: 'light',
   sidebarCollapsed: false,
   activeDocumentId: 'doc-demo-manuscript',

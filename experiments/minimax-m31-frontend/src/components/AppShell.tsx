@@ -167,11 +167,27 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </span>
         </button>
         {!collapsed ? (
-          <p className="mt-2 px-2.5 text-[0.6875rem] leading-4 text-ink-soft">
-            Prototype · prepared sample data
-            <br />
-            No manuscript is uploaded or analysed.
-          </p>
+          <>
+            <p className="mt-2 px-2.5 text-[0.6875rem] leading-4 text-ink-soft">
+              Prototype · prepared sample data
+              <br />
+              No manuscript is uploaded or analysed.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                dispatch({ type: 'reset-prototype' });
+                try {
+                  window.localStorage.removeItem('aftershock.m31.state.v1');
+                } catch {
+                  /* storage unavailable */
+                }
+              }}
+              className="mt-1.5 px-2.5 text-[0.6875rem] text-ink-soft underline decoration-ink-border underline-offset-2 transition-colors hover:text-ink"
+            >
+              Reset prototype state
+            </button>
+          </>
         ) : null}
       </div>
     </div>

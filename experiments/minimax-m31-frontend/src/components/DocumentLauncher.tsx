@@ -96,14 +96,14 @@ export function DocumentLauncher({
 
         <span
           aria-hidden="true"
-          className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-md border transition-colors duration-200 ${
+          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors duration-200 sm:h-10 sm:w-10 ${
             dragging ? 'border-brand-line bg-brand-soft text-brand' : 'border-ink-border bg-paper-deep/60 text-ink-muted'
           }`}
         >
           <IconDocument size={17} />
         </span>
 
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1 basis-[150px]">
           {selected ? (
             <>
               <p className="truncate text-sm font-medium text-ink">{selected.name}</p>
@@ -114,12 +114,15 @@ export function DocumentLauncher({
           ) : (
             <>
               <p className="text-sm font-medium text-ink">Drop a manuscript here</p>
-              <p className="meta mt-0.5">PDF, DOCX or TXT · up to 20 MB</p>
+              <p className="meta mt-0.5">
+                PDF, DOCX or TXT
+                <span className="hidden sm:inline"> · up to 20 MB</span>
+              </p>
             </>
           )}
         </div>
 
-        <div className="relative flex shrink-0 items-center gap-1.5">
+        <div className="relative ml-auto flex shrink-0 items-center gap-1.5">
           {selected ? (
             <>
               <Button
@@ -169,13 +172,15 @@ export function DocumentLauncher({
         <button
           type="button"
           onClick={onGuidedExample}
-          className="group mt-3 inline-flex items-center gap-2 text-sm text-brand-deep transition-colors duration-150 hover:text-brand"
+          className="group mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-left text-sm text-brand-deep transition-colors duration-150 hover:text-brand"
         >
-          <span className="h-px w-6 bg-brand-line transition-all duration-200 group-hover:w-8" />
+          <span className="h-px w-6 shrink-0 self-center bg-brand-line transition-all duration-200 group-hover:w-8" />
           <span className="underline decoration-brand-line underline-offset-4 group-hover:decoration-brand">
             Open the guided example
           </span>
-          <span className="text-xs text-ink-muted">a fictional manuscript, prepared findings</span>
+          <span className="text-xs text-ink-muted">
+            a fictional manuscript with prepared findings
+          </span>
         </button>
       ) : null}
     </div>

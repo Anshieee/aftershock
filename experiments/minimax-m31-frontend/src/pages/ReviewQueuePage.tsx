@@ -25,7 +25,7 @@ export default function ReviewQueuePage() {
 
   const rows = useMemo(() => {
     return documentFindings.filter((finding) => {
-      const status = findingStatus(state, finding);
+      const status = findingStatus(state.reviewDecisions, state.proposals, finding);
       if (scope === 'open' && status !== 'awaiting_review' && status !== 'further_investigation')
         return false;
       if (scope === 'reviewed' && status === 'awaiting_review') return false;
@@ -58,11 +58,15 @@ export default function ReviewQueuePage() {
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Chip tone="neutral">
-                {documentFindings.filter((f) => findingStatus(state, f) === 'awaiting_review').length}{' '}
+                {documentFindings.filter(
+                  (f) => findingStatus(state.reviewDecisions, state.proposals, f) === 'awaiting_review',
+                ).length}{' '}
                 awaiting review
               </Chip>
               <Chip tone="sage">
-                {documentFindings.filter((f) => findingStatus(state, f) !== 'awaiting_review').length}{' '}
+                {documentFindings.filter(
+                  (f) => findingStatus(state.reviewDecisions, state.proposals, f) !== 'awaiting_review',
+                ).length}{' '}
                 reviewed
               </Chip>
             </div>
@@ -107,7 +111,7 @@ export default function ReviewQueuePage() {
           ) : (
             <ul className="mt-5 divide-y divide-ink-border border-y border-ink-border">
               {rows.map((finding) => {
-                const status = findingStatus(state, finding);
+                const status = findingStatus(state.reviewDecisions, state.proposals, finding);
                 const decision = state.reviewDecisions[finding.id];
                 const tone = findingTone(finding);
                 const active = finding.id === selectedId;

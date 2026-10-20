@@ -179,8 +179,9 @@ export function buildReport(
     generatedAt: now.toISOString(),
     summary: {
       total: scope.length,
-      awaitingReview: scope.filter((f) => findingStatus({ reviewDecisions: decisions } as never, f) === 'awaiting_review')
-        .length,
+      awaitingReview: scope.filter(
+        (f) => findingStatus(decisions, proposals, f) === 'awaiting_review',
+      ).length,
       reviewed: reviews.length,
       kinds: [...kinds.entries()].map(([kind, count]) => ({
         kind,

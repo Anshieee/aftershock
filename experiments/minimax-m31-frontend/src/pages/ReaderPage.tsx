@@ -242,6 +242,24 @@ export default function ReaderPage() {
           </IconButton>
         </div>
 
+        {/* ---- Mobile reading controls --------------------------------- */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-ink-border bg-paper-raised/50 px-3 py-1.5 md:hidden">
+          <Segmented
+            label="Reading mode"
+            value={state.readerMode}
+            onChange={(mode) => dispatch({ type: 'set-reader-mode', mode })}
+            options={[
+              { value: 'original', label: 'Original' },
+              { value: 'reflow', label: 'Reflowed' },
+            ]}
+          />
+          {state.readerMode === 'original' ? (
+            <span className="meta ml-auto">
+              {currentPage} / {pageCount || '—'}
+            </span>
+          ) : null}
+        </div>
+
         {/* ---- Reading surface ----------------------------------------- */}
         <div className="relative min-h-0 flex-1">
           {!hasFile ? (

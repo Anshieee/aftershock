@@ -137,7 +137,9 @@ export function locatePhrase(
   const page = normaliseItems(items, options.viewportTransform);
   if (page.text.length === 0) return null;
 
-  const at = page.text.indexOf(needle);
+  // A researcher may not recall the exact casing of a phrase, so the search
+  // is case-insensitive; the matched text keeps the page's own casing.
+  const at = page.text.toLowerCase().indexOf(needle.toLowerCase());
   if (at === -1) return null;
   const end = at + needle.length;
 

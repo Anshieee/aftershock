@@ -96,7 +96,7 @@ export function FindingsList({
           <ul className="mt-2.5 space-y-px">
             {findings.map((finding) => {
               const tone = findingTone(finding);
-              const status = findingStatus(state, finding);
+              const status = findingStatus(state.reviewDecisions, state.proposals, finding);
               const active = finding.id === selectedId;
               return (
                 <li key={finding.id}>
@@ -207,7 +207,7 @@ export function EvidenceInspector({
   }
 
   const tone = findingTone(finding);
-  const status = findingStatus(state, finding);
+  const status = findingStatus(state.reviewDecisions, state.proposals, finding);
   const decision = state.reviewDecisions[finding.id];
   const proposal = state.proposals[finding.id];
   const publication = findingPublication(finding);
@@ -381,11 +381,11 @@ export function EvidenceInspector({
               nodes={nodes}
               edges={graphEdges}
               width={340}
-              height={230}
-              selectedId={finding.nodeIds[0] ?? null}
+              height={250}
+              selectedId={null}
               onSelect={() => onOpenGraph(finding.id)}
               compact
-              className="h-[230px]"
+              className="h-[250px]"
             />
           </div>
           <p className="mt-2 text-2xs leading-4 text-ink-soft">

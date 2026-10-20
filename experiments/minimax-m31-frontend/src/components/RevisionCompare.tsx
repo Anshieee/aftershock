@@ -102,7 +102,7 @@ export function RevisionCompare({
                 return (
                   <span
                     key={index}
-                    className="rounded-[2px] bg-sage/[0.18] text-sage-deep underline decoration-sage decoration-[1.5px] underline-offset-[3px]"
+                    className="rounded-[2px] bg-sage/[0.16] text-sage-deep underline decoration-sage decoration-[1.5px] underline-offset-[3px]"
                   >
                     {token.text}
                   </span>
@@ -111,7 +111,7 @@ export function RevisionCompare({
               return (
                 <span
                   key={index}
-                  className="rounded-[2px] bg-notice/[0.14] text-notice-deep line-through decoration-notice decoration-[1.5px]"
+                  className="text-ink-soft line-through decoration-notice/70 decoration-[1.5px]"
                 >
                   {token.text}
                 </span>

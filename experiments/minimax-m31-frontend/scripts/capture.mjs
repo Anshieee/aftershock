@@ -78,7 +78,9 @@ const SHOTS = [
       await page.waitForTimeout(1200);
       await page.evaluate(() => {
         const labels = [...document.querySelectorAll('button')];
-        const expand = labels.find((b) => b.textContent?.includes('The evidence relationship'));
+        const expand = labels.find((b) =>
+          b.textContent?.includes('The evidence relationship'),
+        );
         expand?.click();
       });
       await page.waitForTimeout(700);
@@ -99,7 +101,7 @@ const SHOTS = [
       await page.waitForTimeout(1000);
       await page.evaluate(() => {
         const labels = [...document.querySelectorAll('button')];
-        const expand = labels.find((b) => b.textContent?.trim() === 'Evidence graph');
+        const expand = labels.find((b) => b.textContent?.includes('Evidence graph'));
         expand?.click();
       });
       await page.waitForTimeout(2200);
@@ -136,6 +138,7 @@ const SHOTS = [
       await page.evaluate(() => {
         const buttons = [...document.querySelectorAll('button')];
         const tab = buttons.find((b) => b.textContent?.trim() === 'Revisions');
+        void tab;
         tab?.click();
       });
       await page.waitForTimeout(700);
@@ -151,6 +154,7 @@ const SHOTS = [
       await page.evaluate(() => {
         const buttons = [...document.querySelectorAll('button')];
         const tab = buttons.find((b) => b.textContent?.trim() === 'Revisions');
+        void tab;
         tab?.click();
       });
       await page.waitForTimeout(500);
