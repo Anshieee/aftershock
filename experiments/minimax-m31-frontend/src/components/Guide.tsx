@@ -52,9 +52,11 @@ const STEPS: GuideStep[] = [
 export function Guide({
   onReveal,
   onOpenGraph,
+  onUploadOwnPaper,
 }: {
   onReveal: (findingId: string) => void;
   onOpenGraph: () => void;
+  onUploadOwnPaper?: () => void;
 }) {
   const { state, dispatch } = useStore();
   const [expanded, setExpanded] = useState(false);
@@ -77,7 +79,7 @@ export function Guide({
             dispatch({ type: 'guide-start' });
             setExpanded(true);
           }}
-          className="flex h-8 items-center gap-1.5 rounded-full border border-ink-border bg-paper-raised/95 px-3 text-2xs font-medium text-ink-muted shadow-lift-2 backdrop-blur transition-colors duration-150 hover:border-brand-line hover:text-brand-deep"
+          className="flex h-8 items-center gap-1.5 rounded-full border border-ink-border bg-paper-raised px-3 text-2xs font-medium text-ink-muted shadow-lift-2 transition-colors duration-150 hover:border-brand-line hover:text-brand-deep"
         >
           <IconGuide size={14} />
           Take a quick tour
@@ -88,12 +90,18 @@ export function Guide({
 
   if (state.guideCompleted) {
     return (
-      <div className="absolute bottom-4 right-4 z-30 max-w-[320px] rounded-lg border border-ink-border bg-paper-raised/95 p-3 shadow-lift-2 backdrop-blur">
+      <div className="absolute bottom-4 right-4 z-30 max-w-[320px] rounded-lg border border-ink-border bg-paper-raised p-3 shadow-lift-2">
         <p className="text-sm font-medium text-ink">That is the whole loop</p>
         <p className="mt-1 text-xs leading-5 text-ink-muted">
-          The manuscript stays open. Upload a paper of your own, or keep exploring the example.
+          The manuscript stays open — nothing here has changed it. Upload a paper of your own, or
+          keep exploring the example.
         </p>
-        <div className="mt-2.5 flex gap-1.5">
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {onUploadOwnPaper ? (
+            <Button size="xs" variant="primary" onClick={onUploadOwnPaper}>
+              Upload your paper
+            </Button>
+          ) : null}
           <Button size="xs" variant="secondary" onClick={() => dispatch({ type: 'guide-start' })}>
             Restart tour
           </Button>
@@ -110,7 +118,7 @@ export function Guide({
   }
 
   return (
-    <div className="absolute bottom-4 left-4 z-30 w-[min(330px,calc(100vw-2rem))] rounded-lg border border-brand-line bg-paper-raised/97 shadow-lift-3 backdrop-blur">
+    <div className="absolute bottom-4 left-4 z-30 w-[min(330px,calc(100vw-2rem))] rounded-lg border border-brand-line bg-paper-raised shadow-lift-3">
       <div className="flex items-center gap-2 border-b border-ink-border px-3 py-2">
         <IconGuide size={14} className="text-brand" />
         <span className="text-2xs font-semibold uppercase tracking-[0.12em] text-brand-deep">

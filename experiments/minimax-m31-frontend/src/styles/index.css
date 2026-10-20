@@ -229,16 +229,33 @@
 
 /* ---- Print: report only --------------------------------------------- */
 @media print {
+  @page {
+    margin: 18mm 16mm;
+  }
+
   body {
     background: #fff;
   }
-  .no-print {
+
+  .no-print,
+  .print-hidden {
     display: none !important;
   }
+
   .print-page {
     display: block !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
   }
+
   .print-only {
     display: block !important;
+  }
+
+  .print-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

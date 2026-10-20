@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Chip, IconButton, MetaRow, Segmented } from '../components/ui';
+import { Button, Chip, IconButton, MetaRow, Segmented, Sheet } from '../components/ui';
 import {
   ForceGraph,
   type ForceGraphHandle,
@@ -43,6 +43,8 @@ export default function GraphPage() {
   const [panelWidth] = useState(248);
   const [canvasSize, setCanvasSize] = useState({ width: 820, height: 620 });
   const [labelMode, setLabelMode] = useState<'auto' | 'all' | 'none'>('auto');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const graphRef = useRef<ForceGraphHandle | null>(null);
 
   const component = useMemo(() => graphComponentForDocument(documentId), [documentId]);
@@ -245,20 +247,37 @@ export default function GraphPage() {
             height={canvasSize.height}
             selectedId={selectedId}
             hoveredId={hoveredId}
-            onSelect={setSelectedId}
+            onSelect={(nodeId) => {
+              setSelectedId(nodeId);
+              if (nodeId) setDetailOpen(true);
+            }}
             onHover={setHoveredId}
           />
         </div>
 
-        <div className="pointer-events-none absolute left-4 top-4 flex flex-wrap gap-1.5">
+        <div className="pointer-events-none absolute left-4 top-4 flex flex-wrap items-center gap-1.5">
           <Chip tone="neutral">{filtered.nodes.length} shown</Chip>
           {filtered.nodes.length !== component.nodes.length ? (
             <Chip tone="amber">filtered</Chip>
           ) : null}
-          <Chip tone="neutral">scroll to zoom · drag to pan</Chip>
+          <span className="hidden lg:inline">
+            <Chip tone="neutral">scroll to zoom · drag to pan</Chip>
+          </span>
         </div>
 
-        <div className="absolute right-4 top-4 flex items-center gap-0.5 rounded-lg border border-ink-border bg-paper-raised/95 px-1 py-1 shadow-lift-2 backdrop-blur">
+        {/* Mobile: the filters live behind a sheet. */}
+        <div className="absolute left-3 top-3 flex items-center gap-1.5 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            className="flex h-7 items-center gap-1.5 rounded-md border border-ink-border bg-paper-raised px-2 text-2xs font-medium text-ink-muted shadow-lift-1"
+          >
+            <IconSearch size={12} />
+            {state.graphQuery ? `“${state.graphQuery}”` : 'Find a record'}
+          </button>
+        </div>
+
+        <div className="absolute right-4 top-4 flex items-center gap-0.5 rounded-lg border border-ink-border bg-paper-raised px-1 py-1 shadow-lift-2">
           <IconButton label="Zoom in" onClick={() => graphRef.current?.zoomBy(1.25)}>
             <IconZoomIn size={14} />
           </IconButton>
@@ -352,6 +371,101 @@ export default function GraphPage() {
           </div>
         )}
       </aside>
+
+      {/* ---- Mobile sheets ------------------------------------------- */}
+      <Sheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Search and filters">
+        <div className="flex items-center gap-2 rounded-md border border-ink-border bg-paper-raised px-2 py-1.5">
+          <IconSearch size={13} className="text-ink-soft" />
+          <input
+            value={state.graphQuery}
+            onChange={(event) =>
+              dispatch({ type: 'set-graph-query', query: event.target.value })
+            }
+            placeholder="Find a record…"
+            aria-label="Search the evidence graph"
+            className="min-w-0 flex-1 bg-transparent text-xs text-ink outline-none placeholder:text-ink-soft"
+          />
+        </div>
+        <p className="eyebrow mt-4 mb-1.5">Record kinds</p>
+        <div className="flex flex-wrap gap-1">
+          {NODE_KIND_ORDER.map((nodeKind) => {
+            const count = component.nodes.filter((n) => n.kind === nodeKind).length;
+            if (count === 0) return null;
+            const active = state.graphKinds.includes(nodeKind);
+            return (
+              <button
+                key={nodeKind}
+                type="button"
+                onClick={() => dispatch({ type: 'toggle-graph-kind', kind: nodeKind })}
+                className={`rounded-full border px-2 py-[2px] text-2xs transition-colors duration-150 ${
+                  active
+                    ? 'border-brand bg-brand text-paper-raised'
+                    : 'border-ink-border bg-paper-raised text-ink-muted'
+                }`}
+              >
+                {nodeKind.replace(/([a-z])([A-Z])/g, '$1 $2')} {count}
+              </button>
+            );
+          })}
+        </div>
+        <p className="eyebrow mt-4 mb-1.5">Labels</p>
+        <Segmented
+          label="Label display"
+          value={labelMode}
+          onChange={setLabelMode}
+          options={[
+            { value: 'auto', label: 'Selected' },
+            { value: 'all', label: 'All' },
+            { value: 'none', label: 'None' },
+          ]}
+        />
+        <p className="meta mt-2 leading-4">
+          {component.nodes.length} records · {component.edges.length} relationships. Every record is
+          already drawn — selecting one inspects it and never reveals more.
+        </p>
+      </Sheet>
+
+      <Sheet
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        title={selectedNode?.label ?? 'Record'}
+      >
+        {selectedNode ? (
+          <div>
+            <p className="eyebrow">{selectedNode.kind.replace(/([a-z])([A-Z])/g, '$1 $2')}</p>
+            <p className="meta mt-1 break-all">{selectedNode.id}</p>
+            <p className="mt-2 text-2xs uppercase tracking-wide text-brand">
+              {selectedNode.isSynthetic ? 'Synthetic sample record' : 'Real publication record'}
+            </p>
+            <dl className="mt-4 divide-y divide-ink-border border-t border-ink-border">
+              {Object.entries(selectedNode.properties)
+                .filter(([key]) => key !== 'label2')
+                .map(([key, value]) => (
+                  <MetaRow key={key} label={key.replace(/([a-z])([A-Z])/g, '$1 $2')}>
+                    {formatProperty(value)}
+                  </MetaRow>
+                ))}
+            </dl>
+            <p className="eyebrow mt-5">Relationships</p>
+            <ul className="mt-1.5 space-y-1.5">
+              {selectedEdges.map((edge) => {
+                const otherId = edge.fromId === selectedId ? edge.toId : edge.fromId;
+                const other = nodeById.get(otherId);
+                return (
+                  <li key={edge.id} className="text-xs leading-5">
+                    <span className="text-ink">{EDGE_LABEL[edge.type]}</span>{' '}
+                    <span className="text-brand-deep">{other?.label ?? otherId}</span>
+                    <span className="meta ml-1">· {edge.provenanceKind}</span>
+                  </li>
+                );
+              })}
+              {selectedEdges.length === 0 ? (
+                <li className="text-xs text-ink-soft">No relationships.</li>
+              ) : null}
+            </ul>
+          </div>
+        ) : null}
+      </Sheet>
     </div>
   );
 }

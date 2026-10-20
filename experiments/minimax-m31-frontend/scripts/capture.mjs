@@ -248,6 +248,45 @@ const SHOTS = [
     wait: 6500,
   },
   {
+    name: '23-mobile-report',
+    path: '/i/doc-demo-manuscript/report',
+    viewport: { width: 390, height: 844 },
+    theme: 'light',
+    wait: 1500,
+  },
+  {
+    name: '24-mobile-graph',
+    path: '/i/doc-demo-manuscript/graph',
+    viewport: { width: 390, height: 844 },
+    theme: 'light',
+    wait: 6000,
+  },
+  {
+    name: '26-mobile-graph-detail',
+    path: '/i/doc-demo-manuscript/graph',
+    viewport: { width: 390, height: 844 },
+    theme: 'light',
+    wait: 6000,
+    action: async (page) => {
+      const box = await page.locator('canvas').first().boundingBox();
+      if (!box) return;
+      // Tap near the middle of the rendered network.
+      await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.45);
+      await page.waitForTimeout(1200);
+    },
+  },
+  {
+    name: '25-guide-panel',
+    path: '/i/doc-demo-manuscript/read',
+    viewport: { width: 1440, height: 900 },
+    theme: 'light',
+    wait: 6500,
+    action: async (page) => {
+      await page.getByRole('button', { name: /Take a quick tour/i }).click();
+      await page.waitForTimeout(900);
+    },
+  },
+  {
     name: '22-mobile-360',
     path: '/',
     viewport: { width: 360, height: 800 },

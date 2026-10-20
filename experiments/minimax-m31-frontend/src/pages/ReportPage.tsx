@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Button, Chip, Toggle } from '../components/ui';
+import { Button, Chip, Segmented, Toggle } from '../components/ui';
 import { IconDownload, IconPrint } from '../components/Icons';
 import { useStore } from '../state/store';
 import { findings as allFindings } from '../fixtures';
@@ -12,6 +12,7 @@ export default function ReportPage() {
   const { state, dispatch } = useStore();
   const [exporting, setExporting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mobileView, setMobileView] = useState<'report' | 'configure'>('report');
 
   const model = useMemo(
     () => buildReport(documentId, state.reviewDecisions, state.proposals, allFindings),
@@ -34,9 +35,27 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col lg:flex-row">
+      {/* ---- Mobile switch -------------------------------------------- */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-ink-border bg-paper-deep/40 px-3 py-2 lg:hidden">
+        <Segmented
+          label="Report view"
+          value={mobileView}
+          onChange={setMobileView}
+          options={[
+            { value: 'report', label: 'Report' },
+            { value: 'configure', label: 'Configure' },
+          ]}
+        />
+        <span className="meta ml-auto">{included.length} sections</span>
+      </div>
+
       {/* ---- Configuration ------------------------------------------- */}
-      <aside className="w-full shrink-0 overflow-y-auto border-r border-ink-border bg-paper-deep/35 lg:w-[330px]">
+      <aside
+        className={`w-full shrink-0 overflow-y-auto border-r border-ink-border bg-paper-deep/35 lg:block lg:w-[330px] print:hidden ${
+          mobileView === 'configure' ? 'block' : 'hidden'
+        }`}
+      >
         <div className="px-5 py-5">
           <p className="eyebrow">Report</p>
           <h1 className="mt-1.5 font-display text-base font-semibold leading-5 text-ink">
@@ -110,7 +129,11 @@ export default function ReportPage() {
       </aside>
 
       {/* ---- Preview -------------------------------------------------- */}
-      <div className="min-w-0 flex-1 overflow-y-auto bg-paper-deep/60 px-5 py-8 lg:px-10">
+      <div
+        className={`min-w-0 flex-1 overflow-y-auto bg-paper-deep/60 px-5 py-8 lg:block lg:px-10 print:bg-white print:px-0 print:py-0 ${
+          mobileView === 'report' ? 'block' : 'hidden'
+        }`}
+      >
         <div className="mx-auto w-full max-w-[760px]">
           <div className="mb-4 flex items-center gap-2">
             <Chip tone="brand">Preview</Chip>

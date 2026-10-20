@@ -208,7 +208,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-dvh overflow-hidden bg-paper">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden shrink-0 border-r border-ink-border transition-[width] duration-300 ease-settle lg:block ${
+        className={`hidden shrink-0 border-r border-ink-border transition-[width] duration-300 ease-settle lg:block print:hidden ${
           collapsed ? 'w-[56px]' : 'w-[252px]'
         }`}
       >
@@ -243,7 +243,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       ) : null}
 
       {/* Mobile bar */}
-      <div className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-2 border-b border-ink-border bg-paper/95 px-3 backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-2 border-b border-ink-border bg-paper/95 px-3 backdrop-blur lg:hidden print:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}

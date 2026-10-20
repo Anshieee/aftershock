@@ -59,6 +59,21 @@ export default function ReaderPage() {
   const selectedFinding =
     documentFindings.find((finding) => finding.id === state.selectedFindingId) ?? null;
 
+  /* ---- Mobile defaults to the reflowed reader ------------------------
+   *
+   * The original PDF keeps its exact layout, which is right on a desktop
+   * and unreadably small on a phone. The reflowed mode is the default
+   * there; the original stays one tap away.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const narrow = window.matchMedia('(max-width: 767px)').matches;
+    if (narrow && state.readerMode === 'original') {
+      dispatch({ type: 'set-reader-mode', mode: 'reflow' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* ---- Progressive reveal of the prepared example findings ----------
    *
    * The timers are owned by a ref so that a re-render (or the phase change
@@ -143,7 +158,7 @@ export default function ReaderPage() {
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
         {/* ---- Toolbar ------------------------------------------------ */}
-        <div className="flex h-[52px] shrink-0 items-center gap-2 border-b border-ink-border bg-paper-raised/70 px-2.5 backdrop-blur sm:px-3">
+        <div className="flex h-[52px] shrink-0 items-center gap-2 border-b border-ink-border bg-paper-raised px-2.5 sm:px-3">
           <div className="min-w-0 flex-1 overflow-hidden">
             <div className="flex min-w-0 items-center gap-2">
               <h1 className="min-w-0 truncate font-display text-[0.8125rem] font-semibold text-ink">
@@ -180,7 +195,7 @@ export default function ReaderPage() {
               type="button"
               onClick={() => setStatusOpen((value) => !value)}
               aria-expanded={statusOpen}
-              className="flex h-7 items-center gap-1.5 rounded-md border border-ink-border bg-paper-deep/50 px-2 text-2xs font-medium text-ink-muted transition-colors duration-150 hover:border-ink-soft/50 hover:text-ink"
+              className="flex h-7 items-center gap-1.5 rounded-md border border-ink-border bg-paper-deep px-2 text-2xs font-medium text-ink-muted transition-colors duration-150 hover:border-ink-soft/50 hover:text-ink"
             >
               {state.analysisPhase === 'complete' ? (
                 <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-sage" />
@@ -310,7 +325,7 @@ export default function ReaderPage() {
           ) : null}
 
           {state.readerMode === 'original' ? (
-            <div className="absolute bottom-4 right-4 z-20 flex items-center gap-0.5 rounded-lg border border-ink-border bg-paper-raised/95 px-1 py-1 shadow-lift-2 backdrop-blur">
+            <div className="absolute bottom-4 right-4 z-20 flex items-center gap-0.5 rounded-lg border border-ink-border bg-paper-raised px-1 py-1 shadow-lift-2">
               <IconButton
                 label="Previous page"
                 onClick={() => viewerRef.current?.goToPage(Math.max(1, currentPage - 1))}
@@ -373,6 +388,7 @@ export default function ReaderPage() {
               window.setTimeout(() => selectFinding(findingId), 120);
             }}
             onOpenGraph={() => navigate(`/i/${documentId}/graph`)}
+            onUploadOwnPaper={() => navigate('/')}
           />
         </div>
       </div>
