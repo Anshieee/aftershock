@@ -7,6 +7,7 @@
  * Exits non-zero if any step fails.
  */
 
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire('/home/ansh/Projects/aftershock/node_modules/');
@@ -42,6 +43,38 @@ try {
     '1. Homepage shows the document launcher and the wordmark',
     (await text()).includes('Drop a manuscript here') && (await text()).includes('Aftershock'),
   );
+
+  /* 1b — unsupported file feedback -------------------------------- */
+  await page.setInputFiles('input[type=file]', {
+    name: 'notes.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('89504e470d0a1a0a', 'hex'),
+  });
+  await page.waitForTimeout(500);
+  const unsupported = await page.locator('[role=alert]').first().innerText().catch(() => '');
+  record(
+    '1b. An unsupported file is refused with a clear message',
+    /PDF, DOCX and TXT/.test(unsupported),
+    unsupported.slice(0, 70),
+  );
+  // Clear the error and go back to the launcher.
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+
+  /* 1c — a chosen file opens locally, and says so ----------------- */
+  const sample = fs.readFileSync(new URL('../public/sample-manuscript.pdf', import.meta.url));
+  await page.setInputFiles('input[type=file]', {
+    name: 'my-manuscript.pdf',
+    mimeType: 'application/pdf',
+    buffer: sample,
+  });
+  await page.waitForURL(/\/i\/doc-demo-manuscript\/read/, { timeout: 8000 }).catch(() => undefined);
+  await page.waitForTimeout(1800);
+  const uploadText = await text();
+  record(
+    '1c. A chosen file opens in the reader and is labelled as not analysed',
+    /opened locally, not analysed/.test(uploadText) && /my-manuscript\.pdf/.test(uploadText),
+  );
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
 
   /* 2 — guided example -------------------------------------------- */
   await page.getByRole('button', { name: /Open the guided example/i }).click();

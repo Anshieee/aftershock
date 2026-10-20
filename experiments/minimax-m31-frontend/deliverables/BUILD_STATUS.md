@@ -81,8 +81,9 @@ interruption.
 - [x] `npm run build` — clean
 - [x] `npm test` — 47 tests passing
 - [x] `npm run verify:anchors` — all 6 anchors resolve against the PDF
-- [x] `npm run journey` — 22/22 steps of the required user journey pass,
-      no console errors, real HTML and DOCX files produced
+- [x] `npm run journey` — 24/24 steps of the required user journey pass,
+      no console errors, real HTML and DOCX files produced; covers the
+      unsupported-file refusal and the local-only file open
 - [x] `npm run capture` — 26 screenshots, no console errors
 - [x] `deliverables/design-system.md`
 - [x] `deliverables/prototype-limitations.md`
@@ -99,7 +100,7 @@ interruption.
 | `npm run build` | clean — `tsc --noEmit` then `vite build` |
 | `npm test` | 5 files, 47 tests, all passing |
 | `npm run verify:anchors` | all 6 anchors resolve against the PDF |
-| `npm run journey` | 22/22 steps pass, **no console errors** |
+| `npm run journey` | 24/24 steps pass, **no console errors** |
 | `npm run capture` | 26 screenshots, **no console errors** |
 
 Test coverage:

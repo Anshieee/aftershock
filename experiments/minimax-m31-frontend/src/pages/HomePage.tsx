@@ -24,8 +24,10 @@ export default function HomePage() {
 
   const openUploaded = (selection: SelectedDocument) => {
     const url = URL.createObjectURL(selection.file);
-    dispatch({ type: 'set-source', url, name: selection.name, isUpload: true });
+    // The document is selected first: choosing a document resets the open
+    // source back to the sample manuscript.
     dispatch({ type: 'set-document', documentId: 'doc-demo-manuscript' });
+    dispatch({ type: 'set-source', url, name: selection.name, isUpload: true });
     setOpening(true);
     window.setTimeout(() => {
       navigate('/i/doc-demo-manuscript/read');
