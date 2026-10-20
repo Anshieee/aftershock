@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" class="theme-light">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/aftershock-mark.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Aftershock. — Trace the evidence. A document-first research-integrity workspace: read a paper, see how its evidence has been affected, and record what a human reviewer decides."
+    />
+    <title>Aftershock. — Trace the evidence</title>
+    <script>
+      // Apply the persisted theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var stored = localStorage.getItem('aftershock.m31.theme');
+          var mode =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          var root = document.documentElement;
+          root.classList.remove('theme-light', 'theme-dark');
+          root.classList.add(mode === 'dark' ? 'theme-dark' : 'theme-light');
+          root.style.colorScheme = mode;
+        } catch (e) {
+          /* storage unavailable — the light default in the markup stands */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

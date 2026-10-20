@@ -1,0 +1,102 @@
+/**
+ * Aftershock. — design tokens (MiniMax M3.1 experiment)
+ *
+ * Every colour is an RGB triplet so Tailwind can apply opacity modifiers.
+ * The light theme is "warm paper"; the dark theme is a separately
+ * art-directed warm ink palette — hue relationships, contrast ratios and
+ * semantic saturation were re-tuned for each, never mechanically inverted.
+ *
+ * Semantic contract (research integrity — never conflated):
+ *   notice    → an official publication-status notice exists
+ *   amber     → needs human review / pending
+ *   sage      → a human has recorded a review decision
+ *   uncertain → an unresolved or unverified relationship
+ *   brand     → Aftershock's own voice (structure, focus, primary action)
+ */
+
+:root,
+.theme-light {
+  --c-paper: 247 242 232;
+  --c-paper-deep: 238 231 216;
+  --c-paper-raised: 255 253 248;
+  --c-paper-sunk: 243 237 225;
+
+  --c-ink: 35 34 46;
+  --c-ink-muted: 92 90 105;
+  --c-ink-soft: 128 124 140;
+  --c-ink-border: 222 213 196;
+  --c-ink-faint: 236 229 214;
+  --c-ink-inverse: 250 247 240;
+
+  --c-brand: 90 81 131;
+  --c-brand-deep: 63 56 98;
+  --c-brand-soft: 235 230 249;
+  --c-brand-line: 199 189 235;
+
+  --c-sage: 74 118 96;
+  --c-sage-deep: 45 84 68;
+  --c-sage-surface: 228 238 232;
+  --c-sage-line: 185 208 195;
+
+  --c-amber: 163 113 26;
+  --c-amber-deep: 121 82 16;
+  --c-amber-surface: 249 240 218;
+  --c-amber-line: 230 202 141;
+
+  --c-notice: 163 76 69;
+  --c-notice-deep: 124 56 50;
+  --c-notice-surface: 248 232 229;
+  --c-notice-line: 226 190 185;
+
+  --c-uncertain: 56 88 124;
+  --c-uncertain-deep: 39 63 91;
+  --c-uncertain-surface: 230 237 245;
+  --c-uncertain-line: 186 203 224;
+
+  --c-shadow-tint: 35 34 46;
+
+  color-scheme: light;
+}
+
+.theme-dark {
+  --c-paper: 22 21 27;
+  --c-paper-deep: 15 14 19;
+  --c-paper-raised: 30 28 37;
+  --c-paper-sunk: 26 24 32;
+
+  --c-ink: 236 230 218;
+  --c-ink-muted: 163 156 171;
+  --c-ink-soft: 126 119 135;
+  --c-ink-border: 56 51 66;
+  --c-ink-faint: 41 37 49;
+  --c-ink-inverse: 24 22 30;
+
+  --c-brand: 167 155 219;
+  --c-brand-deep: 199 190 236;
+  --c-brand-soft: 44 38 66;
+  --c-brand-line: 76 66 108;
+
+  --c-sage: 122 180 149;
+  --c-sage-deep: 154 202 175;
+  --c-sage-surface: 30 46 38;
+  --c-sage-line: 58 84 70;
+
+  --c-amber: 224 176 95;
+  --c-amber-deep: 241 202 133;
+  --c-amber-surface: 51 40 24;
+  --c-amber-line: 92 73 42;
+
+  --c-notice: 224 139 130;
+  --c-notice-deep: 241 173 165;
+  --c-notice-surface: 54 33 31;
+  --c-notice-line: 97 57 53;
+
+  --c-uncertain: 127 166 214;
+  --c-uncertain-deep: 163 193 228;
+  --c-uncertain-surface: 28 38 52;
+  --c-uncertain-line: 56 74 98;
+
+  --c-shadow-tint: 0 0 0;
+
+  color-scheme: dark;
+}

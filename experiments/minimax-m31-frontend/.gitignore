@@ -1,0 +1,12 @@
+# Prototype build output
+dist/
+node_modules/
+*.local
+
+# Generated sample manuscript is committed on purpose (it is the fixture the
+# reader renders). The generator that produces it lives in scripts/.
+
+# Local environment
+.env
+.env.*
+!.env.example
