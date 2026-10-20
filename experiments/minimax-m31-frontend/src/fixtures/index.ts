@@ -1,6 +1,6 @@
 import { graphEdges, graphNodes } from './graph';
-import { activity, documents, findings, reviewDecisions, revisionProposals } from './investigations';
-import { anchorSpecs, manuscript } from './manuscriptContent';
+import { documents, findings } from './investigations';
+import { anchorSpecs } from './manuscriptContent';
 import type { EdgeFamily, FindingKind, GraphEdgeRecord, GraphNodeRecord, RelationKind } from './types';
 
 export * from './types';
@@ -75,6 +75,7 @@ const EDGE_FAMILY: Record<RelationKind, EdgeFamily> = {
   CITATION_USE_REFERENCES_PUBLICATION: 'structural',
   CITATION_USE_SUPPORTS_CLAIM: 'support',
   MENTIONS_HISTORICALLY: 'historical',
+  ROLE_UNKNOWN: 'uncertain',
   CONTRASTS_CLAIM: 'contrast',
   USES_METHOD_FROM: 'method',
   CONCLUSION_DEPENDS_ON_CLAIM: 'dependency',
@@ -98,6 +99,7 @@ export const EDGE_LABEL: Record<RelationKind, string> = {
   CITATION_USE_REFERENCES_PUBLICATION: 'cites publication',
   CITATION_USE_SUPPORTS_CLAIM: 'supports claim',
   MENTIONS_HISTORICALLY: 'mentions historically',
+  ROLE_UNKNOWN: 'role unknown',
   CONTRASTS_CLAIM: 'contrasts claim',
   USES_METHOD_FROM: 'reuses method from',
   CONCLUSION_DEPENDS_ON_CLAIM: 'depends on claim',

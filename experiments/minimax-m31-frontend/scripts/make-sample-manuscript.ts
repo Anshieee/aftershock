@@ -108,9 +108,16 @@ function drawParagraph(
   x: number,
   y: number,
   width: number,
-  opts: { font?: string; size?: number; leading?: number; align?: 'left' | 'justify' } = {},
+  opts: {
+    font?: string;
+    size?: number;
+    leading?: number;
+    align?: 'left' | 'justify';
+    color?: string;
+  } = {},
 ): number {
   const font = opts.font ?? BODY_FONT;
+  doc.fillColor(opts.color ?? '#1b1b1b');
   const size = opts.size ?? BODY_SIZE;
   const leading = opts.leading ?? BODY_LEAD;
   const wrapped = wrapText(doc, text, width, font, size);
@@ -176,7 +183,12 @@ function drawCaption(
   y: number,
   width: number,
 ): number {
-  const h = drawParagraph(doc, text, x, y, width, { font: SANS_FONT, size: 7.8, leading: 10.6 });
+  const h = drawParagraph(doc, text, x, y, width, {
+    font: SANS_FONT,
+    size: 7.8,
+    leading: 10.6,
+    color: '#4a4a4a',
+  });
   return h;
 }
 
@@ -468,6 +480,7 @@ function build(): void {
     align: 'center',
   });
 
+  doc.fillColor('#1b1b1b');
   let y = MARGIN_TOP + 26;
   const titleHeight = drawParagraph(doc, manuscript.title, MARGIN_X, y, CONTENT_W, {
     font: BOLD_FONT,

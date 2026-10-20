@@ -42,12 +42,20 @@ export type RelationKind =
   | 'CITATION_USE_REFERENCES_PUBLICATION'
   | 'CITATION_USE_SUPPORTS_CLAIM'
   | 'MENTIONS_HISTORICALLY'
+  | 'ROLE_UNKNOWN'
   | 'CONTRASTS_CLAIM'
   | 'USES_METHOD_FROM'
   | 'CONCLUSION_DEPENDS_ON_CLAIM'
   | 'STUDY_USES_DATASET'
   | 'PUBLICATION_REPORTS_STUDY'
   | 'REVIEW_SYNTHESIZES_STUDY';
+
+export type PropertyValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { section: string; page: number; offset: number };
 
 export interface GraphNodeRecord {
   id: string;
@@ -57,7 +65,7 @@ export interface GraphNodeRecord {
   /** True when the record is invented for the demonstration. */
   isSynthetic: boolean;
   /** Extra, kind-specific facts shown in the inspector. */
-  properties: Record<string, string | number | boolean | null>;
+  properties: Record<string, PropertyValue>;
 }
 
 export interface GraphEdgeRecord {
