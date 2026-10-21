@@ -202,7 +202,11 @@ const printCalled = await page.evaluate(() => {
   window.print = () => {
     called = true;
   };
-  document.querySelector('button[aria-label*="print" i], button')?.click();
+  // The report's "PDF" button calls window.print(); click it directly.
+  const button = [...document.querySelectorAll('button')].find((b) =>
+    /PDF/.test(b.textContent ?? ''),
+  );
+  button?.click();
   window.print = original;
   return called;
 });
@@ -214,8 +218,8 @@ const printCss = await page.evaluate(async () => {
 });
 record(
   '19. The browser print pipeline is wired (window.print + print stylesheet)',
-  printCss === 'present',
-  `print stylesheet: ${printCss}`,
+  printCalled && printCss === 'present',
+  `window.print called: ${printCalled}, print stylesheet: ${printCss}`,
 );
 
 /* 20 — themes -------------------------------------------------------------- */
