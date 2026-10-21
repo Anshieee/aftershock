@@ -20,6 +20,7 @@ import {
   IconSun,
 } from './Icons';
 import { IconButton } from './ui';
+import { PrototypeNotice } from './PrototypeNotice';
 
 interface NavItem {
   to: string;
@@ -168,11 +169,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </button>
         {!collapsed ? (
           <>
-            <p className="mt-2 px-2.5 text-[0.6875rem] leading-4 text-ink-soft">
-              Prototype · prepared sample data
-              <br />
-              No manuscript is uploaded or analysed.
-            </p>
+            <div className="mt-2 px-2.5">
+              <PrototypeNotice />
+              <p className="mt-1 text-[0.6875rem] leading-4 text-ink-soft">
+                A file you choose is read in your browser only. It is never uploaded or analysed.
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => {

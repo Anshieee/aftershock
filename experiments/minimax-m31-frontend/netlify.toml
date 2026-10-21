@@ -1,0 +1,29 @@
+# Netlify configuration for the Aftershock. MiniMax M3.1 prototype preview.
+#
+# SCOPE — this file is the prototype's OWN site configuration. It lives in
+# the prototype's base directory (`experiments/minimax-m31-frontend/`) and
+# is only ever read by the preview site
+# `aftershock-minimax-preview`. The repository root keeps its own
+# netlify.toml for the production Aftershock site; neither file is aware of
+# the other and neither modifies the other.
+#
+# The preview is a frontend-only build. There are no Netlify Functions, no
+# environment variables, and no backend of any kind: the site serves static
+# files only.
+
+[build]
+  # Relative to the site's base directory (experiments/minimax-m31-frontend).
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# SPA history fallback. React Router owns every route, so a deep link such
+# as /i/doc-demo-manuscript/graph must resolve to the app shell. Netlify
+# serves a real static file first and only falls back to this rewrite, so
+# the manuscript PDF, the PDF.js fonts and the built assets are unaffected.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

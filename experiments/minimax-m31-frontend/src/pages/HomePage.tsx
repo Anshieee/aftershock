@@ -7,6 +7,7 @@ import { IconArrowRight } from '../components/Icons';
 import { documents } from '../fixtures';
 import { useStore } from '../state/store';
 import { FindingStatusPill } from '../components/FindingStatusPill';
+import { PrototypeNotice } from '../components/PrototypeNotice';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -42,7 +43,11 @@ export default function HomePage() {
       {/* ---- Masthead ------------------------------------------------ */}
       <header className="flex items-center justify-between border-b border-ink-border px-6 py-3 lg:px-10">
         <p className="eyebrow">Research integrity · document first</p>
-        <p className="meta hidden sm:block">Prototype · prepared sample data</p>
+        <p className="meta hidden text-right sm:block">
+          Prototype · prepared sample data
+          <br />
+          <span className="text-ink-soft">Not connected to live analysis</span>
+        </p>
       </header>
 
       <div className="mx-auto w-full max-w-[1120px] px-6 pb-20 pt-12 lg:px-10 lg:pt-16">
@@ -163,10 +168,13 @@ export default function HomePage() {
         </section>
 
         {/* ---- Footer note --------------------------------------------- */}
-        <p className="mt-14 max-w-[70ch] border-t border-ink-border pt-5 text-2xs leading-4 text-ink-soft">
-          Aftershock reports evidence that needs a human decision. A flag never means a claim is
-          false, and a recorded review never means a claim has been certified.
-        </p>
+        <div className="mt-14 max-w-[70ch] border-t border-ink-border pt-5">
+          <PrototypeNotice />
+          <p className="mt-1.5 text-2xs leading-4 text-ink-soft">
+            Aftershock reports evidence that needs a human decision. A flag never means a claim is
+            false, and a recorded review never means a claim has been certified.
+          </p>
+        </div>
       </div>
     </div>
   );

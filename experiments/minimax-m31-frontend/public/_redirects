@@ -1,0 +1,7 @@
+# SPA history fallback for the prototype preview.
+#
+# Netlify serves a matching static file first, so /sample-manuscript.pdf,
+# /pdfjs/standard_fonts/*.pfb and /assets/* are served as real files; this
+# rule only catches application routes such as
+# /i/doc-demo-manuscript/graph.
+/*    /index.html   200

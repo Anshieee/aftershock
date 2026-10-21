@@ -168,6 +168,9 @@ export default function ReportPage() {
                 Prepared prototype output. A flag means a person should look at the passage — never
                 that a claim is false.
               </p>
+              <p className="meta mt-1.5 leading-4">
+                Interactive prototype — example research data. Not connected to live analysis.
+              </p>
             </footer>
           </article>
         </div>

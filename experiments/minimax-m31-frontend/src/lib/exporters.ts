@@ -7,6 +7,7 @@ import {
 } from 'docx';
 import type { ReportModel } from './report';
 import { REPORT_SECTIONS } from './report';
+import { PROTOTYPE_NOTICE } from '../components/PrototypeNotice';
 
 /**
  * Client-side report exports.
@@ -201,6 +202,7 @@ export function buildReportHtml(model: ReportModel, enabled: Record<string, bool
   h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 0.5rem; }
   .sub { font-family: Inter, system-ui, sans-serif; font-size: 0.8rem; color: #5c5a69; margin: 0 0 1rem; }
   .notice { font-family: Inter, system-ui, sans-serif; font-size: 0.78rem; background: #f7f2e8; border-left: 3px solid #5a5183; padding: 0.7rem 0.9rem; color: #44424f; }
+  .proto { font-family: Inter, system-ui, sans-serif; font-size: 0.72rem; color: #6b6878; margin: 0.6rem 0 0; }
   section { margin-top: 2.4rem; }
   h2 { font-size: 1.15rem; border-bottom: 1px solid #ded5c4; padding-bottom: 0.4rem; margin: 0 0 0.9rem; }
   ul, ol { padding-left: 1.2rem; }
@@ -419,6 +421,10 @@ export async function exportDocxReport(
         }),
       ],
       spacing: { before: 400 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: PROTOTYPE_NOTICE, size: 16, color: '8B8794' })],
+      spacing: { before: 60 },
     }),
   );
 
