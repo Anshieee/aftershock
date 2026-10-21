@@ -36,6 +36,10 @@ npm run typecheck   # tsc --noEmit, strict
 npm run build       # typecheck + production build to dist/
 npm test            # vitest — 47 tests
 npm run preview     # serve the production build
+npm run verify:anchors   # confirm every annotation resolves inside the PDF
+npm run journey <url>    # walk the 24-step workflow against a URL
+npm run live-smoke <url> # smoke-test a deployed build, recording its network requests
+npm run capture          # capture the 26-screen screenshot set
 ```
 
 ---
@@ -56,6 +60,21 @@ npm run preview     # serve the production build
 | `public/` | The generated sample manuscript PDF and PDF.js standard font data |
 | `tests/` | Vitest suites |
 | `deliverables/` | Design system, limitations, build status, screenshots |
+
+---
+
+## Public preview
+
+**https://aftershock-minimax-preview.netlify.app**
+
+The prototype is published as a separate, public, frontend-only Netlify site
+(`aftershock-minimax-preview`, site id
+`7ddb1d6e-1ef8-41e7-b494-bfc0243e8700`), built from the
+`experiment/minimax-m31-frontend` branch of this repository with the base
+directory `experiments/minimax-m31-frontend`. It is **not** connected to the
+production Aftershock site, to FalkorDB, or to any analysis service.
+
+Full details in `deliverables/deployment.md`.
 
 ---
 

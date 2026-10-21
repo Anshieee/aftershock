@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "verify:anchors": "node scripts/verify-anchors.ts",
     "journey": "node scripts/journey.mjs",
-    "capture": "node scripts/capture.mjs"
+    "capture": "node scripts/capture.mjs",
+    "live-smoke": "node scripts/live-smoke.mjs"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.3.0",

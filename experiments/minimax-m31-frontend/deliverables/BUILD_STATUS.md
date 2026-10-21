@@ -12,6 +12,18 @@ interruption.
 
 ---
 
+## Netlify preview
+
+- **Public URL:** https://aftershock-minimax-preview.netlify.app
+- **Site:** `aftershock-minimax-preview` — id `7ddb1d6e-1ef8-41e7-b494-bfc0243e8700`
+- **Connected to:** `Anshieee/aftershock`, branch `experiment/minimax-m31-frontend`,
+  base directory `experiments/minimax-m31-frontend`, build `npm run build`,
+  publish `dist`
+- **Frontend only.** No functions, no environment variables, no backend.
+- The production site `aftershock-demo` is untouched.
+
+---
+
 ## Phase
 
 **Phase 7 — verification and delivery.** Phases 1–6 are complete.
