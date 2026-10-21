@@ -151,16 +151,34 @@ try {
 
   /* 12 — pan, zoom, drag, select ------------------------------------ */
   const graphBox = await page.locator('canvas').first().boundingBox();
+  const canvasHash = () =>
+    page.evaluate(() => {
+      const c = document.querySelector('canvas');
+      if (!c) return '';
+      const { data } = c.getContext('2d').getImageData(0, 0, c.width, c.height);
+      let hash = 0;
+      for (let i = 0; i < data.length; i += 97) hash = (hash * 31 + data[i]) | 0;
+      return String(hash);
+    });
   if (graphBox) {
+    await page.waitForTimeout(4000);
+    const before = await canvasHash();
     await page.mouse.move(graphBox.x + graphBox.width / 2, graphBox.y + graphBox.height / 2);
     await page.mouse.down();
     await page.mouse.move(graphBox.x + graphBox.width / 2 + 90, graphBox.y + graphBox.height / 2 + 40, {
       steps: 8,
     });
     await page.mouse.up();
+    await page.waitForTimeout(400);
+    const afterDrag = await canvasHash();
     await page.mouse.wheel(0, -240);
-    await page.waitForTimeout(600);
-    record('12. The graph can be panned and zoomed', true);
+    await page.waitForTimeout(500);
+    const afterZoom = await canvasHash();
+    record(
+      '12. The graph can be panned and zoomed',
+      before.length > 0 && afterDrag !== before && afterZoom !== afterDrag,
+      `hash ${before} -> ${afterDrag} -> ${afterZoom}`,
+    );
   } else {
     record('12. The graph can be panned and zoomed', false, 'no canvas');
   }

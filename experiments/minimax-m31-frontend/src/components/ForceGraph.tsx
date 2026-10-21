@@ -5,7 +5,6 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
-  useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
@@ -141,7 +140,9 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
   /** True once the force layout has come to rest. */
   const settledRef = useRef(false);
   const fitToViewRef = useRef<(animate: boolean) => void>(() => {});
-  const [, forceRender] = useState(0);
+  /** Repaints the canvas. Kept in a ref so it can be called from the
+   *  simulation tick and the pointer handlers without a React render. */
+  const drawRef = useRef<() => void>(() => undefined);
 
   const nodeList = useMemo<GraphNode[]>(() => {
     const random = mulberry32(20260311);
@@ -192,10 +193,10 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
       .force('y', forceY<GraphNode>(height / 2).strength(0.075))
       .alpha(0.95)
       .alphaDecay(0.032)
-      .on('tick', () => forceRender((tick) => tick + 1))
+      .on('tick', () => drawRef.current())
       .on('end', () => {
         settledRef.current = true;
-        forceRender((tick) => tick + 1);
+        drawRef.current();
         // The layout has settled — frame the whole network.
         if (!userMovedRef.current) fitToViewRef.current(true);
       });
@@ -228,7 +229,7 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
       const ty = height / 2 - ((minY + maxY) / 2) * k;
       if (!animate) {
         transformRef.current = { k, x: tx, y: ty };
-        forceRender((tick) => tick + 1);
+        drawRef.current();
         return;
       }
       const from = { ...transformRef.current };
@@ -242,7 +243,7 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
           x: from.x + (tx - from.x) * eased,
           y: from.y + (ty - from.y) * eased,
         };
-        forceRender((tick) => tick + 1);
+        drawRef.current();
         if (t < 1) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
@@ -298,15 +299,16 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
   /* ---- Drawing -------------------------------------------------------- */
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return undefined;
     const ratio = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.floor(width * ratio);
     canvas.height = Math.floor(height * ratio);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     const context = canvas.getContext('2d');
-    if (!context) return;
+    if (!context) return undefined;
 
+    const draw = () => {
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width, height);
 
@@ -433,7 +435,12 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
         context.fillText(label, labelX, labelY);
       }
     }
-    context.restore();
+      context.restore();
+    };
+
+    drawRef.current = draw;
+    draw();
+    return undefined;
   }, [
     nodeList,
     linkList,
@@ -465,7 +472,7 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
           x: width / 2 - (width / 2 - current.x) * ratio,
           y: height / 2 - (height / 2 - current.y) * ratio,
         };
-        forceRender((tick) => tick + 1);
+        drawRef.current();
       },
     }),
     [fitToView, width, height],
@@ -524,6 +531,7 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
       const { k, x: tx, y: ty } = transformRef.current;
       drag.node.fx = (event.clientX - rect.left - tx) / k;
       drag.node.fy = (event.clientY - rect.top - ty) / k;
+      drawRef.current();
       return;
     }
     if (drag.panning) {
@@ -537,7 +545,7 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
       };
       drag.lastX = event.clientX;
       drag.lastY = event.clientY;
-      forceRender((tick) => tick + 1);
+      drawRef.current();
       return;
     }
     const hovered = nodeAt(event.clientX, event.clientY);
@@ -578,7 +586,7 @@ export const ForceGraph = forwardRef<ForceGraphHandle, Props>(function ForceGrap
       x: pointerX - (pointerX - current.x) * ratio,
       y: pointerY - (pointerY - current.y) * ratio,
     };
-    forceRender((tick) => tick + 1);
+    drawRef.current();
   }, [width, height]);
 
   // A native, non-passive listener: React's own wheel handler is passive
