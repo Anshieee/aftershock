@@ -21,6 +21,13 @@ interruption.
   publish `dist`
 - **Frontend only.** No functions, no environment variables, no backend.
 - The production site `aftershock-demo` is untouched.
+- **Automatic deployment confirmed:** three consecutive pushes to
+  `experiment/minimax-m31-frontend` each produced a new Netlify build whose
+  title is the pushed commit message, and each was published to the public
+  URL. The most recent: build `6ad8340a94b5b671f102b443`, state `ready`.
+- **Deployed-build verification:** `npm run live-smoke` — 25/25 checks pass
+  against the public URL, with no console errors and **zero** requests to any
+  host other than the preview site itself.
 
 ---
 
@@ -132,12 +139,9 @@ Test coverage:
 
 ## Remaining tasks
 
-1. Final `git status` review, then push the final commit to
-   `origin/experiment/minimax-m31-frontend`.
-2. Verify `origin/experiment/minimax-m31-frontend` exists and that local
-   HEAD matches it.
-3. Confirm no file outside `experiments/minimax-m31-frontend/` was changed
-   in the shared checkout.
+None for the prototype. The design is ready for review; integrating it into
+the production application is a separate, deliberately-not-started piece of
+work.
 
 ---
 
@@ -149,10 +153,5 @@ None.
 
 ## Exact next action
 
-```bash
-cd /home/ansh/Projects/aftershock-wt-minimax-m31
-git add -A experiments/minimax-m31-frontend
-git commit -m "feat(experiment): tests, documentation and final visual pass"
-git push origin experiment/minimax-m31-frontend
-git rev-parse HEAD origin/experiment/minimax-m31-frontend
-```
+Share https://aftershock-minimax-preview.netlify.app for review, and
+collect the feedback before any decision to integrate.
