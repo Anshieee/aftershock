@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, 'feat/**']
+    branches: [main, 'feat/**', 'fix/**']
   pull_request:
     branches: [main]
 
@@ -10,28 +10,77 @@ concurrency:
   group: ci-${{ github.ref_name }}
   cancel-in-progress: true
 
+# Least privilege: this workflow only reads the repository.
+permissions:
+  contents: read
+
 jobs:
-  verify:
-    name: typecheck, test, build
+  frontend:
+    name: typecheck, root tests, build (node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # Report every runtime's result; do not cancel a sibling runtime's report.
+      fail-fast: false
+      matrix:
+        # The supported runtime range is declared in package.json "engines"
+        # (node >=20). Both ends are exercised because a Node-20-only failure
+        # was invisible here for weeks: the root suite passed on the dev
+        # runtime (Node 24) while failing on CI's Node 20 (a realm-bound Blob
+        # check in the export client). One runtime label would hide that class
+        # of divergence again.
+        node: ['20', '24']
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js ${{ matrix.node }}
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests (vitest)
+      - name: Root unit tests (vitest)
         run: npx vitest run
 
       - name: Build
         run: npm run build
+
+  server:
+    name: server unit tests (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '24']
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      # The server suite has its own lockfile and its own vitest config
+      # (server/vitest.unit.config.js). It is installed independently on
+      # purpose: the suite must pass with only the server dependency tree
+      # present, so a regression in resolution cannot hide behind the root
+      # node_modules. (A failure that only appeared with a server-only install
+      # is exactly what shipped unnoticed before — see
+      # docs/ops/ci-reliability-plan.md.)
+      - name: Install server dependencies
+        run: npm ci --no-audit --no-fund --prefix server
+
+      - name: Server unit tests (vitest)
+        run: npm --prefix server test
