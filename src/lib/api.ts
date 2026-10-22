@@ -1468,10 +1468,17 @@ export type ExportOutcome =
   | { available: false; reason: 'endpoint-missing' | 'not-implemented' };
 
 function parseExportBlob(payload: unknown): Blob {
-  if (!(payload instanceof Blob)) {
+  // `instanceof Blob` is realm-bound: `Response.blob()` may hand back the
+  // runtime's own Blob class (node:buffer under Node 20 + jsdom), and in
+  // browsers an iframe/worker Blob is not instanceof the page's Blob. The
+  // WebIDL toStringTag brand check accepts those; non-Blob bodies still fail.
+  const isBlob =
+    (typeof Blob !== 'undefined' && payload instanceof Blob) ||
+    Object.prototype.toString.call(payload) === '[object Blob]';
+  if (!isBlob) {
     throw new ApiClientError('Export endpoint returned a non-blob body');
   }
-  return payload;
+  return payload as Blob;
 }
 
 /**
