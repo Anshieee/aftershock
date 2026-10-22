@@ -248,6 +248,10 @@ export async function extractPdfText(bytes, deps = {}) {
       data: new Uint8Array(bytes),
       // Pinned offline-safe options (no worker, no eval, no system fonts,
       // no font-face injection — verified against pdfjs-dist@4.10.38).
+      // verbosity 0: suppress pdf.js's own non-fatal console warnings
+      // (e.g. standardFontDataUrl hints) — failures still surface as
+      // rejected promises and are mapped to honest values below.
+      verbosity: 0,
       useWorkerFetch: false,
       isEvalSupported: false,
       useSystemFonts: false,
