@@ -9,9 +9,10 @@
     "test:integration": "vitest run --config vitest.integration.config.js"
   },
   "dependencies": {
+    "docx": "^9.12.0",
     "falkordb": "^6.2.7",
-    "pdfkit": "^0.20.2",
-    "docx": "^9.12.0"
+    "pdfjs-dist": "4.10.38",
+    "pdfkit": "^0.20.2"
   },
   "//security-todo": "TODO(dev-deps): tinypool@1.1.1 resolved via vitest@3 is affected by the critical prototype-pollution→RCE GHSAs GHSA-5gmw-xhrv-c9v3 (CVE-2026-104848) and GHSA-85c8-ppgw-ccpr (CVE-2026-104849), plus vitest's moderate mocker path-traversal GHSA-82fw-gwwq-j7x9 (CVE-2026-84373) — all dev-only, never shipped to the browser. Deliberately NOT bumping vitest for M2/M3 (breaking); schedule the vitest@5 bump as a separate change (it drops tinypool and fixes @vitest/mocker ≥4.1.11).",
   "devDependencies": {
