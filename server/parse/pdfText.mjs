@@ -18,8 +18,13 @@
  *   guessed at. `coordinatesSupported: true` reflects that the line
  *   coordinates are real geometry from the text layer — it does NOT imply
  *   the text itself is complete or meaningful.
- * - Truncation by the page budget (`MAX_PDF_PAGES_EXTRACTED`, overridable
- *   per call via `deps.maxPages`) is disclosed in `notes`, never silent.
+ * - Truncation by ANY budget — page count (`MAX_PDF_PAGES_EXTRACTED`,
+ *   per call `deps.maxPages`), per-page text (`MAX_CHARS_PER_PAGE`,
+ *   `deps.maxCharsPerPage`), or whole-document text
+ *   (`MAX_TOTAL_TEXT_CHARS`, `deps.maxTotalChars`) — is disclosed in
+ *   `notes`, never silent. The text budgets bound worst-case memory: a
+ *   crafted multi-gigabyte text layer is CUT and disclosed, never buffered
+ *   unbounded.
  * - pdf.js failure reasons are mapped to fixed disclosure strings; raw error
  *   messages/stacks are NEVER included in the result (content-redaction
  *   rule: error text can leak document content).
@@ -47,7 +52,9 @@
 
 import {
   DETECTION_PROVENANCE_KIND,
+  MAX_CHARS_PER_PAGE,
   MAX_PDF_PAGES_EXTRACTED,
+  MAX_TOTAL_TEXT_CHARS,
   PARSE_ANALYSIS_VERSION,
 } from './schema.mjs';
 
@@ -123,7 +130,26 @@ function finiteOr(value, fallback) {
 }
 
 /**
- * Group one page's `getTextContent()` items into located lines.
+ * @typedef {Object} PdfLine One extracted line (see module docstring).
+ * @property {number} order 1-based within page.
+ * @property {string} text Verbatim-extracted text (possibly a budget-cut
+ *   prefix — any cut is disclosed per page in `notes`).
+ * @property {number} x First text item origin x (PDF user space, points).
+ * @property {number} y First text item baseline y (PDF user space, points).
+ * @property {number} width Right edge of the last text item minus `x`,
+ *   clamped at 0 so geometry is never negative.
+ * @property {number} height Max glyph box across the line's items.
+ * @property {string} provenanceKind Always {@link DETECTION_PROVENANCE_KIND}.
+ * @property {string} rationale Always {@link LINE_RATIONALE}.
+ * @property {string} analysisVersion Always {@link PARSE_ANALYSIS_VERSION}.
+ * @property {null} createdAt Stamped later by the caller (never invented here).
+ */
+
+/**
+ * Group one page's `getTextContent()` items into located lines, bounded by a
+ * per-page character budget (audit hardening: `getTextContent()` is
+ * file-controlled and unbounded — a crafted text layer must be CUT and
+ * disclosed, never buffered).
  *
  * Deterministic MVP rules (see module docstring): items are consumed in
  * natural order; an item with an empty string contributes no text (it is a
@@ -131,19 +157,32 @@ function finiteOr(value, fallback) {
  * line; a non-empty item starts a new line when the open line exists and the
  * item's baseline differs from the line's FIRST baseline by more than
  * {@link BASELINE_JUMP}. `x`/`y` come from the line's first text item,
- * `width` from its last text item's right edge, `height` is the max glyph
- * box across the line's items. Non-finite geometry degrades to `0`, never
- * `NaN` — every number this function emits is finite.
+ * `width` from its last text item's right edge (clamped at 0), `height` is
+ * the max glyph box across the line's items. Non-finite geometry degrades to
+ * `0`, never `NaN` — every number this function emits is finite.
+ *
+ * Budget rule: once `maxChars` characters have been appended, the item loop
+ * STOPS (`truncated: true`). The single item that crosses the budget is kept
+ * as a PREFIX sliced to the remaining budget (never mid-surrogate), so a
+ * page that HAS a text layer always yields at least one non-empty line —
+ * dropping the crossing item instead would emit a zero-line page that the
+ * caller would honestly (but WRONGLY) disclose as "no text layer — likely a
+ * scanned image". Appended text is otherwise verbatim: no trimming, no
+ * cleanup.
  *
  * @param {unknown} items `page.getTextContent().items` (untrusted shape)
- * @returns {Array<{order: number, text: string, x: number, y: number,
- *   width: number, height: number, provenanceKind: string, rationale: string,
- *   analysisVersion: string, createdAt: null}>} 1-based `order` within page
+ * @param {number} maxChars per-page character budget (positive integer)
+ * @returns {{lines: PdfLine[], truncated: boolean}} `truncated` is true when
+ *   the budget stopped further items on this page
  */
-function groupPageLines(items) {
-  /** @type {Array<{order: number, text: string, x: number, y: number, width: number, height: number, provenanceKind: string, rationale: string, analysisVersion: string, createdAt: null}>} */
+function groupPageLines(items, maxChars) {
+  /** @type {PdfLine[]} */
   const lines = [];
-  if (!Array.isArray(items)) return lines;
+  if (!Array.isArray(items)) return { lines, truncated: false };
+
+  /** Characters appended on this page so far (budget accumulator). */
+  let pageChars = 0;
+  let cut = false;
 
   /**
    * Open-line accumulator. `x`/`y` are the FIRST text item's origin;
@@ -160,7 +199,10 @@ function groupPageLines(items) {
       text: open.text,
       x: open.x,
       y: open.y,
-      width: open.lastX + open.lastWidth - open.x,
+      // Clamped at 0: real text is right of the line origin, but unusual
+      // layouts (e.g. RTL runs) could compute a negative extent — a
+      // negative width is finite-but-odd and would be dishonest geometry.
+      width: Math.max(0, open.lastX + open.lastWidth - open.x),
       height: open.height,
       provenanceKind: DETECTION_PROVENANCE_KIND,
       rationale: LINE_RATIONALE,
@@ -189,6 +231,28 @@ function groupPageLines(items) {
       continue;
     }
 
+    // Per-page text budget: stop the loop; keep the boundary item as a
+    // prefix sliced to the remaining budget (see docstring). The caller
+    // discloses the cut per page.
+    const remaining = maxChars - pageChars;
+    if (remaining <= 0) {
+      cut = true;
+      break;
+    }
+    let take = Math.min(str.length, remaining);
+    if (take < str.length) {
+      // Never split a surrogate pair at the cut boundary.
+      const boundary = str.charCodeAt(take - 1);
+      if (boundary >= 0xd800 && boundary <= 0xdbff) take -= 1;
+    }
+    if (take <= 0) {
+      // Exactly one budget unit left and it is half a surrogate pair — take
+      // nothing rather than emit an unpaired surrogate.
+      cut = true;
+      break;
+    }
+    const chunk = take < str.length ? str.slice(0, take) : str;
+
     if (open !== null && Math.abs(itemY - open.y) > BASELINE_JUMP) close();
 
     if (open === null) {
@@ -198,31 +262,47 @@ function groupPageLines(items) {
       open.lastWidth = itemWidth;
       open.height = Math.max(open.height, glyphBox);
     }
-    open.text += str; // appended verbatim — no trimming, no cleanup
+    open.text += chunk; // verbatim (or budget-cut prefix) — no trimming, no cleanup
+    pageChars += chunk.length;
+
+    if (chunk.length < str.length) {
+      cut = true; // budget crossed mid-item; nothing further is extracted
+      break;
+    }
 
     if (item.hasEOL === true) close();
   }
   close(); // flush a trailing line with no explicit EOL marker
-  return lines;
+  return { lines, truncated: cut };
 }
 
 /**
- * Extract text from raw PDF bytes, offline and bounded.
+ * Extract text from raw PDF bytes, offline and bounded by THREE budgets:
+ * page count (`maxPages`, default {@link MAX_PDF_PAGES_EXTRACTED}), text
+ * characters per page (`maxCharsPerPage`, default {@link MAX_CHARS_PER_PAGE}),
+ * and whole-document text characters (`maxTotalChars`, default
+ * {@link MAX_TOTAL_TEXT_CHARS}). `truncated` is `true` when ANY budget
+ * clipped the result; every hit is disclosed verbatim in `notes` (the
+ * page-count note, the per-page budget note, the whole-text budget note).
+ * The realized total may exceed `maxTotalChars` by up to one page: the page
+ * that crosses the budget stays as-is (never retro-trimmed) and later pages
+ * are not processed.
  *
  * Never throws. Failure states (absent/empty bytes, password protection,
  * any pdf.js rejection) come back as `{ attempted: false, reason }`.
  * Success comes back as located lines in reading order with real PDF
- * user-space coordinates (points, origin bottom-left), plus honest notes for
- * the page budget, MVP grouping, per-page no-text pages, and the all-no-text
- * case.
+ * user-space coordinates (points, origin bottom-left; line width clamped at
+ * 0), plus honest notes for the budgets, MVP grouping, per-page no-text
+ * pages, and the all-no-text case.
  *
  * @param {Uint8Array} bytes raw PDF bytes (copied before pdf.js sees them)
- * @param {{maxPages?: number}} [deps] budget seam for tests; falls back to
- *   schema {@link MAX_PDF_PAGES_EXTRACTED}
+ * @param {{maxPages?: number, maxCharsPerPage?: number, maxTotalChars?: number}} [deps]
+ *   budget seams for tests; each falls back to its schema default when not a
+ *   positive integer (0/invalid → default, never a disabled cap)
  * @returns {Promise<
  *   | { attempted: false, reason: string }
  *   | { attempted: true, coordinatesSupported: true, truncated: boolean,
- *       pages: Array<{index: number, order: number, lines: ReturnType<typeof groupPageLines>, charCount: number}>,
+ *       pages: Array<{index: number, order: number, lines: PdfLine[], charCount: number}>,
  *       textLength: number, notes: string[] }
  * >}
  */
@@ -237,6 +317,9 @@ export async function extractPdfText(bytes, deps = {}) {
   try {
     const options = deps !== null && typeof deps === 'object' ? deps : {};
     const maxPages = clampPositiveInt(options.maxPages, MAX_PDF_PAGES_EXTRACTED);
+    // Audit-hardening text budgets (see JSDoc): 0/invalid → schema default.
+    const maxCharsPerPage = clampPositiveInt(options.maxCharsPerPage, MAX_CHARS_PER_PAGE);
+    const maxTotalChars = clampPositiveInt(options.maxTotalChars, MAX_TOTAL_TEXT_CHARS);
 
     // Lazy per-use import: any failure lands in the catch below and becomes an
     // honest value. The module file lives in server/parse/, so Node resolves
@@ -260,10 +343,13 @@ export async function extractPdfText(bytes, deps = {}) {
     doc = await task.promise;
 
     const numPages = Number.isInteger(doc.numPages) && doc.numPages > 0 ? doc.numPages : 0;
-    const truncated = numPages > maxPages;
+    // `truncated` is true when ANY budget clipped the result: page count,
+    // per-page text, or whole-document text (each disclosed separately).
+    let truncated = numPages > maxPages;
     const pageCount = Math.min(numPages, maxPages);
+    let wholeTextCut = false;
 
-    /** @type {ReturnType<typeof groupPageLines> extends infer L ? Array<{index: number, order: number, lines: L, charCount: number}> : never} */
+    /** @type {Array<{index: number, order: number, lines: PdfLine[], charCount: number}>} */
     const pages = [];
     /** @type {string[]} */
     const notes = [];
@@ -286,13 +372,21 @@ export async function extractPdfText(bytes, deps = {}) {
         viewportSane = false;
       }
 
-      const lines = groupPageLines(content.items);
+      const { lines, truncated: pageCut } = groupPageLines(content.items, maxCharsPerPage);
       const charCount = lines.reduce((sum, line) => sum + line.text.length, 0);
       if (lines.length === 0) notes.push(noTextPageNote(pageIndex));
       if (!viewportSane) {
         notes.push(
           `Page ${pageIndex} reported a non-finite page box; ` +
             'line coordinates were kept in raw PDF user space (unscaled).',
+        );
+      }
+      if (pageCut) {
+        // Per-page budget disclosure; M is the realized cap.
+        truncated = true;
+        notes.push(
+          `Page ${pageIndex} hit the per-page text budget (${maxCharsPerPage} characters); ` +
+            'remaining text on this page was not extracted.',
         );
       }
       pages.push({ index: pageIndex, order: pageIndex, lines, charCount });
@@ -303,11 +397,29 @@ export async function extractPdfText(bytes, deps = {}) {
       } catch {
         // ignore — doc.destroy() in finally reclaims everything anyway
       }
+
+      // Whole-document text budget: the completed (possibly cut) page stays
+      // as-is — never retro-trimmed — and later pages are not processed at
+      // all. Only claim "later pages were not extracted" when a later page
+      // actually existed and was skipped: a single-page overshoot extracts
+      // its only page fully, so nothing is truncated by THIS budget.
+      if (textLength > maxTotalChars && pageIndex < pageCount) {
+        truncated = true;
+        wholeTextCut = true;
+        break;
+      }
     }
 
-    if (truncated) {
+    if (numPages > maxPages) {
       notes.unshift(
         `Document has ${numPages} pages; only the first ${pageCount} were extracted (page budget).`,
+      );
+    }
+    if (wholeTextCut) {
+      // Whole-text budget disclosure; M is the realized cap.
+      notes.push(
+        `Document hit the whole-text budget after ${maxTotalChars} characters; ` +
+          'text from later pages was not extracted.',
       );
     }
     // Honest ends: an all-no-text document says so (page notes precede this

@@ -224,3 +224,70 @@ describe('pdfText — honest failure states (never throws)', () => {
     }
   });
 });
+
+describe('pdfText — text budgets (audit hardening)', () => {
+  it('cuts each page independently at maxCharsPerPage and discloses per-page budget notes', async () => {
+    // WHY both pages: maxCharsPerPage 40 cuts each page of the ~1021-char
+    // 2-page fixture at exactly 40 chars — page 1's first line alone is
+    // longer than 40, so the cut lands mid-line and is kept as a DISCLOSED
+    // prefix (dropping the crossing item would emit a zero-line page that
+    // would falsely read as "no text layer — likely a scanned image").
+    // The per-page cut does NOT stop later pages: after both cuts the
+    // running total is only 80 chars, far below the default whole-text
+    // budget of 1,000,000 — so page 2 is still extracted, cut
+    // independently, with its own budget note.
+    const result = await extractPdfText(fixtureBytes('synthetic-article-2p.pdf'), {
+      maxCharsPerPage: 40,
+    });
+    expect(result.attempted).toBe(true);
+    expect(result.truncated).toBe(true); // per-page budget clipped both pages
+    expect(result.pages).toHaveLength(2); // total budget not reached → page 2 extracted
+    for (const page of result.pages) {
+      expect(page.charCount).toBeLessThanOrEqual(40);
+      expect(page.lines.length).toBeGreaterThan(0); // prefix line, never an empty page
+    }
+    expect(result.pages[0].lines[0].text).toHaveLength(40); // slice to the exact remaining budget
+    expect(result.pages[0].lines[0].text.startsWith('FICTIONAL / GUIDED DEMO')).toBe(true);
+    expect(result.textLength).toBe(80); // 40 (page 1) + 40 (page 2), deterministic fixtures
+    expect(result.notes).toEqual([
+      'Page 1 hit the per-page text budget (40 characters); remaining text on this page was not extracted.',
+      'Page 2 hit the per-page text budget (40 characters); remaining text on this page was not extracted.',
+      GROUPING_NOTE,
+    ]);
+  });
+
+  it('stops before later pages once the whole-text budget is exceeded and discloses it', async () => {
+    // With maxCharsPerPage 600 (page 1's natural size is 631 chars) page 1
+    // is cut at 600 by its own budget; the running total 600 then exceeds
+    // maxTotalChars 100, so page 2 is never processed at all. The crossing
+    // page stays as-is — never retro-trimmed to the total budget.
+    const result = await extractPdfText(fixtureBytes('synthetic-article-2p.pdf'), {
+      maxCharsPerPage: 600,
+      maxTotalChars: 100,
+    });
+    expect(result.attempted).toBe(true);
+    expect(result.truncated).toBe(true);
+    expect(result.pages).toHaveLength(1); // page 2 (numPages-required) not present
+    expect(result.pages[0].charCount).toBe(600); // kept whole up to its own per-page cap
+    expect(result.notes).toEqual([
+      'Page 1 hit the per-page text budget (600 characters); remaining text on this page was not extracted.',
+      'Document hit the whole-text budget after 100 characters; text from later pages was not extracted.',
+      GROUPING_NOTE,
+    ]);
+  });
+
+  it('falls back to the schema text budgets for 0/non-numeric overrides (fixture uncut)', async () => {
+    // clampPositiveInt semantics: explicit 0 / non-numeric overrides are NOT
+    // a disabled cap — they fall back to the schema defaults (60,000 per
+    // page / 1,000,000 total), which this ~1021-char fixture never reaches.
+    const result = await extractPdfText(fixtureBytes('synthetic-article-2p.pdf'), {
+      maxCharsPerPage: 0,
+      maxTotalChars: 'x',
+    });
+    expect(result.attempted).toBe(true);
+    expect(result.truncated).toBe(false); // defaults in effect, caps not hit
+    expect(result.pages).toHaveLength(2);
+    expect(result.pages[0].charCount).toBe(631); // full page 1 — byte-identical to defaults
+    expect(result.notes).toEqual([GROUPING_NOTE]);
+  });
+});

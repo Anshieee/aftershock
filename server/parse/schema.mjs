@@ -39,9 +39,7 @@
  *     format: 'txt',
  *     coordinatesSupported: false,
  *     truncated: false,
- *     pages: [{ index: 1, lines: [{ text: 'first line', x: 0, y: 0, width: 10, height: 12 }] }],
- *     pagesExtracted: 1,
- *     pagesAvailable: 1,
+ *     pages: [{ index: 1, lines: [{ order: 1, text: 'first line' }, { order: 2, text: 'second line' }] }],
  *   },
  *   honesty: { caveats: [PATTERN_CAVEAT] },
  * }
@@ -65,8 +63,18 @@
  *   be absent.
  * @property {ExtractionHonesty} honesty Human-facing disclosure strings the UI
  *   must show verbatim (see {@link PATTERN_CAVEAT}).
- * @property {DetectionRecord[]} [detections] Additive collection used by future
- *   M9–M10 parse modules. Every entry MUST extend {@link DetectionProvenance}.
+ * @property {ReferencesBlock} [references] Additive collection emitted by the
+ *   M9 dispatcher (`documentExtract.mjs`): reference-section detection and
+ *   conservatively segmented entry candidates. Every `detected` entry carries
+ *   the {@link DetectionProvenance} envelope. Note: `validateExtractionRecord`
+ *   validates the CORE envelope above and treats additive members as
+ *   additive — the producers of these members are locked by their own module
+ *   tests, and a caller-built record with malformed `references`/`dois`
+ *   payloads passes this validator by design.
+ * @property {Array<DoiAggregate>} [dois] Additive collection emitted by the M9
+ *   dispatcher: DOI-candidate aggregates (deduplicated occurrence counts with
+ *   first-seen locations). Entries carry the {@link DetectionProvenance}
+ *   envelope; see the note above about the additive validator seam.
  *
  * @typedef {Object} ExtractionSource
  * @property {string} format One of {@link SUPPORTED_FORMATS} or
@@ -95,19 +103,21 @@
  *
  * @typedef {Object} ExtractionPage
  * @property {number} index 1-based page index.
+ * @property {number} [order] Page order in this tier's enumeration (currently
+ *   equal to `index`; pdf.js adapters emit it, TXT does not).
  * @property {ExtractionLine[]} [lines] Lines observed on the page. May be an
  *   empty array (or absent) when the page yielded no text.
  *
  * @typedef {Object} ExtractionLine
  * @property {string} text Non-empty line text, newline/tab collapsed for UI.
- * @property {number} x Line origin x (finite number; placeholder when
- *   `coordinatesSupported` is `false`).
- * @property {number} y Line origin y (finite number; placeholder when
- *   `coordinatesSupported` is `false`).
- * @property {number} width Line width (finite number; placeholder when
- *   `coordinatesSupported` is `false`).
- * @property {number} height Line height (finite number; placeholder when
- *   `coordinatesSupported` is `false`).
+ * @property {number} [order] 1-based line order within the page.
+ * @property {number} [x] Line origin x. Coordinates are OPTIONAL member-wise:
+ *   plain-text sources omit them entirely (real absence — emitting placeholder
+ *   geometry would be indistinguishable from real page coordinates).
+ * @property {number} [y] Line origin y. Optional; see `x`.
+ * @property {number} [width] Line width. Optional; when ANY coordinate member
+ *   is present, all four are required and must be finite.
+ * @property {number} [height] Line height. Optional; see `width`.
  *
  * @typedef {Object} ExtractionHonesty
  * @property {string[]} caveats Disclosure strings; always includes
@@ -178,6 +188,12 @@ export const MAX_DECODE_BYTES = 524288;
 
 /** Hard cap on extracted PDF pages; exceeding it sets `extraction.truncated`. */
 export const MAX_PDF_PAGES_EXTRACTED = 120;
+
+/** Per-page text budget for PDFs; hitting it discloses truncation instead of buffering unbounded text. */
+export const MAX_CHARS_PER_PAGE = 60000;
+
+/** Whole-document extracted-text budget; hitting it discloses truncation instead of buffering unbounded text. */
+export const MAX_TOTAL_TEXT_CHARS = 1000000;
 
 /** Cap on unique DOIs returned per document. Mirrors `MAX_UNIQUE_DOIS`. */
 export const MAX_UNIQUE_DOIS = 50;
