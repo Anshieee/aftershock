@@ -26,6 +26,6 @@ Add a **local, offline document-extraction tier** that never touches the graph, 
 - **Wiring results into `/import-document` in this milestone:** rejected — that surface is production/deployed; extending it belongs to a later reviewed milestone (and any future persistence requires the ADR 0001 secure-tier migration).
 
 ## Consequences
-- The tier is independently testable and ships with 98 parse-focused tests (schema 30, doiDetect 15, txtDocument 20, pdfText 15, dispatcher 17, fixtures-integration 6) plus CLI evidence runs covering all honest states.
+- The tier is independently testable and ships with 103 parse-focused tests (schema 30, doiDetect 15, txtDocument 20, pdfText 15, dispatcher 17, fixtures-integration 6 — plus 9 CLI guard tests and 1 pdfkit-resolution guard added by the CI-reliability sprint, i.e. 410 server-suite tests in total) plus CLI evidence runs covering all honest states.
 - Known residual risks are documented, not hidden: heading detection is a layout heuristic (standing note stamped into records), DOI scan work is bounded by the decode/char windows (same worst-case class as the deployed `metaExtract` within those windows), and `validateExtractionRecord` validates the core envelope while `references`/`dois` payloads are additive contracts locked by their producers' tests.
 - Next milestone can consume `documentExtract-1` records (e.g. a future secure-tier import surface) without reshaping the wire contract; until then the CLI is the sole interface and nothing server-side reads these modules.
