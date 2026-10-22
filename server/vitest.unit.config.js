@@ -23,7 +23,7 @@ export default defineConfig({
         // PDF export answers 500. Externalizing keeps PDFKit's file-anchored
         // resolution intact. A regex is required: string patterns in
         // `deps.external` match `/node_modules/<name>` paths, not bare ids.
-        // Guarded by test/unit/parse/pdfkitResolution.test.mjs.
+        // Guarded by test/unit/pdfkitResolution.test.mjs.
         external: [/^pdfkit$/],
       },
     },

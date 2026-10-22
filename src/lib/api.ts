@@ -1470,11 +1470,16 @@ export type ExportOutcome =
 function parseExportBlob(payload: unknown): Blob {
   // `instanceof Blob` is realm-bound: `Response.blob()` may hand back the
   // runtime's own Blob class (node:buffer under Node 20 + jsdom), and in
-  // browsers an iframe/worker Blob is not instanceof the page's Blob. The
-  // WebIDL toStringTag brand check accepts those; non-Blob bodies still fail.
+  // browsers an iframe/worker Blob is not instanceof the page's Blob. So a
+  // cross-realm Blob is accepted via its WebIDL tag PLUS the Blob interface
+  // slots (`size`, `arrayBuffer`) — a plain object that merely sets
+  // `Symbol.toStringTag = 'Blob'` is still rejected, and a non-Blob body
+  // still fails.
   const isBlob =
     (typeof Blob !== 'undefined' && payload instanceof Blob) ||
-    Object.prototype.toString.call(payload) === '[object Blob]';
+    (Object.prototype.toString.call(payload) === '[object Blob]' &&
+      typeof (payload as Blob).size === 'number' &&
+      typeof (payload as Blob).arrayBuffer === 'function');
   if (!isBlob) {
     throw new ApiClientError('Export endpoint returned a non-blob body');
   }
