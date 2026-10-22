@@ -28,12 +28,15 @@ Clean clones (`git clone` → `npm ci` from the committed lockfiles), not reused
 | SHA | Suite | Node 20.20.2 | Node 24.22.0 |
 |---|---|---|---|
 | `main` `57ddfb4` | root (`vitest` 2.1.9) | **FAIL — 7 failed / 524 passed / 13 skipped** (2 files) | PASS — 531 passed / 13 skipped |
-| `main` `57ddfb4` | `server/` (own vitest 3.2.7) | PASS — 297/297 | PASS — 297/297 |
-| `feat/m9-m10-doc-parsing` `7d28889a` | `server/` | **FAIL — 2 failed / 398 passed** | **FAIL — 2 failed / 398 passed** |
+| `main` `57ddfb4` | `server/` (own vitest 3.2.7), **server-only install** | **FAIL — 2 failed / 295 passed** | **FAIL — 2 failed / 295 passed** |
+| `main` `57ddfb4` | `server/` with root `node_modules` present | PASS — 297/297 | PASS — 297/297 |
+| `feat/m9-m10-doc-parsing` `7d28889a` | `server/`, server-only install | **FAIL — 2 failed / 398 passed** | **FAIL — 2 failed / 398 passed** |
 
 Failing root tests (Node 20): `src/lib/api.test.ts` → *exportReport POSTs … returns a PDF Blob*, *exportReport defaults to pdf format*, *exportRevisionPack … returns a DOCX Blob*, *exportAnnotatedManuscript … returns a Blob*; `src/pages/ExportPage.test.tsx` → 3 × *generates a … download through POST /export-* (downstream of the same client error).
 
-Failing server tests (both runtimes, M9/M10 branch only): `test/unit/report-export.unit.test.mjs` → *returns 200 with PDF binary and correct headers for a valid request*, *renders a PDF through the real renderer with a rich decision trail*. Root cause of the error: `Error: Cannot find module '#standard-fonts/Helvetica'` raised from pdfkit's `require('#standard-fonts/*')` package-`imports` map — the module is resolved against a virtual path, so Node's `imports`-map lookup fails. The only difference between the two `server/node_modules` trees is the presence of `pdfjs-dist` (an ESM-only package), which changes how the test runner resolves externalized CJS dependencies.
+Failing server tests (both runtimes): `test/unit/report-export.unit.test.mjs` → *returns 200 with PDF binary and correct headers for a valid request*, *renders a PDF through the real renderer with a rich decision trail*. Error: `Error: Cannot find module '#standard-fonts/Helvetica'` — pdfkit's package-scoped `imports` map cannot resolve from the virtual path the runner assigns to an **inlined** copy.
+
+> **Correction — three successive claims, ending with the proven mechanism.** (a) The M9/M10 completion report attributed these 2 failures to a *worktree-only, pre-existing* pdfkit/vitest quirk. (b) A first clean-clone matrix appeared to show `main` passing and the branch failing, which suggested the branch *introduced* them. (c) That matrix was confounded — the clone had a root `node_modules`, which masks the failure. Decisive experiments (server-only install; removing `pdfjs-dist`; `main` failing identically) prove the real mechanism: **the failure depends on the install layout, not on the branch and not on the Node version** — with a server-only install, vite inlines `pdfkit` and its `#standard-fonts/*` map breaks. It affected `main` identically all along and was invisible because CI never ran the server suite. Fixed by externalizing `pdfkit` in the runner config + a regression guard. The original "not branch-introduced" conclusion happened to be right; its stated mechanism was wrong, and the failure stayed an unresolved release blocker until now.
 
 CI run URLs (logs require admin rights; job-step conclusions were read via the API): `main` → https://github.com/Anshieee/aftershock/actions/runs/39337700559 (`Typecheck` success, `Unit tests (vitest)` failure, `Build` skipped); M9/M10 → https://github.com/Anshieee/aftershock/actions/runs/39726097799 (same step pattern).
 
@@ -44,7 +47,7 @@ Ownership is exclusive per file; the orchestrator owns the cross-cutting contrac
 | ID | Task | Owner | Files (exclusive) | Acceptance |
 |---|---|---|---|---|
 | W1 | Make the binary-download client realm-safe (production fix, not a test-only workaround) | frontend worker | `src/lib/api.ts`, `src/lib/api.test.ts`, `src/pages/ExportPage.test.tsx` | Root suite green on Node 20 **and** Node 24; the assertion still requires a real Blob (no weakening); production behaviour unchanged in browsers |
-| W2 | Fix the M9/M10-introduced pdfkit resolution failure under the server unit runner | server worker | `server/vitest.unit.config.js`, `server/parse/pdfText.mjs`, `server/test/unit/parse/**` | `server/` suite green on Node 20 **and** Node 24 in a clean clone; pdfjs extraction still verified; no test weakened |
+| W2 | Fix the latent pdfkit resolution failure under the server unit runner (affects `main` equally; surfaced only because the server suite now runs in CI) | server worker | `server/vitest.unit.config.js`, `server/test/unit/pdfkitResolution.test.mjs` | `server/` suite green on Node 20 **and** Node 24 in a clean clone **with a server-only install**; pdfjs extraction still verified; no test weakened |
 | W3 | Make CI execute what the rules require | orchestrator | `.github/workflows/ci.yml`, `package.json` (engines), `server/package.json` (engines) | Workflow runs root suite + `server/` suite + typecheck + build for the candidate SHA; runtime matrix explicit; `engines` declared in both manifests |
 | W4 | Independent read-only review of W1+W2+W3 | reviewer | — | Falsification attempt on each claim; findings addressed or recorded as blockers |
 | W5 | Auditable handoff | orchestrator | `docs/BUILD_STATUS.md`, this file | SHA + commands + results + CI URLs + blockers + next action |
