@@ -49,6 +49,17 @@ property exists for it (the §1/§2 lists remain exhaustive for import-registere
 are unverified pattern-match candidates on a bounded excerpt of the upload; presence in a file proves
 nothing about claim support or reference validity, and all citation-integrity rules below still bind.
 
+**Non-graph note — local extraction tier (M9/M10, branch `feat/m9-m10-doc-parsing`):** the local
+document-extraction tier (`server/parse/*`, CLI `scripts/extract-document.mjs`) produces canonical
+`documentExtract-1` records (`analysisVersion: parse-1`) that are **pure local artifacts**: no graph
+node label, edge type, or property, no Netlify surface, no network, no persistence. Records are
+schema-contractual (`server/parse/schema.mjs`); every emitted detection member (DOI hits, aggregate
+entries, reference-entry candidates, located lines) carries `provenanceKind`, `rationale`,
+`analysisVersion`, and a `createdAt` (real or explicit null), and all detections are `observed` in
+this tier — pattern observed at a source location, never verified. Should a future milestone feed
+these records into any persisted surface, that surface requires the ADR 0001 secure-tier migration
+first, and the record fields are designed to map onto the provenance enums above without reshaping.
+
 ## 3. Provenance kinds
 
 `observed`, `source_verified`, `human_confirmed`, `model_proposed`, `unresolved`.

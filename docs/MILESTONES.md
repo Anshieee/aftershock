@@ -37,5 +37,9 @@
 ## M8 — Independent final audit
 - Hosted E2E, synthetic-vs-real attribution, graph/data verification, security/privacy, a11y, smoke under graph reset, limitations documented.
 
+## M9/M10 — Local offline document parsing & citation detection
+- Canonical local extraction record contract + honest budgets; bounded TXT decode with located lines; deterministic FICTIONAL fixture corpus (searchable + image-only PDF); pdf.js text-layer extraction with per-line geometry; conservative reference-section/entry detection; DOI candidate detection aligned with the deployed metaExtract semantics; local CLI with honest failure/truncation states; module + fixture-driven tests. **Strictly offline/non-graph; no production, frontend, or deployed-module changes; DOCX deliberately deferred with an honest stub.**
+- **Shipped 2026-10-22 (branch `feat/m9-m10-doc-parsing`, base `57ddfb4` → `2cc20c0`; NOT merged/deployed):** contract `documentExtract-1`/`parse-1` (`server/parse/schema.mjs` + validator), `doiDetect`/`txtDocument`/`pdfText`/`documentExtract` modules, `pdfjs-dist@4.10.38` exact pin (Node-20 engines — v6 rejected requiring Node ≥ 22.13), deterministic fixture corpus + README, CLI `scripts/extract-document.mjs` with input guards, independent review (APPROVE-WITH-NITS) + security audit (PASS-WITH-NOTES) with disclosed-truncation hardening landed (60k/page + 1M total text budgets), and docs: ADR `docs/decisions/0003-offline-document-extraction.md`, `docs/DATA_CONTRACTS.md` §2 note, `docs/KNOWN_LIMITATIONS.md` M9/M10 section. Evidence: 398 passing / 2 pre-existing worktree-environment failures (see BUILD_STATUS); CLI runs verified for TXT/PDF/image-only/DOCX/unknown/missing-file states.
+
 ## P0 essentials
 Real source notice, real FalkorDB traversal, clear review overview/reader, human decision, honest report, deployed site.
