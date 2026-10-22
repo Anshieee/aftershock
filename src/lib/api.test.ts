@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Blob as NodeBlob } from 'node:buffer';
 import {
   ActivityEvent,
   ActivityEventType,
@@ -623,10 +624,18 @@ describe('api client — export (M6)', () => {
 
   /**
    * Stub that answers each route with a possibly-binary body, recording calls.
-   * Unmatched URLs answer 404 like a missing Netlify function.
+   * Unmatched URLs answer 404 like a missing Netlify function. `blobResult`
+   * overrides what `Response.blob()` resolves to — used to simulate a Blob
+   * returned by ANOTHER realm (node:buffer under Node 20 + jsdom, or an
+   * iframe/worker Blob in a browser), which `instanceof Blob` rejects.
    */
   function stubBinaryFetch(
-    handler: (url: string, init: RequestInit | undefined) => { status: number; body?: Blob | string; contentType?: string } | undefined,
+    handler: (url: string, init: RequestInit | undefined) => {
+      status: number;
+      body?: Blob | string;
+      contentType?: string;
+      blobResult?: Blob;
+    } | undefined,
   ): { url: string; init: RequestInit | undefined }[] {
     const calls: { url: string; init: RequestInit | undefined }[] = [];
     vi.stubGlobal(
@@ -644,10 +653,15 @@ describe('api client — export (M6)', () => {
             : resolved.body !== undefined
               ? JSON.stringify(resolved.body)
               : '';
-        return new Response(body, {
+        const response = new Response(body, {
           status: resolved.status,
           headers: { 'Content-Type': resolved.contentType ?? 'application/json' },
         });
+        const blobResult = resolved.blobResult;
+        if (blobResult !== undefined) {
+          response.blob = async () => blobResult;
+        }
+        return response;
       }),
     );
     return calls;
@@ -663,8 +677,10 @@ describe('api client — export (M6)', () => {
     expect(result.available).toBe(true);
     if (!result.available) return;
     // jsdom normalises Response.blob() size, so assert a non-empty blob with the
-    // expected content type instead of an exact byte count.
-    expect(result.data).toBeInstanceOf(Blob);
+    // expected content type instead of an exact byte count. The brand check is
+    // realm-independent (`instanceof Blob` is not — Response.blob() may return
+    // the runtime's Blob class under Node 20 + jsdom).
+    expect(Object.prototype.toString.call(result.data)).toBe('[object Blob]');
     expect(result.data.size).toBeGreaterThan(0);
     expect(result.data.type).toBe('application/pdf');
     const call = calls[0];
@@ -690,7 +706,7 @@ describe('api client — export (M6)', () => {
     const result = await exportRevisionPack('doc-demo-manuscript');
     expect(result.available).toBe(true);
     if (!result.available) return;
-    expect(result.data).toBeInstanceOf(Blob);
+    expect(Object.prototype.toString.call(result.data)).toBe('[object Blob]');
     expect(result.data.size).toBeGreaterThan(0);
     expect(result.data.type).toBe(
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -708,10 +724,55 @@ describe('api client — export (M6)', () => {
     const result = await exportAnnotatedManuscript('doc-demo-manuscript');
     expect(result.available).toBe(true);
     if (!result.available) return;
-    expect(result.data).toBeInstanceOf(Blob);
+    expect(Object.prototype.toString.call(result.data)).toBe('[object Blob]');
     const call = calls[0];
     expect(call?.url).toBe('/.netlify/functions/export-annotated-manuscript?caseId=doc-demo-manuscript');
     expect(call?.init?.method).toBe('POST');
+  });
+
+  it('accepts a cross-realm Blob body (not instanceof) — Node 20 Response.blob() / iframe / worker', async () => {
+    // A REAL Blob from ANOTHER realm: node:buffer's Blob is a different class
+    // from this environment's (jsdom's) Blob, exactly how Response.blob()
+    // behaves under Node 20 + jsdom, or an iframe/worker Blob in a browser.
+    // The cast is a typing necessity only: TypeScript's DOM `Blob` and
+    // @types/node's `Blob` are structurally incompatible, but the RUNTIME
+    // fact under test (a different class with the same WebIDL tag) is real.
+    const foreignBlob = new NodeBlob([new Uint8Array([1, 2, 3])], {
+      type: 'application/pdf',
+    }) as unknown as Blob;
+    const calls = stubBinaryFetch(() => ({
+      status: 200,
+      body: 'ignored',
+      contentType: 'application/pdf',
+      blobResult: foreignBlob,
+    }));
+    expect(foreignBlob).not.toBeInstanceOf(Blob); // the realm boundary is real
+    const result = await exportReport('doc-demo-manuscript', 'pdf');
+    expect(result.available).toBe(true);
+    if (!result.available) return;
+    expect(result.data).toBe(foreignBlob); // passed through unchanged
+    expect(Object.prototype.toString.call(result.data)).toBe('[object Blob]');
+    expect(calls[0]?.url).toBe(
+      '/.netlify/functions/export-report?caseId=doc-demo-manuscript&format=pdf',
+    );
+  });
+
+  it('negative control: a 2xx binary answer whose body is NOT a Blob still throws the non-blob error', async () => {
+    // Proves the realm-safe check was not weakened: plain object, string,
+    // array, and a Blob-TAG spoof without the Blob interface slots are all
+    // still rejected with the exact error.
+    const tagSpoof = { [Symbol.toStringTag]: 'Blob', size: 3, type: 'application/pdf' };
+    for (const notABlob of [{}, 'not-a-blob', [1, 2, 3], tagSpoof]) {
+      stubBinaryFetch(() => ({
+        status: 200,
+        body: 'ignored',
+        contentType: 'application/pdf',
+        blobResult: notABlob as unknown as Blob,
+      }));
+      const error = await exportReport('doc-demo-manuscript').catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ApiClientError);
+      expect((error as ApiClientError).message).toBe('Export endpoint returned a non-blob body');
+    }
   });
 
   it('exportReport 404 resolves available:false (endpoint-missing), never an error', async () => {

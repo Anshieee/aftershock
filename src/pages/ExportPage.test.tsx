@@ -138,7 +138,11 @@ describe('ExportPage', () => {
     release();
     await waitFor(() => expect(screen.getByTestId('export-done')).toBeTruthy());
 
-    expect(objectURLSpy).toHaveBeenCalledWith(expect.any(Blob));
+    // Realm-independent Blob check: `expect.any(Blob)` is instanceof-based and
+    // rejects the runtime's Blob class under Node 20 + jsdom (Response.blob()
+    // returns a node:buffer Blob) — same realm issue as the client-side check.
+    expect(objectURLSpy).toHaveBeenCalledTimes(1);
+    expect(Object.prototype.toString.call(objectURLSpy.mock.calls[0]![0])).toBe('[object Blob]');
     expect(createdAnchors).toHaveLength(1);
     const anchor = createdAnchors[0]!;
     expect(anchor.download).toBe('aftershock-report-doc-demo-manuscript.pdf');
