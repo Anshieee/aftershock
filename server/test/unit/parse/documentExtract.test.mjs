@@ -300,6 +300,30 @@ describe('parse/documentExtract — PDF via injected op', () => {
     expect(doi.firstLineIndex).toBe(1);
   });
 
+  it('appends the standing truncation caveat when the PDF op reports truncation', async () => {
+    const record = await extractDocument(bytesOf('%PDF-truncated'), {
+      format: 'pdf',
+      fileName: 'paper.pdf',
+      now: '2026-02-02T00:00:00Z',
+      pdfExtractOp: async () => ({
+        ...FAKE_PDF_SHAPE,
+        // Only page 1 was kept (e.g. page budget); the dispatcher must add
+        // the standing truncation caveat to the human-facing honesty block.
+        truncated: true,
+        pages: FAKE_PDF_SHAPE.pages.slice(0, 1),
+        textLength: 120,
+        notes: ['Document has 9 pages; only the first 1 were extracted (page budget).'],
+      }),
+    });
+
+    expect(validateExtractionRecord(record)).toEqual([]);
+    expect(record.extraction.truncated).toBe(true);
+    // Keep in sync with documentExtract.mjs TRUNCATION_CAVEAT (module-internal).
+    expect(record.honesty.caveats).toContain(
+      'Extraction was truncated by a size/page budget; later content was not scanned.',
+    );
+  });
+
   it('propagates an honest attempted:false PDF result', async () => {
     const record = await extractDocument(bytesOf('%PDF'), {
       format: 'pdf',
