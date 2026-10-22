@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Blob as NodeBlob } from 'node:buffer';
 import {
   ActivityEvent,
   ActivityEventType,
@@ -729,16 +730,16 @@ describe('api client — export (M6)', () => {
     expect(call?.init?.method).toBe('POST');
   });
 
-  it('accepts a cross-realm Blob body (brand check, not instanceof) — Node 20 Response.blob() / iframe / worker', async () => {
-    // A Blob from ANOTHER realm: same WebIDL toStringTag brand, but its
-    // prototype chain does not include this realm's Blob — exactly how
-    // Response.blob() behaves under Node 20 + jsdom, or an iframe/worker
-    // Blob in a browser.
-    const foreignBlob = {
-      [Symbol.toStringTag]: 'Blob',
-      size: 3,
+  it('accepts a cross-realm Blob body (not instanceof) — Node 20 Response.blob() / iframe / worker', async () => {
+    // A REAL Blob from ANOTHER realm: node:buffer's Blob is a different class
+    // from this environment's (jsdom's) Blob, exactly how Response.blob()
+    // behaves under Node 20 + jsdom, or an iframe/worker Blob in a browser.
+    // The cast is a typing necessity only: TypeScript's DOM `Blob` and
+    // @types/node's `Blob` are structurally incompatible, but the RUNTIME
+    // fact under test (a different class with the same WebIDL tag) is real.
+    const foreignBlob = new NodeBlob([new Uint8Array([1, 2, 3])], {
       type: 'application/pdf',
-    } as unknown as Blob;
+    }) as unknown as Blob;
     const calls = stubBinaryFetch(() => ({
       status: 200,
       body: 'ignored',
@@ -758,8 +759,10 @@ describe('api client — export (M6)', () => {
 
   it('negative control: a 2xx binary answer whose body is NOT a Blob still throws the non-blob error', async () => {
     // Proves the realm-safe check was not weakened: plain object, string,
-    // and array bodies are still rejected with the exact error.
-    for (const notABlob of [{}, 'not-a-blob', [1, 2, 3]]) {
+    // array, and a Blob-TAG spoof without the Blob interface slots are all
+    // still rejected with the exact error.
+    const tagSpoof = { [Symbol.toStringTag]: 'Blob', size: 3, type: 'application/pdf' };
+    for (const notABlob of [{}, 'not-a-blob', [1, 2, 3], tagSpoof]) {
       stubBinaryFetch(() => ({
         status: 200,
         body: 'ignored',
