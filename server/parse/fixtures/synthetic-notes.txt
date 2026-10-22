@@ -1,0 +1,5 @@
+FICTIONAL / GUIDED DEMO — Aftershock parsing fixture (not real research)
+Plain-text parsing fixtures mirror the PDF fixtures so text extraction can be compared without a PDF layer. This document is fictional, was written offline, and describes no real study or result.
+References
+[1] Demo, A. (2020). A local fixture study. Fixtures Quarterly, 1(1), 1-2. https://doi.org/10.5555/aft-fixture-001
+[2] Sample, B. (2021). Bounding extraction work offline. Local Notes, 3(2), 10-12. 10.5555/aft-fixture-002
