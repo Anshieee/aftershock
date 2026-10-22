@@ -422,7 +422,20 @@ async function buildPdfRecord(bytes, meta, deps) {
     };
   }
 
-  const pages = Array.isArray(pdf.pages) ? pdf.pages.map((page) => ({ ...page })) : [];
+  const pages = Array.isArray(pdf.pages)
+    ? pdf.pages.map((page) => ({
+        ...page,
+        // Symmetry with the TXT branch (defensive, audit nit): the schema
+        // requires non-empty text on every line; pdf.js's pinned option set
+        // does not emit whitespace-only lines in practice, but a stray one
+        // would otherwise fail the hard validation gate instead of being
+        // omitted. Detection enumerates THIS filtered array, so line indexes
+        // stay consistent between record and detections.
+        lines: Array.isArray(page?.lines)
+          ? page.lines.filter((line) => typeof line?.text === 'string' && line.text.trim().length > 0)
+          : page.lines,
+      }))
+    : [];
   const { lines, locate } = enumeratePdfLines(pages);
   const { references, dois } = buildDetections(lines, locate);
 

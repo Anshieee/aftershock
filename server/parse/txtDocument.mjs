@@ -15,8 +15,12 @@
  *   `server/metaExtract.mjs`: binary garbage becomes replacement characters
  *   instead of an exception. When bytes are absent/not a `Uint8Array`, the
  *   result says `decodeFailed: true` and produces no lines.
- * - A reference heading must be a *standalone short line*; prose that merely
- *   mentions "references" is not a heading.
+ * - A reference heading must be a *standalone label*: exactly
+ *   `references` / `bibliography` / `works cited`, plus an optional colon and
+ *   trailing whitespace. Lines that merely mention references in prose
+ *   (e.g. "References included.") do not match.
+ * - A detected heading is a layout heuristic, not human-confirmed structure;
+ *   its note says so explicitly.
  * - Entry segmentation is skipped entirely (with a note) unless at least two
  *   numbered markers are present. Entries are never invented from prose.
  * - Beyond {@link MAX_REFERENCE_ENTRIES}, extra entries are dropped and
@@ -33,11 +37,25 @@ import {
   PARSE_ANALYSIS_VERSION,
 } from './schema.mjs';
 
-/** Longest trimmed line still eligible to be a reference heading. */
+/**
+ * Secondary guard for odd case variants and padded headings. The matcher
+ * below already requires a standalone label, so this cap only rejects
+ * implausibly long/padded variants; it never admits prose on its own.
+ */
 const MAX_HEADING_LENGTH = 24;
 
-/** Standalone heading forms accepted (whole trimmed line, short only). */
-const REFERENCES_HEADING = /^(references|bibliography|works cited)\s*:?.*$/i;
+/**
+ * Standalone heading label only: exact label, optional colon, and trailing
+ * whitespace. No suffixes — "References included." is prose, not a heading.
+ */
+const REFERENCES_HEADING = /^(references|bibliography|works cited)\s*:?\s*$/i;
+
+/**
+ * Honest disclosure attached to a detected reference heading. A heading is a
+ * layout heuristic, not a confirmed structural fact.
+ */
+const HEURISTIC_NOTE =
+  'Reference-heading detection is a layout heuristic; entries listed after it are candidates, not human-confirmed structure.';
 
 /** `[1] text` — bracketed numeric marker. */
 const BRACKETED_MARKER = /^\s*\[\s*(\d{1,3})\s*\]\s+/;
@@ -63,6 +81,19 @@ const FEW_MARKERS_NOTE =
 
 /** Disclosure when `segmentReferenceEntries` was called without a heading. */
 const NO_SECTION_NOTE = 'No reference heading detected; entries not segmented.';
+
+/**
+ * Compose a segmentation note that always carries the heading heuristic
+ * disclosure. `server/parse/documentExtract.mjs` surfaces only this note when a
+ * heading was found, so the heuristic must travel with the segmentation result
+ * to reach `references.sections.note`.
+ *
+ * @param {string} [detail]
+ * @returns {string}
+ */
+function withHeuristicNote(detail = '') {
+  return detail.length > 0 ? `${HEURISTIC_NOTE} ${detail}` : HEURISTIC_NOTE;
+}
 
 /**
  * @param {unknown} value
@@ -183,10 +214,11 @@ export function decodeTxtLines(bytes, deps = {}) {
 /**
  * Find a standalone reference-section heading line.
  *
- * Conservative by design: the trimmed line must start with
- * `references` / `bibliography` / `works cited` AND be at most
- * {@link MAX_HEADING_LENGTH} characters, so prose such as
- * "in the references of the paper" never qualifies.
+ * Conservative by design: the trimmed line must be exactly the label
+ * (`references` / `bibliography` / `works cited`) with at most an optional
+ * colon and trailing whitespace. Prose such as "References included." or
+ * "in the references of the paper" does not qualify. {@link MAX_HEADING_LENGTH}
+ * remains a secondary guard for padded/odd-case variants.
  *
  * @param {Array<{ index: number, page: number, text: string }>} lines
  * @returns {{ found: boolean, startIndex: number | null, headingText: string | null, note: string }}
@@ -196,7 +228,7 @@ export function findReferencesSection(lines) {
     const trimmed = line.text.trim();
     if (trimmed.length === 0 || trimmed.length > MAX_HEADING_LENGTH) continue;
     if (REFERENCES_HEADING.test(trimmed)) {
-      return { found: true, startIndex: line.index, headingText: trimmed, note: '' };
+      return { found: true, startIndex: line.index, headingText: trimmed, note: HEURISTIC_NOTE };
     }
   }
   return { found: false, startIndex: null, headingText: null, note: NO_HEADING_NOTE };
@@ -209,7 +241,9 @@ export function findReferencesSection(lines) {
  * following non-marker lines are continuations. Segmentation is skipped with
  * an honest note unless at least two marker lines are present in the scanned
  * tail. Markers beyond `maxEntries` are dropped (never invented) and reported
- * as `truncated: true`.
+ * as `truncated: true`. For any non-null `startIndex` the returned note begins
+ * with the heading-heuristic disclosure, because the record composer surfaces
+ * this note as `references.sections.note` when a heading was found.
  *
  * @param {Array<{ index: number, page: number, text: string }>} lines
  * @param {number | null} startIndex index of the heading line from
@@ -245,7 +279,12 @@ export function segmentReferenceEntries(lines, startIndex, deps = {}) {
 
   const markerCount = tail.reduce((count, line) => (matchMarker(line.text) ? count + 1 : count), 0);
   if (markerCount < 2) {
-    return { entries: [], segmented: 'unsegmented', truncated: false, note: FEW_MARKERS_NOTE };
+    return {
+      entries: [],
+      segmented: 'unsegmented',
+      truncated: false,
+      note: withHeuristicNote(FEW_MARKERS_NOTE),
+    };
   }
 
   /** @type {Array<{ parts: string[], number: number, startLineIndex: number, endLineIndex: number }>} */
@@ -295,7 +334,9 @@ export function segmentReferenceEntries(lines, startIndex, deps = {}) {
     truncated: dropped > 0,
     note:
       dropped > 0
-        ? `Reference entry cap (${maxEntries}) reached; ${dropped} additional entries were dropped.`
-        : '',
+        ? withHeuristicNote(
+            `Reference entry cap (${maxEntries}) reached; ${dropped} additional entries were dropped.`,
+          )
+        : withHeuristicNote(),
   };
 }

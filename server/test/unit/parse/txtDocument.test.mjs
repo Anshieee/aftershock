@@ -20,10 +20,15 @@ import {
   findReferencesSection,
   segmentReferenceEntries,
 } from '../../../parse/txtDocument.mjs';
+import { extractDocument } from '../../../parse/documentExtract.mjs';
 
 const enc = new TextEncoder();
 const decode = (text, deps) => decodeTxtLines(enc.encode(text), deps);
 const linesOf = (text) => decode(text).lines;
+
+/** Must stay verbatim in sync with the module's heuristic disclosure. */
+const HEURISTIC_NOTE =
+  'Reference-heading detection is a layout heuristic; entries listed after it are candidates, not human-confirmed structure.';
 
 const FIXTURE_LIKE = [
   'FICTIONAL / GUIDED DEMO — synthetic parsing fixture',
@@ -105,18 +110,28 @@ describe('parse/txtDocument — decodeTxtLines', () => {
 });
 
 describe('parse/txtDocument — findReferencesSection', () => {
-  it('finds a case-insensitive standalone "References" heading', () => {
-    const lines = linesOf('Intro paragraph.\nREFERENCES\n[1] one\n[2] two');
-    const result = findReferencesSection(lines);
-    expect(result).toEqual({
+  it('finds standalone "References" case-insensitively and stamps the heuristic note', () => {
+    const plain = findReferencesSection(
+      linesOf('Intro paragraph.\nReferences\n[1] one\n[2] two'),
+    );
+    expect(plain).toEqual({
       found: true,
       startIndex: 2,
-      headingText: 'REFERENCES',
-      note: '',
+      headingText: 'References',
+      note: HEURISTIC_NOTE,
     });
+    expect(plain.note.length).toBeGreaterThan(0);
   });
 
-  it('accepts "bibliography:" and "Works Cited" headings', () => {
+  it('accepts an uppercase heading with a colon ("REFERENCES:")', () => {
+    const result = findReferencesSection(linesOf('Body.\nREFERENCES:\n[1] one\n[2] two'));
+    expect(result.found).toBe(true);
+    expect(result.startIndex).toBe(2);
+    expect(result.headingText).toBe('REFERENCES:');
+    expect(result.note).toBe(HEURISTIC_NOTE);
+  });
+
+  it('accepts "Bibliography:" and "Works Cited" headings', () => {
     const bibliography = findReferencesSection(linesOf('Text\nBibliography:\n1. entry'));
     expect(bibliography.found).toBe(true);
     expect(bibliography.startIndex).toBe(2);
@@ -126,9 +141,20 @@ describe('parse/txtDocument — findReferencesSection', () => {
     expect(worksCited.found).toBe(true);
     expect(worksCited.startIndex).toBe(2);
     expect(worksCited.headingText).toBe('Works Cited');
+    expect(worksCited.note).toBe(HEURISTIC_NOTE);
   });
 
-  it('does not match prose lines that merely mention references', () => {
+  it('rejects a short prose line with a suffix such as "References included."', () => {
+    const result = findReferencesSection(linesOf('Body text.\nReferences included.\n[1] one'));
+    expect(result.found).toBe(false);
+    expect(result.startIndex).toBeNull();
+    expect(result.headingText).toBeNull();
+    expect(result.note).toBe(
+      'No standalone reference heading (references/bibliography/works cited) found; section detection skipped.',
+    );
+  });
+
+  it('does not match longer prose lines that merely mention references', () => {
     const prose = [
       'In the references of the paper, the authors mention many prior studies.',
       'References were suggested by an anonymous reviewer and added later.',
@@ -159,7 +185,7 @@ describe('parse/txtDocument — segmentReferenceEntries', () => {
     const result = segmentReferenceEntries(lines, heading.startIndex);
     expect(result.segmented).toBe('numbered');
     expect(result.truncated).toBe(false);
-    expect(result.note).toBe('');
+    expect(result.note).toBe(HEURISTIC_NOTE);
     expect(result.entries.map((entry) => entry.number)).toEqual([1, 2, 3]);
     expect(result.entries.map((entry) => entry.rawText)).toEqual([
       'Demo, A. (2020). A local fixture study.',
@@ -187,7 +213,7 @@ describe('parse/txtDocument — segmentReferenceEntries', () => {
     expect(result.segmented).toBe('unsegmented');
     expect(result.truncated).toBe(false);
     expect(result.note).toBe(
-      'Fewer than two numbered reference markers found; entry segmentation skipped.',
+      `${HEURISTIC_NOTE} Fewer than two numbered reference markers found; entry segmentation skipped.`,
     );
   });
 
@@ -209,6 +235,7 @@ describe('parse/txtDocument — segmentReferenceEntries', () => {
     expect(result.entries[0].number).toBe(1);
     expect(result.segmented).toBe('numbered');
     expect(result.truncated).toBe(true);
+    expect(result.note).toContain(HEURISTIC_NOTE);
     expect(result.note).toContain('2 additional entries were dropped');
   });
 
@@ -223,5 +250,17 @@ describe('parse/txtDocument — segmentReferenceEntries', () => {
       expect(entry.analysisVersion).toBe(PARSE_ANALYSIS_VERSION);
       expect(entry.createdAt).toBeNull();
     }
+  });
+});
+
+describe('parse/txtDocument — consumer note flow', () => {
+  it('carries the heuristic note into documentExtract references.sections.note', async () => {
+    const record = await extractDocument(enc.encode(FIXTURE_LIKE), {
+      format: 'txt',
+      fileName: 'synthetic.txt',
+    });
+    expect(record.references.sections.found).toBe(true);
+    expect(record.references.sections.segmentation).toBe('numbered');
+    expect(record.references.sections.note).toContain(HEURISTIC_NOTE);
   });
 });

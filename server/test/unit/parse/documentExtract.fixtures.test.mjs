@@ -77,7 +77,7 @@ describe('documentExtract — real fixtures, real default seam (offline M9 integ
     expect(validateExtractionRecord(record)).toEqual([]);
   });
 
-  it('image-only PDF: attempted-but-hon state — no text layer, no invented detections', async () => {
+  it('image-only PDF: attempted-but-honest state — no text layer, no invented detections', async () => {
     const record = await extractDocument(fixtureBytes('synthetic-scanned-image-only.pdf'), {
       fileName: 'synthetic-scanned-image-only.pdf', format: 'pdf', now: NOW,
     });
