@@ -272,7 +272,17 @@ function validatePage(page, path, errors) {
     if (!isNonEmptyString(line.text)) {
       errors.push(`${linePath}.text must be a non-empty string`);
     }
-    for (const coordinate of ['x', 'y', 'width', 'height']) {
+    // Coordinates are optional member-wise: a line from a coordinate-less
+    // source (e.g. plain-text files) simply omits them; when ANY coordinate
+    // member is present, all four must be finite numbers (partial geometry
+    // is an error — never emit fake placeholder geometry).
+    const presentCoordinates = ['x', 'y', 'width', 'height'].filter((coordinate) =>
+      Object.prototype.hasOwnProperty.call(line, coordinate),
+    );
+    if (presentCoordinates.length > 0 && presentCoordinates.length < 4) {
+      errors.push(`${linePath} must provide all of x, y, width, height when it provides any coordinate`);
+    }
+    for (const coordinate of presentCoordinates) {
       if (!isFiniteNumber(line[coordinate])) {
         errors.push(`${linePath}.${coordinate} must be a finite number`);
       }

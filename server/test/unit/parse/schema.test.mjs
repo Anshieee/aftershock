@@ -227,6 +227,21 @@ describe('parse/schema — validateExtractionRecord rejects malformed records', 
     expectErrors(record);
   });
 
+  it('rejects a line with only some coordinate members (partial geometry)', () => {
+    const record = validAttempted();
+    delete record.extraction.pages[0].lines[0].y;
+    expectErrors(record);
+  });
+
+  it('accepts a coordinateless line (placement-less source, e.g. plain text)', () => {
+    const record = validAttempted();
+    delete record.extraction.pages[0].lines[0].x;
+    delete record.extraction.pages[0].lines[0].y;
+    delete record.extraction.pages[0].lines[0].width;
+    delete record.extraction.pages[0].lines[0].height;
+    expect(validateExtractionRecord(record)).toEqual([]);
+  });
+
   it('rejects a page with a zero or non-numeric index', () => {
     const zeroIndex = validAttempted();
     zeroIndex.extraction.pages[0].index = 0;
