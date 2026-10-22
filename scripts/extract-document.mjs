@@ -28,7 +28,17 @@
  * local; do not pipe it into logs, tickets, or shared chat.
  */
 
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
+
 import { extractDocument } from '../server/parse/documentExtract.mjs';
+
+/**
+ * Local in-memory read cap for the CLI (the module-level budgets trim the
+ * scan/decode window, but the file is read whole first — refuse absurd
+ * inputs up front instead of silently filling RAM).
+ */
+const MAX_INPUT_FILE_BYTES = 200 * 1024 * 1024;
 
 const USAGE = `Aftershock local document extraction (offline; no network, no graph).
 
@@ -48,6 +58,14 @@ function failExit(code, message) {
   process.exit(code);
 }
 
+function takeValue(argv, index, flag) {
+  const value = argv[index + 1];
+  if (value === undefined || value.startsWith('--')) {
+    failExit(2, `${flag} requires a value`);
+  }
+  return value;
+}
+
 function parseArgv(argv) {
   const out = { file: null, format: null, maxPages: null, outPath: null };
   for (let i = 0; i < argv.length; i += 1) {
@@ -57,17 +75,18 @@ function parseArgv(argv) {
       process.exit(0);
     }
     if (arg === '--format') {
-      out.format = argv[i + 1] ?? '';
+      out.format = takeValue(argv, i, '--format');
       i += 1;
-      if (!out.format) failExit(2, '--format requires a value (txt|pdf|docx)');
     } else if (arg === '--max-pages') {
-      out.maxPages = argv[i + 1] ?? '';
+      const raw = takeValue(argv, i, '--max-pages');
+      if (!/^[1-9]\d*$/.test(raw)) {
+        failExit(2, '--max-pages requires a positive integer (a zero-page extraction is not a meaningful scan)');
+      }
+      out.maxPages = raw;
       i += 1;
-      if (!/^\d+$/.test(out.maxPages ?? '')) failExit(2, '--max-pages requires a non-negative integer');
     } else if (arg === '--out') {
-      out.outPath = argv[i + 1] ?? '';
+      out.outPath = takeValue(argv, i, '--out');
       i += 1;
-      if (!out.outPath) failExit(2, '--out requires a path');
     } else if (arg === '--') {
       continue;
     } else if (arg.startsWith('--')) {
@@ -91,10 +110,38 @@ function formatFromExtension(fileName) {
 async function main() {
   const args = parseArgv(process.argv.slice(2));
   if (args.file === null) failExit(2, 'a file path is required (node scripts/extract-document.mjs <file> --help)');
+  if (args.outPath && resolvePath(args.outPath) === resolvePath(args.file)) {
+    failExit(2, '--out must not be the input file itself; refusing to overwrite the source document.');
+  }
+
+  // Input guard: the module budgets cap what gets SCANNED, but the CLI reads
+  // the file whole; refuse non-files and absurd sizes with an honest
+  // rejection before any content is opened.
+  try {
+    const stat = statSync(args.file);
+    if (!stat.isFile()) {
+      failExit(1, 'the input path is not a regular file; nothing was scanned.');
+    }
+    if (stat.size > MAX_INPUT_FILE_BYTES) {
+      failExit(
+        1,
+        `the input file is ${stat.size} bytes, above the local read cap (${MAX_INPUT_FILE_BYTES} bytes); nothing was scanned.`,
+      );
+    }
+  } catch (err) {
+    const code = err && err.code ? err.code : 'stat error';
+    const readLike = code === 'ENOENT' || code === 'EACCES' || code === 'EPERM';
+    failExit(
+      1,
+      readLike
+        ? `could not read the input file (${code}); nothing was scanned.`
+        : `could not inspect the input file (${code}); nothing was scanned.`,
+    );
+  }
 
   let bytes;
   try {
-    bytes = new Uint8Array(await import('node:fs').then((fs) => fs.readFileSync(args.file)));
+    bytes = new Uint8Array(readFileSync(args.file));
   } catch (err) {
     failExit(1, `could not read the input file (${err && err.code ? err.code : 'read error'}); nothing was scanned.`);
   }
@@ -121,7 +168,6 @@ async function main() {
 
   const json = JSON.stringify(record, null, 2) + '\n';
   if (args.outPath) {
-    const { writeFileSync } = await import('node:fs');
     try {
       writeFileSync(args.outPath, json, 'utf-8');
       process.stderr.write(
